@@ -16,48 +16,40 @@ export function PostPage({ post }: PostPageProps) {
   const { data: session } = authClient.useSession();
   // Approximate word count
   const wordCount = post.readTimeInMinutes * 300;
-  // 添加这个 useEffect
   useEffect(() => {
-    // 等待 DOM 渲染完成
-    const timer = setTimeout(() => {
-      // 选择文章内容容器（类名 .fuwari-custom-md）
-      const container = document.querySelector('.fuwari-custom-md');
-      if (!container) return;
+  const container = document.querySelector('.fuwari-custom-md');
+  if (!container) return;
 
-      // 方式一：将特定占位符 div 转换为 iframe
-      const placeholders = container.querySelectorAll('[data-netease-id]');
-      placeholders.forEach((el) => {
-        const id = el.getAttribute('data-netease-id');
-        if (id && !el.querySelector('iframe')) {
-          const iframe = document.createElement('iframe');
-          iframe.src = `//music.163.com/outchain/player?type=2&id=${id}&auto=0&height=66`;
-          iframe.width = '330';
-          iframe.height = '86';
-          iframe.frameBorder = '0';
-          el.appendChild(iframe);
-        }
-      });
+  // 使用 TreeWalker 遍历所有文本节点
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+  const toReplace = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (node.textContent && node.textContent.includes('data-netease-id')) {
+      toReplace.push(node);
+    }
+  }
 
-      // 方式二（可选）：自动将网易云音乐链接替换为 iframe
-      const links = container.querySelectorAll('a[href*="music.163.com/song"]');
-      links.forEach((link) => {
-        const url = link.getAttribute('href');
-        const match = url?.match(/id=(\d+)/);
-        if (match && !link.nextSibling?.nodeName?.includes('IFRAME')) {
-          const songId = match[1];
-          const iframe = document.createElement('iframe');
-          iframe.src = `//music.163.com/outchain/player?type=2&id=${songId}&auto=0&height=66`;
-          iframe.width = '409';
-          iframe.height = '86';
-          iframe.frameBorder = '0';
-          // 将链接替换为 iframe
-          link.parentNode?.replaceChild(iframe, link);
-        }
-      });
-    }, 100); // 轻微延迟确保 DOM 已更新
-
-    return () => clearTimeout(timer);
-  }, [post.id]); // 依赖 post.id，确保文章切换时重新执行
+  for (const textNode of toReplace) {
+    let content = textNode.textContent || '';
+    // 尝试匹配两种格式：原始 HTML 或实体编码后的
+    let match = content.match(/data-netease-id=["'](\d+)["']/);
+    if (!match) {
+      // 如果被实体编码，比如 &quot; 或 &#34;
+      match = content.match(/data-netease-id=&(?:quot|#34);(\d+)&(?:quot|#34);/);
+    }
+    if (match) {
+      const id = match[1];
+      const iframe = document.createElement('iframe');
+      iframe.src = `//music.163.com/outchain/player?type=2&id=${id}&auto=0&height=66`;
+      iframe.width = '409';
+      iframe.height = '86';
+      iframe.frameBorder = '0';
+      // 替换整个文本节点
+      textNode.parentNode?.replaceChild(iframe, textNode);
+    }
+  }
+}, [post.id]);
 
   // ... 原有 return
   return (
