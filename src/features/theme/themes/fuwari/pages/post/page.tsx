@@ -20,7 +20,6 @@ export function PostPage({ post }: PostPageProps) {
   const container = document.querySelector('.fuwari-custom-md');
   if (!container) return;
 
-  // 使用 TreeWalker 遍历所有文本节点
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
   const toReplace = [];
   while (walker.nextNode()) {
@@ -32,22 +31,21 @@ export function PostPage({ post }: PostPageProps) {
 
   for (const textNode of toReplace) {
     let content = textNode.textContent || '';
-    // 尝试匹配两种格式：原始 HTML 或实体编码后的
-    let match = content.match(/data-netease-id=["'](\d+)["']/);
-    if (!match) {
-      // 如果被实体编码，比如 &quot; 或 &#34;
-      match = content.match(/data-netease-id=&(?:quot|#34);(\d+)&(?:quot|#34);/);
-    }
-    if (match) {
-      const id = match[1];
+    // 匹配 id 和 type（支持实体编码）
+    const idMatch = content.match(/data-netease-id=&(?:quot|#34);(\d+)&(?:quot|#34);/) ||
+                    content.match(/data-netease-id=["'](\d+)["']/);
+    const typeMatch = content.match(/data-netease-type=&(?:quot|#34);(\d+)&(?:quot|#34);/) ||
+                      content.match(/data-netease-type=["'](\d+)["']/);
+    if (idMatch) {
+      const id = idMatch[1];
+      const type = typeMatch ? typeMatch[1] : '2';
       const iframe = document.createElement('iframe');
-      iframe.src = `//music.163.com/outchain/player?type=2&id=${id}&auto=0&height=66`;
+      iframe.src = `//music.163.com/outchain/player?type=${type}&id=${id}&auto=0&height=66`;
       iframe.width = '100%';
       iframe.height = '86';
       iframe.frameBorder = '0';
-      iframe.style.maxWidth = '409px';  // 限制最大宽度，防止在大屏幕上过宽
+      iframe.style.maxWidth = '409px';
       iframe.style.display = 'block';
-      // 替换整个文本节点
       textNode.parentNode?.replaceChild(iframe, textNode);
     }
   }
