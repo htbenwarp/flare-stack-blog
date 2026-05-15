@@ -42,9 +42,11 @@ export function PostPage({ post }: PostPageProps) {
       const id = match[1];
       const iframe = document.createElement('iframe');
       iframe.src = `//music.163.com/outchain/player?type=2&id=${id}&auto=0&height=66`;
-      iframe.width = '409';
+      iframe.width = '100%';
       iframe.height = '86';
       iframe.frameBorder = '0';
+      iframe.style.maxWidth = '409px';  // 限制最大宽度，防止在大屏幕上过宽
+      iframe.style.display = 'block';
       // 替换整个文本节点
       textNode.parentNode?.replaceChild(iframe, textNode);
     }
