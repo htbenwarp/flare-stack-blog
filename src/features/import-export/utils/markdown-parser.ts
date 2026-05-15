@@ -1,4 +1,32 @@
 import type { JSONContent } from "@tiptap/react";
+import { Node } from "@tiptap/core";
+
+// 自定义 iframe 节点扩展
+const IframeExtension = Node.create({
+  name: 'iframe',
+  group: 'block',
+  atom: true,           // 表示不可再分的内嵌节点
+  parseHTML() {
+    return [
+      {
+        tag: 'iframe',   // 匹配 HTML 中的 <iframe> 标签
+      },
+    ];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['iframe', HTMLAttributes];
+  },
+  addAttributes() {
+    return {
+      src: { default: null },
+      width: { default: null },
+      height: { default: null },
+      frameborder: { default: '0' },
+      allow: { default: null },
+      allowfullscreen: { default: false },
+    };
+  },
+});
 
 function escapeHtmlAttr(s: string): string {
   return s
@@ -107,6 +135,7 @@ export async function markdownToJsonContent(
     TableRow,
     TableHeader,
     TableCell,
+    IframeExtension,
   ]);
 
   const { document } = parseHTML(
