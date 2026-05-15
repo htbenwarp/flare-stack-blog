@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Clock, FileText, Pencil } from "lucide-react";
 import { Suspense } from "react";
+import { useEffect } from "react";
 import type { PostPageProps } from "@/features/theme/contract/pages";
 import { FuwariCommentSection } from "@/features/theme/themes/fuwari/components/comments/view/comment-section";
 import { ContentRenderer } from "@/features/theme/themes/fuwari/components/content/content-renderer";
@@ -15,7 +16,50 @@ export function PostPage({ post }: PostPageProps) {
   const { data: session } = authClient.useSession();
   // Approximate word count
   const wordCount = post.readTimeInMinutes * 300;
+  // 添加这个 useEffect
+  useEffect(() => {
+    // 等待 DOM 渲染完成
+    const timer = setTimeout(() => {
+      // 选择文章内容容器（类名 .fuwari-custom-md）
+      const container = document.querySelector('.fuwari-custom-md');
+      if (!container) return;
 
+      // 方式一：将特定占位符 div 转换为 iframe
+      const placeholders = container.querySelectorAll('[data-netease-id]');
+      placeholders.forEach((el) => {
+        const id = el.getAttribute('data-netease-id');
+        if (id && !el.querySelector('iframe')) {
+          const iframe = document.createElement('iframe');
+          iframe.src = `//music.163.com/outchain/player?type=2&id=${id}&auto=0&height=66`;
+          iframe.width = '330';
+          iframe.height = '86';
+          iframe.frameBorder = '0';
+          el.appendChild(iframe);
+        }
+      });
+
+      // 方式二（可选）：自动将网易云音乐链接替换为 iframe
+      const links = container.querySelectorAll('a[href*="music.163.com/song"]');
+      links.forEach((link) => {
+        const url = link.getAttribute('href');
+        const match = url?.match(/id=(\d+)/);
+        if (match && !link.nextSibling?.nodeName?.includes('IFRAME')) {
+          const songId = match[1];
+          const iframe = document.createElement('iframe');
+          iframe.src = `//music.163.com/outchain/player?type=2&id=${songId}&auto=0&height=66`;
+          iframe.width = '409';
+          iframe.height = '86';
+          iframe.frameBorder = '0';
+          // 将链接替换为 iframe
+          link.parentNode?.replaceChild(iframe, link);
+        }
+      });
+    }, 100); // 轻微延迟确保 DOM 已更新
+
+    return () => clearTimeout(timer);
+  }, [post.id]); // 依赖 post.id，确保文章切换时重新执行
+
+  // ... 原有 return
   return (
     <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
       {/* Table Of Contents (Desktop Floating Right) */}
