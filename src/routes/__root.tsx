@@ -82,21 +82,21 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
   // 动态设置全局字体：全覆盖 + 排除代码块和编辑器
   useEffect(() => {
-  // ========== 1. 全局字体覆盖（与旧版完全一致，保证字体显示） ==========
-  const styleId = "dynamic-font-global";
-  let styleEl = document.getElementById(styleId) as HTMLStyleElement;
-  if (!styleEl) {
-    styleEl = document.createElement("style");
-    styleEl.id = styleId;
-    document.head.appendChild(styleEl);
+  // ================= 全局字体覆盖 =================
+  const globalStyleId = "dynamic-font-global";
+  let globalStyle = document.getElementById(globalStyleId) as HTMLStyleElement;
+  if (!globalStyle) {
+    globalStyle = document.createElement("style");
+    globalStyle.id = globalStyleId;
+    document.head.appendChild(globalStyle);
   }
   if (fontFamily) {
-    styleEl.textContent = `* { font-family: ${fontFamily} !important; }`;
+    globalStyle.textContent = `* { font-family: ${fontFamily} !important; }`;
   } else {
-    styleEl.textContent = "";
+    globalStyle.textContent = "";
   }
 
-  // ========== 2. 字体自动加载（Google Fonts / LXGW WenKai） ==========
+  // ================= 字体自动加载 =================
   if (fontFamily && !fontFamily.includes(",")) {
     let fontName = fontFamily.split(":")[0].trim().replace(/^['"]|['"]$/g, "");
     if (fontName.toLowerCase() === "lxgw wenkai") {
@@ -134,32 +134,34 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // ========== 3. JavaScript 强制修正代码块/编辑器为等宽字体 ==========
-  // 使用 MutationObserver 确保动态添加的内容也被修正
-  const applyMonospace = () => {
+  // ================= 强制代码块等宽字体（内联样式） =================
+  const setCodeBlockFont = () => {
     const selectors = [
       "pre", "code", "kbd", "samp", "tt",
-      ".ProseMirror", ".tiptap-editor"
+      ".ProseMirror", ".ProseMirror *",
+      ".tiptap-editor", ".tiptap-editor *"
     ];
     const elements = document.querySelectorAll(selectors.join(","));
     elements.forEach((el) => {
       if (el instanceof HTMLElement) {
-        // 内联样式优先级最高，且不会干扰全局 CSS
-        el.style.setProperty("font-family", "monospace", "important");
+        // 仅当当前不是 monospace 时设置，减少不必要的重绘
+        if (el.style.fontFamily !== "monospace") {
+          el.style.setProperty("font-family", "monospace", "important");
+        }
       }
     });
   };
 
-  // 初始应用
-  if (fontFamily) {
-    applyMonospace();
-    // 监听 DOM 变化，确保新添加的代码块也被处理
-    const observer = new MutationObserver(() => applyMonospace());
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }
-}, [fontFamily]);
+  // 立即执行
+  setCodeBlockFont();
 
+  // 监听 DOM 变化，处理动态加载的内容
+  const observer = new MutationObserver(() => setCodeBlockFont());
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  return () => observer.disconnect();
+}, [fontFamily]);
+  
   return (
     <html lang={locale} suppressHydrationWarning style={theme.getDocumentStyle?.(siteConfig)}>
       <head>
