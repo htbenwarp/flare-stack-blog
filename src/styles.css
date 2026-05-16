@@ -2,3 +2,16 @@
 @import "./styles/shared.css";
 @import "tw-animate-css";
 @import url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/style.css');
+
+/* 强制代码块和 Tiptap 编辑器使用等宽字体，确保优先级高于全局 * 规则 */
+body pre,
+body code,
+body kbd,
+body samp,
+body tt,
+.ProseMirror,
+.ProseMirror *,
+.tiptap-editor,
+.tiptap-editor * {
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace !important;
+}
