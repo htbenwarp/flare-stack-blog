@@ -22,8 +22,7 @@ interface MyRouterContext {
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
   beforeLoad: async ({ context }) => {
-    const siteConfig =
-      await context.queryClient.ensureQueryData(siteConfigQuery);
+    const siteConfig = await context.queryClient.ensureQueryData(siteConfigQuery);
     return { siteConfig };
   },
   loader: async ({ context }) => {
@@ -31,7 +30,6 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
   },
   head: ({ loaderData }) => {
     const env = clientEnv();
-
     return {
       meta: [
         { charSet: "utf-8" },
@@ -73,14 +71,14 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     }
 
     if (fontFamily) {
-      // 1. 只对正文区域和通用文本元素设置字体，避免影响代码块
-      //   选择器覆盖：body, main, article, .content, .markdown-body, .prose, p, h1-h6, li, a 等
-      //   你可以根据实际主题调整，但保留代码块选择器单独定义
+      // ① 注入全局字体样式（避免使用 *，精准覆盖正文区域）
       styleEl.textContent = `
-        body, main, article, .content, .markdown-body, .prose, p, h1, h2, h3, h4, h5, h6, li, a, span, div:not(.no-font) {
+        /* 全局字体：正文、标题、列表、链接等 */
+        body, main, article, .content, .markdown-body, .prose,
+        p, h1, h2, h3, h4, h5, h6, li, a, span, div, .post-content {
           font-family: ${fontFamily} !important;
         }
-        /* 强制代码块恢复等宽字体 */
+        /* 代码块恢复等宽字体（覆盖上面继承） */
         pre, code, kbd, samp, tt, var, .code-block, .hljs, .token,
         .prose pre code, .markdown pre code, [class*="language-"],
         .highlight pre, .chroma, .line-numbers, .linenumber {
@@ -88,10 +86,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         }
       `;
 
-      // 2. 字体资源自动加载
+      // ② 自动加载字体资源（Google Fonts / LXGW WenKai）
       const firstFont = fontFamily.split(",")[0].trim().replace(/^['"]|['"]$/g, "");
       if (!firstFont.includes(" ")) {
-        // LXGW WenKai 特殊处理
+        // 特殊处理 LXGW WenKai（不在 Google Fonts）
         if (firstFont.toLowerCase() === "lxgw wenkai") {
           const fontFaceId = "lxgw-wenkai-font-face";
           if (!document.getElementById(fontFaceId)) {
@@ -116,7 +114,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             document.head.appendChild(fontStyle);
           }
         } else {
-          // Google Fonts
+          // Google Fonts 加载
           const linkId = `google-font-${firstFont}`;
           if (!document.getElementById(linkId)) {
             const link = document.createElement("link");
@@ -128,6 +126,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         }
       }
     } else {
+      // 无自定义字体时清空覆盖样式
       styleEl.textContent = "";
     }
   }, [fontFamily]);
