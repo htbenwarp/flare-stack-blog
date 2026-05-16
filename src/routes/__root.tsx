@@ -7,6 +7,7 @@ import {
   useRouteContext,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { useEffect } from "react"; // 新增导入
 import theme from "@theme";
 import { ThemeProvider } from "@/components/common/theme-provider";
 import { siteConfigQuery } from "@/features/config/queries";
@@ -114,6 +115,28 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 function RootDocument({ children }: { children: React.ReactNode }) {
   const locale = getLocale();
   const { siteConfig } = useRouteContext({ from: "__root__" });
+  const fontFamily = siteConfig?.fontFamily?.trim();
+
+  // 动态设置全局字体
+  useEffect(() => {
+    if (fontFamily) {
+      document.documentElement.style.fontFamily = fontFamily;
+      // 可选：自动加载 Google Fonts（单字体名）
+      if (!fontFamily.includes(',')) {
+        const fontName = fontFamily.split(':')[0];
+        const linkId = 'dynamic-google-font';
+        if (!document.getElementById(linkId)) {
+          const link = document.createElement('link');
+          link.id = linkId;
+          link.rel = 'stylesheet';
+          link.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@400;500;600;700&display=swap`;
+          document.head.appendChild(link);
+        }
+      }
+    } else {
+      document.documentElement.style.fontFamily = '';
+    }
+  }, [fontFamily]);
 
   return (
     <html
