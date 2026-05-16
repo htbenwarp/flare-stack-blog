@@ -82,20 +82,30 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
   // 动态设置全局字体：全覆盖 + 排除代码块和编辑器
   useEffect(() => {
-  const styleId = "dynamic-font-override";
-  let styleEl = document.getElementById(styleId) as HTMLStyleElement;
-  if (!styleEl) {
-    styleEl = document.createElement("style");
-    styleEl.id = styleId;
-    document.head.appendChild(styleEl);
+  // 1. 全局字体样式（旧版工作逻辑）
+  const globalStyleId = "global-font-style";
+  let globalStyle = document.getElementById(globalStyleId) as HTMLStyleElement;
+  if (!globalStyle) {
+    globalStyle = document.createElement("style");
+    globalStyle.id = globalStyleId;
+    document.head.appendChild(globalStyle);
+  }
+
+  // 2. 排除规则（代码块、编辑器等）
+  const excludeStyleId = "exclude-font-style";
+  let excludeStyle = document.getElementById(excludeStyleId) as HTMLStyleElement;
+  if (!excludeStyle) {
+    excludeStyle = document.createElement("style");
+    excludeStyle.id = excludeStyleId;
+    document.head.appendChild(excludeStyle);
   }
 
   if (fontFamily) {
-    // 全局覆盖所有元素，但代码块和编辑器强制使用等宽字体
-    styleEl.textContent = `
-      * {
-        font-family: ${fontFamily} !important;
-      }
+    // 全局覆盖所有元素
+    globalStyle.textContent = `* { font-family: ${fontFamily} !important; }`;
+
+    // 排除规则：代码块和 Tiptap 编辑器强制等宽字体
+    excludeStyle.textContent = `
       pre, code, kbd, samp, tt,
       .ProseMirror, .ProseMirror *,
       .tiptap-editor, .tiptap-editor * {
@@ -103,9 +113,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       }
     `;
 
-    // 自动加载字体（Google Fonts 或 LXGW WenKai）—— 保持原有逻辑不变
+    // 自动加载字体（保持原有逻辑不变）
     if (!fontFamily.includes(",")) {
       let fontName = fontFamily.split(":")[0].trim().replace(/^['"]|['"]$/g, "");
+      // LXGW WenKai 特殊处理
       if (fontName.toLowerCase() === "lxgw wenkai") {
         const fontFaceId = "lxgw-wenkai-font-face";
         if (!document.getElementById(fontFaceId)) {
@@ -130,6 +141,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           document.head.appendChild(fontStyle);
         }
       } else if (!fontName.includes(" ")) {
+        // 单个单词 -> Google Fonts
         const linkId = `google-font-${fontName}`;
         if (!document.getElementById(linkId)) {
           const link = document.createElement("link");
@@ -141,7 +153,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       }
     }
   } else {
-    styleEl.textContent = "";
+    // 无自定义字体时清空两个样式标签
+    globalStyle.textContent = "";
+    excludeStyle.textContent = "";
   }
 }, [fontFamily]);
 
