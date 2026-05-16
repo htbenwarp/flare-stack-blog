@@ -7,7 +7,7 @@ import {
   useRouteContext,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { useEffect } from "react"; // 新增导入
+import { useEffect } from "react";
 import theme from "@theme";
 import { ThemeProvider } from "@/components/common/theme-provider";
 import { siteConfigQuery } from "@/features/config/queries";
@@ -117,46 +117,73 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const { siteConfig } = useRouteContext({ from: "__root__" });
   const fontFamily = siteConfig?.fontFamily?.trim();
 
-  // 动态设置全局字体
+  // 动态设置全局字体，并为代码块保留等宽字体
   useEffect(() => {
-  const styleId = 'dynamic-font-override';
-  let styleEl = document.getElementById(styleId) as HTMLStyleElement;
-  if (!styleEl) {
-    styleEl = document.createElement('style');
-    styleEl.id = styleId;
-    document.head.appendChild(styleEl);
-  }
-  if (fontFamily) {
-    // 强制覆盖所有元素，注意：可能影响部分特定样式（如代码块），但通常可接受
-    styleEl.textContent = `* { font-family: ${fontFamily} !important; }`;
-    // 可选：自动加载 Google Fonts 或 LXGW WenKai 的逻辑
-    if (!fontFamily.includes(',')) {
-      const fontName = fontFamily.split(':')[0].trim().replace(/^['"]|['"]$/g, '');
-      if (fontName.toLowerCase() === 'lxgw wenkai') {
-        const linkId = 'lxgw-wenkai-font';
-        if (!document.getElementById(linkId)) {
-          const link = document.createElement('link');
-          link.id = linkId;
-          link.rel = 'stylesheet';
-          link.href = 'https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/style.css';
-          document.head.appendChild(link);
+    const styleId = "dynamic-font-override";
+    let styleEl = document.getElementById(styleId) as HTMLStyleElement;
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
+    }
+
+    if (fontFamily) {
+      // 强制全局字体，但代码块、预格式化文本等使用等宽字体
+      styleEl.textContent = `
+        * {
+          font-family: ${fontFamily} !important;
         }
-      } else if (!fontName.includes(' ')) {
-        // 单个词，可能是 Google Fonts
-        const linkId = 'google-font-' + fontName;
-        if (!document.getElementById(linkId)) {
-          const link = document.createElement('link');
-          link.id = linkId;
-          link.rel = 'stylesheet';
-          link.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@400;500;600;700&display=swap`;
-          document.head.appendChild(link);
+        pre, code, kbd, samp, tt, var, .code-block, .hljs, .token,
+        .prose pre code, .markdown pre code,
+        [class*="language-"], .highlight pre, .chroma {
+          font-family: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'SF Mono', monospace !important;
+        }
+      `;
+
+      // 自动加载字体资源（Google Fonts 或 LXGW WenKai）
+      const fontNameRaw = fontFamily.split(",")[0].trim().replace(/^['"]|['"]$/g, "");
+      // 如果字体名不包含空格，则可能是 Google Fonts
+      if (!fontNameRaw.includes(" ")) {
+        // 特殊处理 LXGW WenKai（不在 Google Fonts 上）
+        if (fontNameRaw.toLowerCase() === "lxgw wenkai") {
+          const fontFaceId = "lxgw-wenkai-font-face";
+          if (!document.getElementById(fontFaceId)) {
+            const fontStyle = document.createElement("style");
+            fontStyle.id = fontFaceId;
+            fontStyle.textContent = `
+              @font-face {
+                font-family: 'LXGW WenKai';
+                src: url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/lxgwwenkairegular.woff2') format('woff2');
+                font-weight: 400;
+                font-style: normal;
+                font-display: swap;
+              }
+              @font-face {
+                font-family: 'LXGW WenKai';
+                src: url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/lxgwwenkai-bold.woff2') format('woff2');
+                font-weight: 700;
+                font-style: normal;
+                font-display: swap;
+              }
+            `;
+            document.head.appendChild(fontStyle);
+          }
+        } else {
+          const linkId = `google-font-${fontNameRaw}`;
+          if (!document.getElementById(linkId)) {
+            const link = document.createElement("link");
+            link.id = linkId;
+            link.rel = "stylesheet";
+            link.href = `https://fonts.googleapis.com/css2?family=${fontNameRaw}:wght@400;500;600;700&display=swap`;
+            document.head.appendChild(link);
+          }
         }
       }
+    } else {
+      styleEl.textContent = "";
+      // 可选：移除之前添加的字体资源（但没必要）
     }
-  } else {
-    styleEl.textContent = '';
-  }
-}, [fontFamily]);
+  }, [fontFamily]);
 
   return (
     <html
