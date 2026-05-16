@@ -29,6 +29,11 @@ function createSiteTextFormSchema(max: number, messages: Messages) {
     .max(max, messages.settings_site_validation_too_long({ max }));
 }
 
+// 新增：字体族校验（最多200字符，可选）
+function createFontFamilySchema() {
+  return z.string().trim().max(200).optional();
+}
+
 function createAssetRefSchema() {
   return z.string().refine((value) => value === "" || value.startsWith("/"), {
     message: "Please enter a root-relative path",
@@ -286,6 +291,7 @@ export const FullSiteConfigSchema = z.object({
   title: createSiteTextSchema(120),
   author: createSiteTextSchema(80),
   description: createSiteTextSchema(300),
+  fontFamily: createFontFamilySchema(), // 新增
   social: z.array(SocialLinkSchema),
   icons: z.object({
     faviconSvg: createAssetPathSchema(),
@@ -306,6 +312,7 @@ export function createSiteConfigInputFormSchema(messages: Messages) {
     title: createSiteTextFormSchema(120, messages).optional(),
     author: createSiteTextFormSchema(80, messages).optional(),
     description: createSiteTextFormSchema(300, messages).optional(),
+    fontFamily: createSiteTextFormSchema(200, messages).optional(), // 新增
     social: z.array(SocialLinkSchema).optional(),
     icons: z
       .object({
@@ -331,6 +338,7 @@ export const SiteConfigInputSchema = z.object({
   title: createSiteTextSchema(120).optional(),
   author: createSiteTextSchema(80).optional(),
   description: createSiteTextSchema(300).optional(),
+  fontFamily: createFontFamilySchema(), // 新增
   social: z.array(SocialLinkSchema).optional(),
   icons: z
     .object({
