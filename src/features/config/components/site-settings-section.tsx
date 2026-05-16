@@ -89,6 +89,18 @@ export function SiteSettingsSection() {
             placeholder={m.settings_site_field_description_ph()}
           />
         </Field>
+        
+        <Field
+          label={m.settings_site_field_font_family()}
+          hint={m.settings_site_field_font_family_hint()}
+          error={errors.site?.fontFamily?.message}
+        >
+          <Input
+            {...register("site.fontFamily")}
+            className={getInputClassName(errors.site?.fontFamily?.message)}
+            placeholder={m.settings_site_field_font_family_ph()}
+          />
+        </Field>
       </SectionShell>
 
       <SectionShell
