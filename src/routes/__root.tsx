@@ -82,43 +82,21 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
   // 动态设置全局字体：全覆盖 + 排除代码块和编辑器
   useEffect(() => {
-  // 第一步：全局字体覆盖（与旧版完全相同，保证字体显示）
-  const globalStyleId = "dynamic-font-global";
-  let globalStyle = document.getElementById(globalStyleId) as HTMLStyleElement;
-  if (!globalStyle) {
-    globalStyle = document.createElement("style");
-    globalStyle.id = globalStyleId;
-    document.head.appendChild(globalStyle);
+  // ========== 1. 全局字体覆盖（与旧版完全一致，保证字体显示） ==========
+  const styleId = "dynamic-font-global";
+  let styleEl = document.getElementById(styleId) as HTMLStyleElement;
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = styleId;
+    document.head.appendChild(styleEl);
   }
-  // 设置全局字体内容
   if (fontFamily) {
-    globalStyle.textContent = `* { font-family: ${fontFamily} !important; }`;
+    styleEl.textContent = `* { font-family: ${fontFamily} !important; }`;
   } else {
-    globalStyle.textContent = "";
+    styleEl.textContent = "";
   }
 
-  // 第二步：单独处理代码块和编辑器，确保它们使用等宽字体（独立 style，不影响全局）
-  const codeStyleId = "dynamic-font-code-override";
-  let codeStyle = document.getElementById(codeStyleId) as HTMLStyleElement;
-  if (!codeStyle) {
-    codeStyle = document.createElement("style");
-    codeStyle.id = codeStyleId;
-    document.head.appendChild(codeStyle);
-  }
-  // 只要有 fontFamily 就应用代码块覆盖（防止全局字体覆盖代码块）
-  if (fontFamily) {
-    codeStyle.textContent = `
-      pre, code, kbd, samp, tt,
-      .ProseMirror, .ProseMirror *,
-      .tiptap-editor, .tiptap-editor * {
-        font-family: monospace !important;
-      }
-    `;
-  } else {
-    codeStyle.textContent = "";
-  }
-
-  // 第三步：字体自动加载（Google Fonts / LXGW WenKai）—— 保持原有逻辑不变
+  // ========== 2. 字体自动加载（Google Fonts / LXGW WenKai） ==========
   if (fontFamily && !fontFamily.includes(",")) {
     let fontName = fontFamily.split(":")[0].trim().replace(/^['"]|['"]$/g, "");
     if (fontName.toLowerCase() === "lxgw wenkai") {
@@ -154,6 +132,31 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         document.head.appendChild(link);
       }
     }
+  }
+
+  // ========== 3. JavaScript 强制修正代码块/编辑器为等宽字体 ==========
+  // 使用 MutationObserver 确保动态添加的内容也被修正
+  const applyMonospace = () => {
+    const selectors = [
+      "pre", "code", "kbd", "samp", "tt",
+      ".ProseMirror", ".tiptap-editor"
+    ];
+    const elements = document.querySelectorAll(selectors.join(","));
+    elements.forEach((el) => {
+      if (el instanceof HTMLElement) {
+        // 内联样式优先级最高，且不会干扰全局 CSS
+        el.style.setProperty("font-family", "monospace", "important");
+      }
+    });
+  };
+
+  // 初始应用
+  if (fontFamily) {
+    applyMonospace();
+    // 监听 DOM 变化，确保新添加的代码块也被处理
+    const observer = new MutationObserver(() => applyMonospace());
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
   }
 }, [fontFamily]);
 
