@@ -90,6 +90,7 @@ export function resolveSiteConfig(
     title: config?.site?.title ?? blogConfig.title,
     author: config?.site?.author ?? blogConfig.author,
     description: config?.site?.description ?? blogConfig.description,
+    fontFamily: config?.site?.fontFamily ?? blogConfig.fontFamily, // 新增字段
     social: migrateSocial(config?.site?.social),
     icons: {
       faviconSvg:
