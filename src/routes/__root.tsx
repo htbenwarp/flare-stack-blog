@@ -82,80 +82,78 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
   // 动态设置全局字体：全覆盖 + 排除代码块和编辑器
   useEffect(() => {
-  // 1. 全局字体样式（旧版工作逻辑）
-  const globalStyleId = "global-font-style";
+  // 第一步：全局字体覆盖（与旧版完全相同，保证字体显示）
+  const globalStyleId = "dynamic-font-global";
   let globalStyle = document.getElementById(globalStyleId) as HTMLStyleElement;
   if (!globalStyle) {
     globalStyle = document.createElement("style");
     globalStyle.id = globalStyleId;
     document.head.appendChild(globalStyle);
   }
-
-  // 2. 排除规则（代码块、编辑器等）
-  const excludeStyleId = "exclude-font-style";
-  let excludeStyle = document.getElementById(excludeStyleId) as HTMLStyleElement;
-  if (!excludeStyle) {
-    excludeStyle = document.createElement("style");
-    excludeStyle.id = excludeStyleId;
-    document.head.appendChild(excludeStyle);
+  // 设置全局字体内容
+  if (fontFamily) {
+    globalStyle.textContent = `* { font-family: ${fontFamily} !important; }`;
+  } else {
+    globalStyle.textContent = "";
   }
 
+  // 第二步：单独处理代码块和编辑器，确保它们使用等宽字体（独立 style，不影响全局）
+  const codeStyleId = "dynamic-font-code-override";
+  let codeStyle = document.getElementById(codeStyleId) as HTMLStyleElement;
+  if (!codeStyle) {
+    codeStyle = document.createElement("style");
+    codeStyle.id = codeStyleId;
+    document.head.appendChild(codeStyle);
+  }
+  // 只要有 fontFamily 就应用代码块覆盖（防止全局字体覆盖代码块）
   if (fontFamily) {
-    // 全局覆盖所有元素
-    globalStyle.textContent = `* { font-family: ${fontFamily} !important; }`;
-
-    // 排除规则：代码块和 Tiptap 编辑器强制等宽字体
-    excludeStyle.textContent = `
+    codeStyle.textContent = `
       pre, code, kbd, samp, tt,
       .ProseMirror, .ProseMirror *,
       .tiptap-editor, .tiptap-editor * {
         font-family: monospace !important;
       }
     `;
+  } else {
+    codeStyle.textContent = "";
+  }
 
-    // 自动加载字体（保持原有逻辑不变）
-    if (!fontFamily.includes(",")) {
-      let fontName = fontFamily.split(":")[0].trim().replace(/^['"]|['"]$/g, "");
-      // LXGW WenKai 特殊处理
-      if (fontName.toLowerCase() === "lxgw wenkai") {
-        const fontFaceId = "lxgw-wenkai-font-face";
-        if (!document.getElementById(fontFaceId)) {
-          const fontStyle = document.createElement("style");
-          fontStyle.id = fontFaceId;
-          fontStyle.textContent = `
-            @font-face {
-              font-family: 'LXGW WenKai';
-              src: url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/lxgwwenkairegular.woff2') format('woff2');
-              font-weight: 400;
-              font-style: normal;
-              font-display: swap;
-            }
-            @font-face {
-              font-family: 'LXGW WenKai';
-              src: url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/lxgwwenkai-bold.woff2') format('woff2');
-              font-weight: 700;
-              font-style: normal;
-              font-display: swap;
-            }
-          `;
-          document.head.appendChild(fontStyle);
-        }
-      } else if (!fontName.includes(" ")) {
-        // 单个单词 -> Google Fonts
-        const linkId = `google-font-${fontName}`;
-        if (!document.getElementById(linkId)) {
-          const link = document.createElement("link");
-          link.id = linkId;
-          link.rel = "stylesheet";
-          link.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@400;500;600;700&display=swap`;
-          document.head.appendChild(link);
-        }
+  // 第三步：字体自动加载（Google Fonts / LXGW WenKai）—— 保持原有逻辑不变
+  if (fontFamily && !fontFamily.includes(",")) {
+    let fontName = fontFamily.split(":")[0].trim().replace(/^['"]|['"]$/g, "");
+    if (fontName.toLowerCase() === "lxgw wenkai") {
+      const fontFaceId = "lxgw-wenkai-font-face";
+      if (!document.getElementById(fontFaceId)) {
+        const fontStyle = document.createElement("style");
+        fontStyle.id = fontFaceId;
+        fontStyle.textContent = `
+          @font-face {
+            font-family: 'LXGW WenKai';
+            src: url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/lxgwwenkairegular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+          }
+          @font-face {
+            font-family: 'LXGW WenKai';
+            src: url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/lxgwwenkai-bold.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+          }
+        `;
+        document.head.appendChild(fontStyle);
+      }
+    } else if (!fontName.includes(" ")) {
+      const linkId = `google-font-${fontName}`;
+      if (!document.getElementById(linkId)) {
+        const link = document.createElement("link");
+        link.id = linkId;
+        link.rel = "stylesheet";
+        link.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@400;500;600;700&display=swap`;
+        document.head.appendChild(link);
       }
     }
-  } else {
-    // 无自定义字体时清空两个样式标签
-    globalStyle.textContent = "";
-    excludeStyle.textContent = "";
   }
 }, [fontFamily]);
 
