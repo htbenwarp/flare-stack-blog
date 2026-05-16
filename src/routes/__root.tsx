@@ -22,8 +22,7 @@ interface MyRouterContext {
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
   beforeLoad: async ({ context }) => {
-    const siteConfig =
-      await context.queryClient.ensureQueryData(siteConfigQuery);
+    const siteConfig = await context.queryClient.ensureQueryData(siteConfigQuery);
     return { siteConfig };
   },
   loader: async ({ context }) => {
@@ -31,7 +30,6 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
   },
   head: ({ loaderData }) => {
     const env = clientEnv();
-
     return {
       meta: [
         { charSet: "utf-8" },
@@ -40,27 +38,10 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         { name: "description", content: loaderData?.siteConfig?.description },
       ],
       links: [
-        {
-          rel: "icon",
-          type: "image/svg+xml",
-          href: loaderData?.siteConfig?.icons.faviconSvg,
-        },
-        {
-          rel: "icon",
-          type: "image/png",
-          href: loaderData?.siteConfig?.icons.favicon96,
-          sizes: "96x96",
-        },
-        {
-          rel: "shortcut icon",
-          href: loaderData?.siteConfig?.icons.faviconIco,
-        },
-        {
-          rel: "apple-touch-icon",
-          type: "image/png",
-          href: loaderData?.siteConfig?.icons.appleTouchIcon,
-          sizes: "180x180",
-        },
+        { rel: "icon", type: "image/svg+xml", href: loaderData?.siteConfig?.icons.faviconSvg },
+        { rel: "icon", type: "image/png", href: loaderData?.siteConfig?.icons.favicon96, sizes: "96x96" },
+        { rel: "shortcut icon", href: loaderData?.siteConfig?.icons.faviconIco },
+        { rel: "apple-touch-icon", type: "image/png", href: loaderData?.siteConfig?.icons.appleTouchIcon, sizes: "180x180" },
         { rel: "manifest", href: "/site.webmanifest" },
         { rel: "stylesheet", href: appCss },
         { rel: "alternate", type: "application/rss+xml", title: "RSS Feed", href: "/rss.xml" },
@@ -80,88 +61,46 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const { siteConfig } = useRouteContext({ from: "__root__" });
   const fontFamily = siteConfig?.fontFamily?.trim();
 
-  // 动态设置全局字体：全覆盖 + 排除代码块和编辑器
   useEffect(() => {
-  // ================= 全局字体覆盖 =================
-  const globalStyleId = "dynamic-font-global";
-  let globalStyle = document.getElementById(globalStyleId) as HTMLStyleElement;
-  if (!globalStyle) {
-    globalStyle = document.createElement("style");
-    globalStyle.id = globalStyleId;
-    document.head.appendChild(globalStyle);
+  const styleId = 'dynamic-font-override';
+  let styleEl = document.getElementById(styleId) as HTMLStyleElement;
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = styleId;
+    document.head.appendChild(styleEl);
   }
   if (fontFamily) {
-    globalStyle.textContent = `* { font-family: ${fontFamily} !important; }`;
-  } else {
-    globalStyle.textContent = "";
-  }
-
-  // ================= 字体自动加载 =================
-  if (fontFamily && !fontFamily.includes(",")) {
-    let fontName = fontFamily.split(":")[0].trim().replace(/^['"]|['"]$/g, "");
-    if (fontName.toLowerCase() === "lxgw wenkai") {
-      const fontFaceId = "lxgw-wenkai-font-face";
-      if (!document.getElementById(fontFaceId)) {
-        const fontStyle = document.createElement("style");
-        fontStyle.id = fontFaceId;
-        fontStyle.textContent = `
-          @font-face {
-            font-family: 'LXGW WenKai';
-            src: url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/lxgwwenkairegular.woff2') format('woff2');
-            font-weight: 400;
-            font-style: normal;
-            font-display: swap;
-          }
-          @font-face {
-            font-family: 'LXGW WenKai';
-            src: url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/lxgwwenkai-bold.woff2') format('woff2');
-            font-weight: 700;
-            font-style: normal;
-            font-display: swap;
-          }
-        `;
-        document.head.appendChild(fontStyle);
-      }
-    } else if (!fontName.includes(" ")) {
-      const linkId = `google-font-${fontName}`;
-      if (!document.getElementById(linkId)) {
-        const link = document.createElement("link");
-        link.id = linkId;
-        link.rel = "stylesheet";
-        link.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@400;500;600;700&display=swap`;
-        document.head.appendChild(link);
-      }
-    }
-  }
-
-  // ================= 强制代码块等宽字体（内联样式） =================
-  const setCodeBlockFont = () => {
-    const selectors = [
-      "pre", "code", "kbd", "samp", "tt",
-      ".ProseMirror", ".ProseMirror *",
-      ".tiptap-editor", ".tiptap-editor *"
-    ];
-    const elements = document.querySelectorAll(selectors.join(","));
-    elements.forEach((el) => {
-      if (el instanceof HTMLElement) {
-        // 仅当当前不是 monospace 时设置，减少不必要的重绘
-        if (el.style.fontFamily !== "monospace") {
-          el.style.setProperty("font-family", "monospace", "important");
+    // 强制覆盖所有元素，注意：可能影响部分特定样式（如代码块），但通常可接受
+    styleEl.textContent = `* { font-family: ${fontFamily} !important; }`;
+    // 可选：自动加载 Google Fonts 或 LXGW WenKai 的逻辑
+    if (!fontFamily.includes(',')) {
+      const fontName = fontFamily.split(':')[0].trim().replace(/^['"]|['"]$/g, '');
+      if (fontName.toLowerCase() === 'lxgw wenkai') {
+        const linkId = 'lxgw-wenkai-font';
+        if (!document.getElementById(linkId)) {
+          const link = document.createElement('link');
+          link.id = linkId;
+          link.rel = 'stylesheet';
+          link.href = 'https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/style.css';
+          document.head.appendChild(link);
+        }
+      } else if (!fontName.includes(' ')) {
+        // 单个词，可能是 Google Fonts
+        const linkId = 'google-font-' + fontName;
+        if (!document.getElementById(linkId)) {
+          const link = document.createElement('link');
+          link.id = linkId;
+          link.rel = 'stylesheet';
+          link.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@400;500;600;700&display=swap`;
+          document.head.appendChild(link);
         }
       }
-    });
-  };
-
-  // 立即执行
-  setCodeBlockFont();
-
-  // 监听 DOM 变化，处理动态加载的内容
-  const observer = new MutationObserver(() => setCodeBlockFont());
-  observer.observe(document.body, { childList: true, subtree: true });
-
-  return () => observer.disconnect();
+    }
+  } else {
+    styleEl.textContent = '';
+  }
 }, [fontFamily]);
-  
+
   return (
     <html lang={locale} suppressHydrationWarning style={theme.getDocumentStyle?.(siteConfig)}>
       <head>
