@@ -34,78 +34,24 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
     return {
       meta: [
-        {
-          charSet: "utf-8",
-        },
-        {
-          name: "viewport",
-          content: "width=device-width, initial-scale=1",
-        },
-        {
-          title: loaderData?.siteConfig?.title,
-        },
-        {
-          name: "description",
-          content: loaderData?.siteConfig?.description,
-        },
+        { charSet: "utf-8" },
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        { title: loaderData?.siteConfig?.title },
+        { name: "description", content: loaderData?.siteConfig?.description },
       ],
       links: [
-        {
-          rel: "icon",
-          type: "image/svg+xml",
-          href: loaderData?.siteConfig?.icons.faviconSvg,
-        },
-        {
-          rel: "icon",
-          type: "image/png",
-          href: loaderData?.siteConfig?.icons.favicon96,
-          sizes: "96x96",
-        },
-        {
-          rel: "shortcut icon",
-          href: loaderData?.siteConfig?.icons.faviconIco,
-        },
-        {
-          rel: "apple-touch-icon",
-          type: "image/png",
-          href: loaderData?.siteConfig?.icons.appleTouchIcon,
-          sizes: "180x180",
-        },
-        {
-          rel: "manifest",
-          href: "/site.webmanifest",
-        },
-        {
-          rel: "stylesheet",
-          href: appCss,
-        },
-        {
-          rel: "alternate",
-          type: "application/rss+xml",
-          title: "RSS Feed",
-          href: "/rss.xml",
-        },
-        {
-          rel: "alternate",
-          type: "application/atom+xml",
-          title: "Atom Feed",
-          href: "/atom.xml",
-        },
-        {
-          rel: "alternate",
-          type: "application/feed+json",
-          title: "JSON Feed",
-          href: "/feed.json",
-        },
+        { rel: "icon", type: "image/svg+xml", href: loaderData?.siteConfig?.icons.faviconSvg },
+        { rel: "icon", type: "image/png", href: loaderData?.siteConfig?.icons.favicon96, sizes: "96x96" },
+        { rel: "shortcut icon", href: loaderData?.siteConfig?.icons.faviconIco },
+        { rel: "apple-touch-icon", type: "image/png", href: loaderData?.siteConfig?.icons.appleTouchIcon, sizes: "180x180" },
+        { rel: "manifest", href: "/site.webmanifest" },
+        { rel: "stylesheet", href: appCss },
+        { rel: "alternate", type: "application/rss+xml", title: "RSS Feed", href: "/rss.xml" },
+        { rel: "alternate", type: "application/atom+xml", title: "Atom Feed", href: "/atom.xml" },
+        { rel: "alternate", type: "application/feed+json", title: "JSON Feed", href: "/feed.json" },
       ],
       scripts: env.VITE_UMAMI_WEBSITE_ID
-        ? [
-            {
-              src: "/stats.js",
-              defer: true,
-              "data-website-id": env.VITE_UMAMI_WEBSITE_ID,
-            },
-          ]
+        ? [{ src: "/stats.js", defer: true, "data-website-id": env.VITE_UMAMI_WEBSITE_ID }]
         : [],
     };
   },
@@ -117,7 +63,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const { siteConfig } = useRouteContext({ from: "__root__" });
   const fontFamily = siteConfig?.fontFamily?.trim();
 
-  // 动态设置全局字体，并为代码块保留等宽字体
   useEffect(() => {
     const styleId = "dynamic-font-override";
     let styleEl = document.getElementById(styleId) as HTMLStyleElement;
@@ -128,24 +73,26 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     }
 
     if (fontFamily) {
-      // 强制全局字体，但代码块、预格式化文本等使用等宽字体
+      // 1. 只对正文区域和通用文本元素设置字体，避免影响代码块
+      //   选择器覆盖：body, main, article, .content, .markdown-body, .prose, p, h1-h6, li, a 等
+      //   你可以根据实际主题调整，但保留代码块选择器单独定义
       styleEl.textContent = `
-        * {
+        body, main, article, .content, .markdown-body, .prose, p, h1, h2, h3, h4, h5, h6, li, a, span, div:not(.no-font) {
           font-family: ${fontFamily} !important;
         }
+        /* 强制代码块恢复等宽字体 */
         pre, code, kbd, samp, tt, var, .code-block, .hljs, .token,
-        .prose pre code, .markdown pre code,
-        [class*="language-"], .highlight pre, .chroma {
+        .prose pre code, .markdown pre code, [class*="language-"],
+        .highlight pre, .chroma, .line-numbers, .linenumber {
           font-family: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'SF Mono', monospace !important;
         }
       `;
 
-      // 自动加载字体资源（Google Fonts 或 LXGW WenKai）
-      const fontNameRaw = fontFamily.split(",")[0].trim().replace(/^['"]|['"]$/g, "");
-      // 如果字体名不包含空格，则可能是 Google Fonts
-      if (!fontNameRaw.includes(" ")) {
-        // 特殊处理 LXGW WenKai（不在 Google Fonts 上）
-        if (fontNameRaw.toLowerCase() === "lxgw wenkai") {
+      // 2. 字体资源自动加载
+      const firstFont = fontFamily.split(",")[0].trim().replace(/^['"]|['"]$/g, "");
+      if (!firstFont.includes(" ")) {
+        // LXGW WenKai 特殊处理
+        if (firstFont.toLowerCase() === "lxgw wenkai") {
           const fontFaceId = "lxgw-wenkai-font-face";
           if (!document.getElementById(fontFaceId)) {
             const fontStyle = document.createElement("style");
@@ -169,42 +116,33 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             document.head.appendChild(fontStyle);
           }
         } else {
-          const linkId = `google-font-${fontNameRaw}`;
+          // Google Fonts
+          const linkId = `google-font-${firstFont}`;
           if (!document.getElementById(linkId)) {
             const link = document.createElement("link");
             link.id = linkId;
             link.rel = "stylesheet";
-            link.href = `https://fonts.googleapis.com/css2?family=${fontNameRaw}:wght@400;500;600;700&display=swap`;
+            link.href = `https://fonts.googleapis.com/css2?family=${firstFont}:wght@400;500;600;700&display=swap`;
             document.head.appendChild(link);
           }
         }
       }
     } else {
       styleEl.textContent = "";
-      // 可选：移除之前添加的字体资源（但没必要）
     }
   }, [fontFamily]);
 
   return (
-    <html
-      lang={locale}
-      suppressHydrationWarning
-      style={theme.getDocumentStyle?.(siteConfig)}
-    >
+    <html lang={locale} suppressHydrationWarning style={theme.getDocumentStyle?.(siteConfig)}>
       <head>
         <HeadContent />
       </head>
       <body>
         <ThemeProvider>{children}</ThemeProvider>
         <TanStackDevtools
-          config={{
-            position: "bottom-right",
-          }}
+          config={{ position: "bottom-right" }}
           plugins={[
-            {
-              name: "Tanstack Router",
-              render: <TanStackRouterDevtoolsPanel />,
-            },
+            { name: "Tanstack Router", render: <TanStackRouterDevtoolsPanel /> },
             TanStackQueryDevtools,
           ]}
         />
