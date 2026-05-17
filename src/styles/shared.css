@@ -23,3 +23,29 @@
     text-decoration: var(--shiki-dark-text-decoration) !important;
   }
 }
+
+/* 正文字体变量，默认使用系统 UI 字体 */
+:root {
+  --font-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* 所有普通文本通过该变量继承 */
+body {
+  font-family: var(--font-body);
+}
+
+/* 常见文本容器显式继承（不会破坏任何现有样式） */
+h1, h2, h3, h4, h5, h6,
+p, li, a, span, div,
+article, section,
+.post-content, .sidebar, .navbar {
+  font-family: inherit;
+}
+
+/* 等宽区域：永远使用等宽字体，不触碰 --font-body */
+pre, code, kbd, samp {
+  font-family: ui-monospace, 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+}
+
+/* 公式区域：完全不设置任何字体规则，由 KaTeX 自行管理 */
+/* （即：不对 .katex, .math 等添加任何 font-family 声明） */
