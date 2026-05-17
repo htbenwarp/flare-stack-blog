@@ -1120,7 +1120,7 @@
   "settings_site_field_description_hint": "用于页面描述和后续 SEO 相关内容。",
   "settings_site_field_description_ph": "简要介绍你的站点。",
   "settings_site_field_font_family": "字体",
-  "settings_site_field_font_family_hint": "用于站内字体变更，支持系统字体及Google Sites。",
+  "settings_site_field_font_family_hint": "用于站内字体变更，支持系统字体及Google Fonts。",
   "settings_site_field_font_family_ph": "系统默认",
   "settings_social_add": "添加社交链接",
   "settings_social_url_ph": "https://...",
