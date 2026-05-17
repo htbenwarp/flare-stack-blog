@@ -62,19 +62,15 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const fontFamily = siteConfig?.fontFamily?.trim();
 
   useEffect(() => {
-  const styleId = 'dynamic-font-override';
-  let styleEl = document.getElementById(styleId) as HTMLStyleElement;
-  if (!styleEl) {
-    styleEl = document.createElement('style');
-    styleEl.id = styleId;
-    document.head.appendChild(styleEl);
-  }
   if (fontFamily) {
-    // 强制覆盖所有元素，注意：可能影响部分特定样式（如代码块），但通常可接受
-    styleEl.textContent = `* { font-family: ${fontFamily} !important; }`;
-    // 可选：自动加载 Google Fonts 或 LXGW WenKai 的逻辑
+    // ① 通过 CSS 变量切换正文字体
+    document.documentElement.style.setProperty('--font-body', fontFamily);
+
+    // ② 动态加载所需字体文件（逻辑与之前完全相同）
     if (!fontFamily.includes(',')) {
       const fontName = fontFamily.split(':')[0].trim().replace(/^['"]|['"]$/g, '');
+      
+      // LXGW Wenkai 特殊处理
       if (fontName.toLowerCase() === 'lxgw wenkai') {
         const linkId = 'lxgw-wenkai-font';
         if (!document.getElementById(linkId)) {
@@ -84,9 +80,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           link.href = 'https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/style.css';
           document.head.appendChild(link);
         }
-      } else if (!fontName.includes(' ')) {
-        // 单个词，可能是 Google Fonts
-        const linkId = 'google-font-' + fontName;
+      } 
+      // 单字字体（可能是 Google Fonts）
+      else if (!fontName.includes(' ')) {
+        const linkId = `google-font-${fontName}`;
         if (!document.getElementById(linkId)) {
           const link = document.createElement('link');
           link.id = linkId;
@@ -95,9 +92,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           document.head.appendChild(link);
         }
       }
+      // 如果用户直接写完整的字体栈（如 "LXGW Wenkai, sans-serif"），不做额外加载
     }
   } else {
-    styleEl.textContent = '';
+    // 恢复默认正文字体
+    document.documentElement.style.removeProperty('--font-body');
   }
 }, [fontFamily]);
 
