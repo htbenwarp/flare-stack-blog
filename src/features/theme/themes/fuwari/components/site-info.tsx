@@ -17,36 +17,29 @@ function formatRuntime(startDate: string): string {
 }
 
 export function SiteInfo() {
-  const { data, isLoading, error } = useSiteStats();
+  const { data, isLoading } = useSiteStats();
 
   return (
-    <div className="fuwari-card-base rounded-(--fuwari-radius-large) p-6">
-      <h2 className="text-xl font-bold mb-4 fuwari-text-90">
+    <div className="fuwari-card-base pb-4 transition-all duration-300">
+      {/* 标题区域：左侧竖杠 + 文字（与标签卡片一致） */}
+      <div className="font-bold text-lg fuwari-text-90 relative ml-6 mt-4 mb-4">
+        <span
+          className="absolute -left-4 top-[5.5px] w-1 h-4 rounded-md"
+          style={{ backgroundColor: "var(--fuwari-primary)" }}
+        />
         {m.site_info_title()}
-      </h2>
-         {/* 🔍 临时调试面板 */}
-      <div className="text-xs break-all bg-yellow-100 dark:bg-yellow-900 p-2 rounded mb-2">
-        <div>isLoading: {String(isLoading)}</div>
-        <div>hasData: {String(!!data)}</div>
-        <div>error: {error ? (error as Error).message : "none"}</div>
-        {data && <pre className="mt-1">{JSON.stringify(data, null, 2)}</pre>}
       </div>
 
-      <div className="space-y-3 text-sm">
+      {/* 数据列表 */}
+      <div className="px-4 space-y-3 text-sm">
         {isLoading ? (
-          // 骨架屏
           [1, 2, 3, 4].map((i) => (
             <div key={i} className="flex items-center gap-3">
               <Skeleton className="h-4 w-4 rounded" />
               <Skeleton className="h-4 w-3/5 rounded" />
             </div>
           ))
-        ) : error || !data ? (
-          // 错误或空数据回退
-          <p className="text-xs fuwari-text-50">
-            {m.site_info_no_data?.() ?? "暂无数据"}
-          </p>
-        ) : (
+        ) : data ? (
           <>
             <div className="flex items-center gap-3 fuwari-text-70">
               <Clock size={16} className="shrink-0 text-(--fuwari-primary)" />
@@ -56,20 +49,14 @@ export function SiteInfo() {
               </span>
             </div>
             <div className="flex items-center gap-3 fuwari-text-70">
-              <FileText
-                size={16}
-                className="shrink-0 text-(--fuwari-primary)"
-              />
+              <FileText size={16} className="shrink-0 text-(--fuwari-primary)" />
               <span>
                 {m.stats_articles()}:{" "}
                 {(data.articleCount ?? 0).toLocaleString()}
               </span>
             </div>
             <div className="flex items-center gap-3 fuwari-text-70">
-              <PencilLine
-                size={16}
-                className="shrink-0 text-(--fuwari-primary)"
-              />
+              <PencilLine size={16} className="shrink-0 text-(--fuwari-primary)" />
               <span>
                 {m.stats_total_words()}:{" "}
                 {(data.totalChars ?? 0).toLocaleString()}
@@ -83,6 +70,8 @@ export function SiteInfo() {
               </span>
             </div>
           </>
+        ) : (
+          <p className="text-xs fuwari-text-50">{m.site_info_no_data?.() ?? "暂无数据"}</p>
         )}
       </div>
     </div>
