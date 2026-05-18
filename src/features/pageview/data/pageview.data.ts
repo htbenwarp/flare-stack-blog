@@ -113,9 +113,9 @@ export async function getTotalPageviews(db: DB): Promise<number> {
  */
 export async function getPublishedContentList(db: DB): Promise<string[]> {
   const rows = await db
-    .select({ content: PostsTable.content })
-    .from(PostsTable)
-
+    .select()                     // 取整行，避免列映射问题
+    .from(PostsTable);
+    
   return rows.map((r) => r.content).filter(Boolean) as string[];
 }
 /**
