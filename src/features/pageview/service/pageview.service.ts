@@ -85,9 +85,7 @@ function countPlainTextChars(jsonString: string): number {
 // ---------------------------------------------------------------
 // 公开：获取站点统计信息（全站 PV、文章数、纯文本总字数）
 // ---------------------------------------------------------------
-export async function getSiteStats(
-  context: DbContext & { executionCtx: ExecutionContext },
-) {
+export async function getSiteStats(context: DbContext) {
   const [totalPv, contentList] = await Promise.all([
     getTotalPageviews(context.db),
     getPublishedContentList(context.db),
@@ -101,6 +99,6 @@ export async function getSiteStats(
     totalPageviews: totalPv,
     articleCount: contentList.length,
     totalChars,
-    startDate: blogConfig.startDate,   // 确保 blog.config.ts 中已定义
+    startDate: blogConfig.startDate,
   };
 }
