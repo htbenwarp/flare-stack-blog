@@ -30,3 +30,5 @@ export const siteConfig = {
     },
   },
 } as const satisfies SiteConfig;
+
+export const siteConfig = blogConfig;
