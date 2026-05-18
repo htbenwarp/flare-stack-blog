@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm";
 import type { DB } from "@/lib/db";
 import { PageViewsTable, PostsTable } from "@/lib/db/schema";
+import type { JSONContent } from "@tiptap/react";
 
 /**
  * 获取时间范围内的 PV 和 UV
@@ -111,12 +112,11 @@ export async function getTotalPageviews(db: DB): Promise<number> {
 /**
  * 获取所有已发布文章的 content 字段（JSON 文本）
  */
-export async function getPublishedContentList(db: DB): Promise<string[]> {
+export async function getPublishedContentList(db: DB): Promise<JSONContent[]> {
   const rows = await db
-    .select()                     // 取整行，避免列映射问题
+    .select({ content: PostsTable.contentJson })
     .from(PostsTable);
-    
-  return rows.map((r) => r.content).filter(Boolean) as string[];
+  return rows.map((r) => r.content).filter(Boolean) as JSONContent[];
 }
 /**
  * 批量获取文章的总浏览量
