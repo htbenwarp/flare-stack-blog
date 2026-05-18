@@ -30,3 +30,7 @@ export const getViewCountsFn = createServerFn()
   .handler(({ data, context }) =>
     PageviewService.getViewCounts(context, data.slugs),
   );
+
+export const getSiteStatsFn = createServerFn()
+  .middleware([dbMiddleware])
+  .handler(({ context }) => PageviewService.getSiteStats(context));
