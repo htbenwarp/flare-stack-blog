@@ -29,7 +29,6 @@ function createSiteTextFormSchema(max: number, messages: Messages) {
     .max(max, messages.settings_site_validation_too_long({ max }));
 }
 
-// 新增：字体族校验（最多200字符，可选）
 function createFontFamilySchema() {
   return z.string().trim().max(200).optional();
 }
@@ -287,11 +286,15 @@ export const fuwariThemeSiteConfigSchema = createFuwariThemeSiteConfigSchema();
 export const fuwariThemeSiteConfigInputSchema =
   createFuwariThemeSiteConfigInputSchema();
 
+// ==================== 核心修改：添加 startDate ====================
 export const FullSiteConfigSchema = z.object({
+  startDate: z.string().refine((v) => !isNaN(Date.parse(v)), {
+    message: "Must be a valid date string (YYYY-MM-DD)",
+  }),
   title: createSiteTextSchema(120),
   author: createSiteTextSchema(80),
   description: createSiteTextSchema(300),
-  fontFamily: createFontFamilySchema(), // 新增
+  fontFamily: createFontFamilySchema(),
   social: z.array(SocialLinkSchema),
   icons: z.object({
     faviconSvg: createAssetPathSchema(),
@@ -309,10 +312,11 @@ export const FullSiteConfigSchema = z.object({
 
 export function createSiteConfigInputFormSchema(messages: Messages) {
   return z.object({
+    startDate: z.string().optional(),
     title: createSiteTextFormSchema(120, messages).optional(),
     author: createSiteTextFormSchema(80, messages).optional(),
     description: createSiteTextFormSchema(300, messages).optional(),
-    fontFamily: createSiteTextFormSchema(200, messages).optional(), // 新增
+    fontFamily: createSiteTextFormSchema(200, messages).optional(),
     social: z.array(SocialLinkSchema).optional(),
     icons: z
       .object({
@@ -335,10 +339,11 @@ export function createSiteConfigInputFormSchema(messages: Messages) {
 }
 
 export const SiteConfigInputSchema = z.object({
+  startDate: z.string().optional(),
   title: createSiteTextSchema(120).optional(),
   author: createSiteTextSchema(80).optional(),
   description: createSiteTextSchema(300).optional(),
-  fontFamily: createFontFamilySchema(), // 新增
+  fontFamily: createFontFamilySchema(),
   social: z.array(SocialLinkSchema).optional(),
   icons: z
     .object({
