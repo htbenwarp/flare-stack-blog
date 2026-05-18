@@ -34,4 +34,12 @@ export const getViewCountsFn = createServerFn()
 // ✅ 只保留下面这一个 getSiteStatsFn，不要重复
 export const getSiteStatsFn = createServerFn()
   .middleware([dbMiddleware])
-  .handler(({ context }) => PageviewService.getSiteStats(context));
+  .handler(async ({ context }) => {
+    // 临时硬编码，忽略数据库
+    return {
+      totalPageviews: 9999,
+      articleCount: 88,
+      totalChars: 123456,
+      startDate: blogConfig.startDate,
+    };
+  });
