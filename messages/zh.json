@@ -1470,5 +1470,6 @@
   "stats_total_words": "总字数",
   "stats_pageviews": "全站浏览量",
   "stats_years": "年",
-  "stats_days": "天"
+  "stats_days": "天",
+  "site_info_no_data": "暂无数据"
 }
