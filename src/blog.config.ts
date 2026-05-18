@@ -1,6 +1,7 @@
 import type { SiteConfig } from "@/features/config/site-config.schema";
 
-export const blogConfig = {
+export const siteConfig = {
+  startDate: "2026-04-19",  // 请替换为你的站点实际上线日期
   title: "站点名称",
   author: "作者",
   description:
