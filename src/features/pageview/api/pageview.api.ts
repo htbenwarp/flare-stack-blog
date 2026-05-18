@@ -5,6 +5,7 @@ import * as PageviewService from "@/features/pageview/service/pageview.service";
 import { sha256 } from "@/features/pageview/utils/hash";
 import { serverEnv } from "@/lib/env/server.env";
 import { dbMiddleware } from "@/lib/middlewares";
+import { blogConfig } from "@/blog.config";
 
 export const recordPageViewFn = createServerFn()
   .middleware([dbMiddleware])
@@ -34,12 +35,4 @@ export const getViewCountsFn = createServerFn()
 // ✅ 只保留下面这一个 getSiteStatsFn，不要重复
 export const getSiteStatsFn = createServerFn()
   .middleware([dbMiddleware])
-  .handler(async ({ context }) => {
-    // 临时硬编码，忽略数据库
-    return {
-      totalPageviews: 9999,
-      articleCount: 88,
-      totalChars: 123456,
-      startDate: blogConfig.startDate,
-    };
-  });
+  .handler(({ context }) => PageviewService.getSiteStats(context));
