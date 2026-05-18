@@ -115,7 +115,6 @@ export async function getPublishedContentList(db: DB): Promise<string[]> {
   const rows = await db
     .select({ content: PostsTable.content })
     .from(PostsTable)
-    .where(eq(PostsTable.status, "published")); // 若无 status 字段则删除此行
 
   return rows.map((r) => r.content).filter(Boolean) as string[];
 }
