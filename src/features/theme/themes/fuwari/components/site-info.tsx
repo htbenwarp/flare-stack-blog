@@ -24,6 +24,13 @@ export function SiteInfo() {
       <h2 className="text-xl font-bold mb-4 fuwari-text-90">
         {m.site_info_title()}
       </h2>
+         {/* 🔍 临时调试面板 */}
+      <div className="text-xs break-all bg-yellow-100 dark:bg-yellow-900 p-2 rounded mb-2">
+        <div>isLoading: {String(isLoading)}</div>
+        <div>hasData: {String(!!data)}</div>
+        <div>error: {error ? (error as Error).message : "none"}</div>
+        {data && <pre className="mt-1">{JSON.stringify(data, null, 2)}</pre>}
+      </div>
 
       <div className="space-y-3 text-sm">
         {isLoading ? (
