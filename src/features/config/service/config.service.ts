@@ -64,10 +64,7 @@ export function resolveSystemConfig(
 }
 
 function migrateSocial(social: unknown): SocialLink[] {
-  // New format — already an array
   if (Array.isArray(social)) return social;
-
-  // Old format — { github?: string, email?: string }
   if (social && typeof social === "object") {
     const old = social as { github?: string; email?: string };
     const migrated: SocialLink[] = [];
@@ -76,8 +73,6 @@ function migrateSocial(social: unknown): SocialLink[] {
       migrated.push({ platform: "email", url: `mailto:${old.email}` });
     return migrated;
   }
-
-  // Fallback to blogConfig defaults
   return [...blogConfig.social];
 }
 
@@ -87,10 +82,13 @@ export function resolveSiteConfig(
   const configDefaultBackground = config?.site?.theme?.default?.background;
 
   return FullSiteConfigSchema.parse({
+    // ✅ 新增：startDate 字段，从数据库读取，若无则用 blogConfig 默认值
+    startDate: config?.site?.startDate ?? blogConfig.startDate,
+
     title: config?.site?.title ?? blogConfig.title,
     author: config?.site?.author ?? blogConfig.author,
     description: config?.site?.description ?? blogConfig.description,
-    fontFamily: config?.site?.fontFamily ?? blogConfig.fontFamily, // 新增字段
+    fontFamily: config?.site?.fontFamily ?? blogConfig.fontFamily,
     social: migrateSocial(config?.site?.social),
     icons: {
       faviconSvg:
