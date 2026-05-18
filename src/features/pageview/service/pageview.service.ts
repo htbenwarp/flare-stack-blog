@@ -6,6 +6,8 @@ import {
 } from "@/features/pageview/pageview.schema";
 import * as PostRepo from "@/features/posts/data/posts.data";
 import { PostItemSchema } from "@/features/posts/schema/posts.schema";
+import { blogConfig } from "@/blog.config";
+import { getTotalPageviews, getPublishedContentList } from "../data/pageview.data";
 
 export async function getPopularPosts(
   context: DbContext & { executionCtx: ExecutionContext },
@@ -56,4 +58,49 @@ export async function getViewCounts(
     () => PageviewRepo.getViewCountsBySlugs(context.db, slugs),
     { ttl: "5m" },
   );
+}
+
+// ---------------------------------------------------------------
+// 工具：从 TipTap JSON 中提取纯文本并计算字数
+// ---------------------------------------------------------------
+function extractTextFromTipTap(json: any): string {
+  if (typeof json === "string") return json;
+  if (!json || typeof json !== "object") return "";
+  if (json.text) return json.text;
+  if (json.content && Array.isArray(json.content)) {
+    return json.content.map(extractTextFromTipTap).join("");
+  }
+  return "";
+}
+
+function countPlainTextChars(jsonString: string): number {
+  try {
+    const doc = JSON.parse(jsonString);
+    return extractTextFromTipTap(doc).length;
+  } catch {
+    return 0;
+  }
+}
+
+// ---------------------------------------------------------------
+// 公开：获取站点统计信息（全站 PV、文章数、纯文本总字数）
+// ---------------------------------------------------------------
+export async function getSiteStats(
+  context: DbContext & { executionCtx: ExecutionContext },
+) {
+  const [totalPv, contentList] = await Promise.all([
+    getTotalPageviews(context.db),
+    getPublishedContentList(context.db),
+  ]);
+
+  const totalChars = contentList.reduce((sum, content) => {
+    return sum + countPlainTextChars(content);
+  }, 0);
+
+  return {
+    totalPageviews: totalPv,
+    articleCount: contentList.length,
+    totalChars,
+    startDate: siteConfig.startDate,   // 确保 blog.config.ts 中已定义
+  };
 }
