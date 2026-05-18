@@ -107,6 +107,18 @@ export async function getTotalPageviews(db: DB): Promise<number> {
 
   return result[0]?.total ?? 0;
 }
+
+/**
+ * 获取所有已发布文章的 content 字段（JSON 文本）
+ */
+export async function getPublishedContentList(db: DB): Promise<string[]> {
+  const rows = await db
+    .select({ content: PostsTable.content })
+    .from(PostsTable)
+    .where(eq(PostsTable.status, "published")); // 若无 status 字段则删除此行
+
+  return rows.map((r) => r.content).filter(Boolean) as string[];
+}
 /**
  * 批量获取文章的总浏览量
  */
