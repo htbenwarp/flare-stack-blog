@@ -101,6 +101,6 @@ export async function getSiteStats(
     totalPageviews: totalPv,
     articleCount: contentList.length,
     totalChars,
-    startDate: siteConfig.startDate,   // 确保 blog.config.ts 中已定义
+    startDate: blogConfig.startDate,   // 确保 blog.config.ts 中已定义
   };
 }
