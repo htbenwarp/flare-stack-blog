@@ -1471,5 +1471,12 @@
   "email_webhook_friend_link_submitted_message": "{submitterName} submitted a friend link request: {siteName} ({siteUrl})",
   "email_webhook_friend_link_approved_message": "{siteName} friend link request was approved.",
   "email_webhook_friend_link_rejected_message": "{siteName} friend link request was rejected: {rejectionReason}",
-  "email_webhook_friend_link_rejected_message_no_reason": "{siteName} friend link request was rejected."
+  "email_webhook_friend_link_rejected_message_no_reason": "{siteName} friend link request was rejected.",
+  "site_info_title": "Site Info",
+  "stats_runtime": "Running Time",
+  "stats_articles": "Articles",
+  "statts_total_words": "Total Words",
+  "stats_pageviews": "Total Views",
+  "statts_years": "years",
+  "stats_days": "days"
 }
