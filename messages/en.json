@@ -1478,5 +1478,6 @@
   "statts_total_words": "Total Words",
   "stats_pageviews": "Total Views",
   "statts_years": "years",
-  "stats_days": "days"
+  "stats_days": "days",
+  "site_info_no_data": "No Data"
 }
