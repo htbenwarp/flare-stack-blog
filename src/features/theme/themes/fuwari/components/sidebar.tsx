@@ -17,7 +17,7 @@ export function Sidebar({ className }: { className?: string }) {
 
       {/* 标签 */}
       <div
-        className="sticky top-4 fuwari-onload-animation"
+        className="fuwari-onload-animation"
         style={{ animationDelay: "150ms" }}
       >
         <Suspense fallback={<TagsSkeleton />}>
@@ -27,7 +27,7 @@ export function Sidebar({ className }: { className?: string }) {
 
       {/* 站点信息 */}
       <div
-        className="fuwari-onload-animation"
+        className="sticky top-4 fuwari-onload-animation"
         style={{ animationDelay: "200ms" }}
       >
         <SiteInfo />
