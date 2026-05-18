@@ -97,7 +97,16 @@ export async function getTopPages(
     .orderBy(sql`views DESC`)
     .limit(limit);
 }
+/**
+ * 获取全站历史总浏览量（PV）
+ */
+export async function getTotalPageviews(db: DB): Promise<number> {
+  const result = await db
+    .select({ total: count() })
+    .from(PageViewsTable);
 
+  return result[0]?.total ?? 0;
+}
 /**
  * 批量获取文章的总浏览量
  */
