@@ -1,40 +1,65 @@
-import { SignJWT, jwtVerify } from 'jose';
-import { serverEnv } from '@/lib/env/server.env';
+import { serverEnv } from "@/lib/env/server.env";
 
-function getSecretKey(env: Env) {
-  const secret = serverEnv(env).JWT_SECRET || 'default-secret-change-me';
-  return new TextEncoder().encode(secret);
+async function getKey(env: Env): Promise<CryptoKey> {
+  const secret = serverEnv(env).JWT_SECRET || "fallback-dev-secret";
+  const encoder = new TextEncoder();
+  return crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"]
+  );
 }
 
-/**
- * 签发文章访问令牌（默认有效期 30 分钟）
- */
+function base64UrlEncode(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+function base64UrlDecode(str: string): Uint8Array {
+  str = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (str.length % 4) str += "=";
+  return Uint8Array.from(atob(str), (c) => c.charCodeAt(0));
+}
+
 export async function createPostAccessToken(
   env: Env,
   slug: string,
-  expiresIn = '30m',
+  expiresInMinutes = 30
 ): Promise<string> {
-  const secret = getSecretKey(env);
-  return new SignJWT({ slug })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setExpirationTime(expiresIn)
-    .sign(secret);
+  const key = await getKey(env);
+  const enc = new TextEncoder();
+  const now = Math.floor(Date.now() / 1000);
+  const payload = { slug, iat: now, exp: now + expiresInMinutes * 60 };
+  const header = { alg: "HS256", typ: "JWT" };
+  const headerEnc = base64UrlEncode(enc.encode(JSON.stringify(header)));
+  const payloadEnc = base64UrlEncode(enc.encode(JSON.stringify(payload)));
+  const toSign = `${headerEnc}.${payloadEnc}`;
+  const sig = await crypto.subtle.sign({ name: "HMAC" }, key, enc.encode(toSign));
+  return `${headerEnc}.${payloadEnc}.${base64UrlEncode(sig)}`;
 }
 
-/**
- * 验证令牌，成功返回 payload，失败返回 null
- */
 export async function verifyToken(
   env: Env,
-  token: string,
+  token: string
 ): Promise<{ slug: string } | null> {
   try {
-    const secret = getSecretKey(env);
-    const { payload } = await jwtVerify(token, secret);
-    if (typeof payload.slug === 'string') {
-      return { slug: payload.slug };
-    }
-    return null;
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const [headerEnc, payloadEnc, sigEnc] = parts;
+    const key = await getKey(env);
+    const enc = new TextEncoder();
+    const toVerify = `${headerEnc}.${payloadEnc}`;
+    const sig = base64UrlDecode(sigEnc);
+    const valid = await crypto.subtle.verify({ name: "HMAC" }, key, sig, enc.encode(toVerify));
+    if (!valid) return null;
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadEnc)));
+    if (payload.exp && Date.now() / 1000 > payload.exp) return null;
+    return typeof payload.slug === "string" ? { slug: payload.slug } : null;
   } catch {
     return null;
   }

@@ -12,7 +12,11 @@ import { PostSummary } from "./components/post-summary";
 import { RelatedPosts, RelatedPostsSkeleton } from "./components/related-posts";
 import TableOfContents from "./components/table-of-contents";
 
-function EncryptedPostGate({ post, slug, onUnlocked }: {
+function EncryptedPostGate({
+  post,
+  slug,
+  onUnlocked,
+}: {
   post: any;
   slug: string;
   onUnlocked: (fullPost: any) => void;
@@ -29,7 +33,6 @@ function EncryptedPostGate({ post, slug, onUnlocked }: {
     setError(false);
 
     try {
-      // 1. 验证密码
       const verifyRes = await fetch("/api/posts/verify-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -43,7 +46,6 @@ function EncryptedPostGate({ post, slug, onUnlocked }: {
         return;
       }
 
-      // 2. 用Token获取完整文章
       const postRes = await fetch(`/api/post/${encodeURIComponent(slug)}`, {
         headers: { Authorization: `Bearer ${verifyResult.token}` },
       });
@@ -96,17 +98,7 @@ export function PostPage({ post }: PostPageProps) {
   const { data: session, isLoading: sessionLoading } = authClient.useSession();
   const { slug } = useParams({ from: "/_public/post/$slug" });
 
-  // 存储解锁后的完整文章
   const [unlockedPost, setUnlockedPost] = useState<any>(null);
-
-  // 防御：补充可能缺失的 slug
-  if (post && !post.slug) {
-    post.slug = slug;
-  }
-
-  const isAdmin = session?.user?.role === "admin";
-  const displayPost = unlockedPost || post;
-  const needPassword = !isAdmin && displayPost.isEncrypted && !displayPost.contentJson?.content?.length;
 
   // 音乐替换逻辑（保持原有功能）
   useEffect(() => {
@@ -139,11 +131,15 @@ export function PostPage({ post }: PostPageProps) {
         textNode.parentNode?.replaceChild(iframe, textNode);
       }
     }
-  }, [displayPost.id]);
+  }, [post.id]);
 
   if (sessionLoading) {
     return <div className="p-8 text-center text-sm text-muted-foreground">加载中...</div>;
   }
+
+  const isAdmin = session?.user?.role === "admin";
+  const displayPost = unlockedPost || post;
+  const needPassword = !isAdmin && displayPost.isEncrypted && !displayPost.contentJson?.content?.length;
 
   if (needPassword) {
     return (

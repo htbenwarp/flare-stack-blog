@@ -15,7 +15,7 @@ import {
 const searchSchema = z.object({
   highlightCommentId: z.coerce.number().optional(),
   rootId: z.number().optional(),
-  unlocked: z.coerce.string().optional(),
+  token: z.string().optional(), // 允许 token 参数，但不在 loader 中使用
 });
 
 const { relatedPostsLimit } = theme.config.post;
@@ -24,14 +24,13 @@ export const Route = createFileRoute("/_public/post/$slug")({
   validateSearch: searchSchema,
   component: RouteComponent,
   loader: async ({ context, params }) => {
-    // 1. Critical: Main post data - use serverFn (executes directly on server, no HTTP)
+    // 原始 loader 逻辑，不处理 token
     const [post, domain, siteConfig] = await Promise.all([
       context.queryClient.ensureQueryData(postBySlugQuery(params.slug)),
       context.queryClient.ensureQueryData(siteDomainQuery),
       context.queryClient.ensureQueryData(siteConfigQuery),
     ]);
 
-    // 2. Deferred: Related posts (prefetch only, don't await)
     void context.queryClient.prefetchQuery(
       relatedPostsQuery(params.slug, relatedPostsLimit),
     );
@@ -50,16 +49,10 @@ export const Route = createFileRoute("/_public/post/$slug")({
   head: ({ loaderData }) => {
     const post = loaderData?.post;
     const canonicalHref = loaderData?.canonicalHref ?? "";
-
     return {
       meta: [
-        {
-          title: post?.title,
-        },
-        {
-          name: "description",
-          content: post?.summary ?? "",
-        },
+        { title: post?.title },
+        { name: "description", content: post?.summary ?? "" },
         { property: "og:title", content: post?.title ?? "" },
         { property: "og:description", content: post?.summary ?? "" },
         { property: "og:type", content: "article" },
@@ -94,9 +87,7 @@ function RouteComponent() {
       const key = `pv:${post.id}`;
       if (sessionStorage.getItem(key)) return;
       sessionStorage.setItem(key, "1");
-    } catch {
-      // Safari private mode / storage disabled — record anyway
-    }
+    } catch {}
     void recordPageViewFn({ data: { postId: post.id } });
   }, [post?.id]);
 
