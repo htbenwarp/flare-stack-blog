@@ -12,8 +12,11 @@ import { PostSummary } from "./components/post-summary";
 import { RelatedPosts, RelatedPostsSkeleton } from "./components/related-posts";
 import TableOfContents from "./components/table-of-contents";
 
-// 加密文章密码输入组件
-function EncryptedPostGate({ post, slug }: { post: any; slug: string }) {
+function EncryptedPostGate({ post, slug, onUnlocked }: {
+  post: any;
+  slug: string;
+  onUnlocked: (fullPost: any) => void;
+}) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -26,16 +29,28 @@ function EncryptedPostGate({ post, slug }: { post: any; slug: string }) {
     setError(false);
 
     try {
-      const res = await fetch("/api/posts/verify-password", {
+      // 1. 验证密码
+      const verifyRes = await fetch("/api/posts/verify-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slug, password: password.trim() }),
       });
-      const result = await res.json();
+      const verifyResult = await verifyRes.json();
 
-      if (result.success) {
-        localStorage.setItem(`post_token_${slug}`, result.token);
-        window.location.reload(); // 普通刷新，自动触发全文请求
+      if (!verifyResult.success) {
+        setError(true);
+        setLoading(false);
+        return;
+      }
+
+      // 2. 用Token获取完整文章
+      const postRes = await fetch(`/api/post/${encodeURIComponent(slug)}`, {
+        headers: { Authorization: `Bearer ${verifyResult.token}` },
+      });
+      const fullPost = await postRes.json();
+
+      if (!fullPost.isEncrypted && fullPost.contentJson) {
+        onUnlocked(fullPost);
       } else {
         setError(true);
       }
@@ -81,36 +96,17 @@ export function PostPage({ post }: PostPageProps) {
   const { data: session, isLoading: sessionLoading } = authClient.useSession();
   const { slug } = useParams({ from: "/_public/post/$slug" });
 
-  const [fullPost, setFullPost] = useState<any>(null);
-  const [fetchingFullPost, setFetchingFullPost] = useState(false);
+  // 存储解锁后的完整文章
+  const [unlockedPost, setUnlockedPost] = useState<any>(null);
 
   // 防御：补充可能缺失的 slug
   if (post && !post.slug) {
     post.slug = slug;
   }
 
-  // 自动检测：如果是加密文章、正文为空、且有 token，则自动请求完整文章
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!post.isEncrypted) return;
-    if (post.contentJson?.content?.length > 0) return;
-    if (fullPost || fetchingFullPost) return;
-
-    const token = localStorage.getItem(`post_token_${slug}`);
-    if (!token) return;
-
-    setFetchingFullPost(true);
-    fetch(`/api/post/${encodeURIComponent(slug)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.isEncrypted && data.contentJson) {
-          setFullPost(data);
-        }
-      })
-      .finally(() => setFetchingFullPost(false));
-  }, [post.isEncrypted, post.contentJson, slug, fullPost, fetchingFullPost]);
+  const isAdmin = session?.user?.role === "admin";
+  const displayPost = unlockedPost || post;
+  const needPassword = !isAdmin && displayPost.isEncrypted && !displayPost.contentJson?.content?.length;
 
   // 音乐替换逻辑（保持原有功能）
   useEffect(() => {
@@ -143,30 +139,25 @@ export function PostPage({ post }: PostPageProps) {
         textNode.parentNode?.replaceChild(iframe, textNode);
       }
     }
-  }, [post.id]);
+  }, [displayPost.id]);
 
   if (sessionLoading) {
     return <div className="p-8 text-center text-sm text-muted-foreground">加载中...</div>;
   }
 
-  const isAdmin = session?.user?.role === "admin";
-  const displayPost = fullPost || post;
-
-  // 访客未解锁 → 密码输入框
-  if (!isAdmin && displayPost.isEncrypted && !displayPost.contentJson?.content?.length) {
+  if (needPassword) {
     return (
       <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
-        <EncryptedPostGate post={displayPost} slug={slug} />
+        <EncryptedPostGate
+          post={displayPost}
+          slug={slug}
+          onUnlocked={(full) => setUnlockedPost(full)}
+        />
         <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
           <FuwariCommentSection postId={displayPost.id} />
         </div>
       </div>
     );
-  }
-
-  // 正在加载正文
-  if (fetchingFullPost) {
-    return <div className="p-8 text-center text-sm text-muted-foreground">正在加载文章正文...</div>;
   }
 
   // 正常文章渲染
