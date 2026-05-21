@@ -1,6 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { FindPostBySlugInputSchema } from "@/features/posts/schema/posts.schema";
+import { FindPostBySlugInputSchema, PostWithTocSchema } from "@/features/posts/schema/posts.schema";
 import * as PostService from "@/features/posts/services/posts.service";
 import { getServiceContext, setCacheHeaders } from "@/lib/hono/helper";
 import { baseMiddleware } from "@/lib/hono/middlewares";
@@ -34,7 +34,6 @@ const route = app.get(
       }
     } catch {}
 
-    // 管理员或非加密 → 返回全文（移除 passwordHash）
     if (isAdmin || !post.isEncrypted) {
       const { passwordHash, ...safePost } = post;
       setCacheHeaders(c.res.headers, "private");
@@ -61,27 +60,32 @@ const route = app.get(
       }
     }
 
-    // 未授权：显式构建加密元数据（确保所有字段存在）
+    // 未授权：返回加密元数据
     const encryptedResponse = {
       id: post.id,
       title: post.title,
       summary: post.summary ?? "",
       readTimeInMinutes: post.readTimeInMinutes,
-      slug: post.slug,                // ✅ 显式包含
+      slug: post.slug,
       status: post.status,
-      isEncrypted: true as boolean,
+      isEncrypted: true,
       publishedAt: post.publishedAt,
       pinnedAt: post.pinnedAt,
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
       contentJson: { type: "doc", content: [] },
       publicContentJson: null,
-      toc: [] as { id: string; text: string; level: number }[],
+      toc: [],
       tags: post.tags ?? [],
     };
 
+    // 验证并返回
+    const parsed = PostWithTocSchema.safeParse(encryptedResponse);
+    if (!parsed.success) {
+      console.error("Encrypted post schema mismatch:", parsed.error.issues);
+    }
     setCacheHeaders(c.res.headers, "public");
-    return c.json(encryptedResponse);
+    return c.json(parsed.success ? parsed.data : encryptedResponse);
   },
 );
 

@@ -105,9 +105,27 @@ export function postBySlugQuery(slug: string) {
       if (isSSR) {
         return await findPostBySlugFn({ data: { slug } });
       }
+
       const res = await apiClient.post[":slug"].$get({ param: { slug } });
       if (!res.ok) throw new Error("Failed to fetch post");
-      return PostWithTocSchema.parse(await res.json());
+      const json = await res.json();
+
+      // 尝试严格解析，失败时如果是加密文章则直接返回原始 JSON
+      const parsed = PostWithTocSchema.safeParse(json);
+      if (parsed.success) return parsed.data;
+
+      if (json && json.isEncrypted) {
+        // 确保返回对象包含必要字段，避免组件崩溃
+        return {
+          ...json,
+          slug: slug, // 强制设置 slug
+          contentJson: json.contentJson ?? { type: "doc", content: [] },
+          toc: json.toc ?? [],
+          tags: json.tags ?? [],
+        } as any;
+      }
+
+      throw new Error("Invalid post data");
     },
   });
 }

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Clock, FileText, Pencil } from "lucide-react";
 import { Suspense, useState, useEffect } from "react";
-import { useParams, useSearch } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import type { PostPageProps } from "@/features/theme/contract/pages";
 import { FuwariCommentSection } from "@/features/theme/themes/fuwari/components/comments/view/comment-section";
 import { ContentRenderer } from "@/features/theme/themes/fuwari/components/content/content-renderer";
@@ -35,7 +35,7 @@ function EncryptedPostGate({ post, slug }: { post: any; slug: string }) {
 
       if (result.success) {
         localStorage.setItem(`post_token_${slug}`, result.token);
-        window.location.href = `/post/${slug}?unlocked=1`;
+        window.location.reload(); // 普通刷新，自动触发全文请求
       } else {
         setError(true);
       }
@@ -77,53 +77,40 @@ function EncryptedPostGate({ post, slug }: { post: any; slug: string }) {
   );
 }
 
-// 主文章页面
 export function PostPage({ post }: PostPageProps) {
-  // ✅ 所有 Hooks 必须在最顶部，无条件调用
   const { data: session, isLoading: sessionLoading } = authClient.useSession();
   const { slug } = useParams({ from: "/_public/post/$slug" });
-  const search = useSearch({ from: "/_public/post/$slug" }) as { unlocked?: string };
 
-  const [forceUnlocked, setForceUnlocked] = useState(false);
   const [fullPost, setFullPost] = useState<any>(null);
   const [fetchingFullPost, setFetchingFullPost] = useState(false);
 
-  // 防御：补充缺失的 slug（在 hooks 之后可安全操作）
+  // 防御：补充可能缺失的 slug
   if (post && !post.slug) {
     post.slug = slug;
   }
 
-  // 客户端初始化：检查 URL 参数和 localStorage
+  // 自动检测：如果是加密文章、正文为空、且有 token，则自动请求完整文章
   useEffect(() => {
-    if (typeof window !== "undefined" && search.unlocked === "1") {
-      const token = localStorage.getItem(`post_token_${slug}`);
-      setForceUnlocked(!!token);
-    }
-  }, [search.unlocked, slug]);
+    if (typeof window === "undefined") return;
+    if (!post.isEncrypted) return;
+    if (post.contentJson?.content?.length > 0) return;
+    if (fullPost || fetchingFullPost) return;
 
-  // 强制解锁后，请求完整文章正文
-  useEffect(() => {
-    if (
-      forceUnlocked &&
-      post.isEncrypted &&
-      !post.contentJson?.content?.length &&
-      !fullPost &&
-      !fetchingFullPost
-    ) {
-      setFetchingFullPost(true);
-      const token = localStorage.getItem(`post_token_${slug}`);
-      fetch(`/api/post/${encodeURIComponent(slug)}`, {
-        headers: { Authorization: `Bearer ${token}` },
+    const token = localStorage.getItem(`post_token_${slug}`);
+    if (!token) return;
+
+    setFetchingFullPost(true);
+    fetch(`/api/post/${encodeURIComponent(slug)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.isEncrypted && data.contentJson) {
+          setFullPost(data);
+        }
       })
-        .then((res) => res.json())
-        .then((data) => {
-          if (!data.isEncrypted && data.contentJson) {
-            setFullPost(data);
-          }
-        })
-        .finally(() => setFetchingFullPost(false));
-    }
-  }, [forceUnlocked, post.isEncrypted, post.contentJson, slug, fullPost, fetchingFullPost]);
+      .finally(() => setFetchingFullPost(false));
+  }, [post.isEncrypted, post.contentJson, slug, fullPost, fetchingFullPost]);
 
   // 音乐替换逻辑（保持原有功能）
   useEffect(() => {
@@ -158,7 +145,6 @@ export function PostPage({ post }: PostPageProps) {
     }
   }, [post.id]);
 
-  // ✅ 所有 Hooks 已调用完毕，现在可以进行条件渲染和提前返回
   if (sessionLoading) {
     return <div className="p-8 text-center text-sm text-muted-foreground">加载中...</div>;
   }
@@ -166,8 +152,8 @@ export function PostPage({ post }: PostPageProps) {
   const isAdmin = session?.user?.role === "admin";
   const displayPost = fullPost || post;
 
-  // 访客访问加密文章且未强制解锁 → 密码输入界面
-  if (!isAdmin && displayPost.isEncrypted && !forceUnlocked) {
+  // 访客未解锁 → 密码输入框
+  if (!isAdmin && displayPost.isEncrypted && !displayPost.contentJson?.content?.length) {
     return (
       <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
         <EncryptedPostGate post={displayPost} slug={slug} />
