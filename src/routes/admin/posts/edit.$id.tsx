@@ -23,7 +23,6 @@ export const Route = createFileRoute("/admin/posts/edit/$id")({
     const [post, _] = await Promise.all([
       context.queryClient.ensureQueryData(postByIdQuery(postId)),
       context.queryClient.ensureQueryData(tagsByPostIdQueryOptions(postId)),
-      // Prefetch all tags for the selector
       context.queryClient.prefetchQuery(tagsAdminQueryOptions()),
     ]);
     return { title: post?.title };
@@ -42,8 +41,6 @@ function EditPost() {
   const postId = Number(id);
   const queryClient = useQueryClient();
 
-  // Use useQuery instead of useSuspenseQuery to prevent flickering on background refetches
-  // Since loader ensures data is in cache, these will have initial data immediately.
   const { data: post } = useQuery(postByIdQuery(postId));
   const { data: tags } = useQuery(tagsByPostIdQueryOptions(postId));
 
@@ -62,6 +59,7 @@ function EditPost() {
     );
   }
 
+  // ✅ 包含加密字段
   const initialData = {
     id: post.id,
     title: post.title,
@@ -75,6 +73,8 @@ function EditPost() {
     pinnedAt: post.pinnedAt,
     isSynced: post.isSynced,
     hasPublicCache: post.hasPublicCache,
+    isEncrypted: (post as any).isEncrypted ?? false, // 从接口获取加密状态
+    password: "", // 密码永远不回显
   };
 
   const handleSave = async (data: PostEditorData) => {
@@ -83,15 +83,18 @@ function EditPost() {
         ? new Date()
         : data.publishedAt;
 
-    // Parallelize updates
+    // ✅ 过滤密码字段：空字符串改为 undefined，防止清空密码
+    const cleanData = {
+      ...data,
+      password: data.password?.trim() || undefined,
+      publishedAt,
+    };
+
     const [updateResult] = await Promise.all([
       adminUpdatePostFn({
         data: {
           id: post.id,
-          data: {
-            ...data,
-            publishedAt,
-          },
+          data: cleanData,
         },
       }),
       setPostTagsFn({
@@ -106,16 +109,13 @@ function EditPost() {
       throw new Error(m.admin_post_edit_error_not_found());
     }
 
-    // Invalidate cache to ensure fresh data on next visit
     queryClient.invalidateQueries({ queryKey: POSTS_KEYS.detail(postId) });
-    // Invalidate lists and counts, but keep other details cached
     queryClient.invalidateQueries({ queryKey: POSTS_KEYS.lists });
     queryClient.invalidateQueries({ queryKey: POSTS_KEYS.adminLists });
     queryClient.invalidateQueries({ queryKey: POSTS_KEYS.counts });
 
     queryClient.invalidateQueries({ queryKey: TAGS_KEYS.postTags(postId) });
     queryClient.invalidateQueries({ queryKey: TAGS_KEYS.admin });
-    // Replaces predicate: matches ["media", "linked-keys", ...]
     queryClient.invalidateQueries({
       queryKey: MEDIA_KEYS.linked,
     });

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import * as PageviewService from "@/features/pageview/service/pageview.service";
 import {
@@ -7,7 +8,8 @@ import {
   GetPostsCursorInputSchema,
 } from "@/features/posts/schema/posts.schema";
 import * as PostService from "@/features/posts/services/posts.service";
-import { dbMiddleware } from "@/lib/middlewares";
+import { dbMiddleware, sessionMiddleware } from "@/lib/middlewares";
+import { verifyToken } from "@/lib/auth/token";
 
 export const getPostsCursorFn = createServerFn()
   .middleware([dbMiddleware])
@@ -17,10 +19,64 @@ export const getPostsCursorFn = createServerFn()
   });
 
 export const findPostBySlugFn = createServerFn()
-  .middleware([dbMiddleware])
+  .middleware([dbMiddleware, sessionMiddleware])
   .inputValidator(FindPostBySlugInputSchema)
   .handler(async ({ data, context }) => {
-    return await PostService.findPostBySlug(context, data);
+    const { slug } = data;
+
+    const isAdmin = context.session?.user?.role === "admin";
+
+    const post = await PostService.findPostBySlug(context, { slug });
+    if (!post) throw new Error("Post not found");
+
+    console.log(`[findPostBySlugFn] slug: ${slug}, isAdmin: ${isAdmin}, isEncrypted: ${post.isEncrypted}`);
+
+    if (isAdmin || !post.isEncrypted) {
+      const { passwordHash, ...safePost } = post;
+      return safePost;
+    }
+
+    // 检查 token
+    const headers = getRequestHeaders();
+    let token: string | null = null;
+    const cookieHeader = headers["cookie"] || headers["Cookie"] || "";
+    const match = cookieHeader.match(/post_token=([^;]+)/);
+    if (match) token = match[1];
+    if (!token) {
+      const authHeader = headers["authorization"] || headers["Authorization"] || "";
+      if (authHeader.startsWith("Bearer ")) token = authHeader.slice(7);
+    }
+
+    if (token) {
+      const payload = await verifyToken(context.env, token);
+      if (payload && payload.slug === slug) {
+        const { passwordHash, ...safePost } = post;
+        safePost.isEncrypted = false;
+        return safePost;
+      }
+    }
+
+    // ✅ 显式构建加密元数据，确保 slug 绝不丢失
+    const encryptedPost = {
+      id: post.id,
+      title: post.title,
+      summary: post.summary ?? "",
+      readTimeInMinutes: post.readTimeInMinutes,
+      slug: post.slug,           // ← 强制包含
+      status: post.status,
+      isEncrypted: true,
+      publishedAt: post.publishedAt,
+      pinnedAt: post.pinnedAt,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      contentJson: { type: "doc", content: [] },
+      publicContentJson: null,
+      toc: [] as { id: string; text: string; level: number }[],
+      tags: post.tags ?? [],
+    };
+
+    console.log("[findPostBySlugFn] encryptedPost slug:", encryptedPost.slug);
+    return encryptedPost;
   });
 
 export const getRelatedPostsFn = createServerFn()

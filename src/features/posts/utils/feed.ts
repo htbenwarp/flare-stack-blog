@@ -1,10 +1,10 @@
-import { and, desc, eq, lte } from "drizzle-orm";
 import { Feed } from "feed";
 import * as ConfigService from "@/features/config/service/config.service";
 import { convertToPlainText } from "@/features/posts/utils/content";
 import { getDb } from "@/lib/db";
 import { PostsTable } from "@/lib/db/schema";
 import { serverEnv } from "@/lib/env/server.env";
+import { and, desc, eq, lte, sql } from "drizzle-orm";
 
 export async function buildFeed(env: Env, executionCtx: ExecutionContext) {
   const db = getDb(env);
@@ -22,12 +22,14 @@ export async function buildFeed(env: Env, executionCtx: ExecutionContext) {
       slug: PostsTable.slug,
       publishedAt: PostsTable.publishedAt,
       updatedAt: PostsTable.updatedAt,
+      isEncrypted: PostsTable.isEncrypted,
     })
     .from(PostsTable)
     .where(
       and(
         eq(PostsTable.status, "published"),
         lte(PostsTable.publishedAt, new Date()),
+        sql`${PostsTable.isEncrypted} = 0`,
       ),
     )
     .orderBy(desc(PostsTable.publishedAt))
@@ -51,6 +53,7 @@ export async function buildFeed(env: Env, executionCtx: ExecutionContext) {
   });
 
   posts.forEach((post) => {
+    if (post.isEncrypted) return;
     feed.addItem({
       title: post.title,
       id: post.id.toString(),

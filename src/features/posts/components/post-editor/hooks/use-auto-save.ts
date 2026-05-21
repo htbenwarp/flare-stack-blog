@@ -57,6 +57,8 @@ export function useAutoSave({
     pinnedAt: p.pinnedAt ? p.pinnedAt.valueOf() : null,
     tagIds: [...p.tagIds].sort().join(","),
     contentRef: p.contentJson,
+    isEncrypted: p.isEncrypted,
+    password: p.password,
   });
 
   const isDirty = (curr: ReturnType<typeof toComparable>) => {
@@ -71,7 +73,9 @@ export function useAutoSave({
       prev.publishedAt !== curr.publishedAt ||
       prev.pinnedAt !== curr.pinnedAt ||
       prev.tagIds !== curr.tagIds ||
-      prev.contentRef !== curr.contentRef
+      prev.contentRef !== curr.contentRef ||
+      prev.isEncrypted !== curr.isEncrypted ||
+      prev.password !== curr.password
     );
   };
 

@@ -1479,5 +1479,13 @@
   "stats_pageviews": "Total Views",
   "statts_years": "years",
   "stats_days": "days",
-  "site_info_no_data": "No Data"
+  "site_info_no_data": "No Data",
+  "post_encrypted_label": "Encrypt Post",
+  "post_encrypted_enable": "Enable encryption",
+  "post_password_placeholder": "Enter access password (leave blank to keep unchanged)",
+  "post_password_hint": "Leave blank to keep current password",
+  "post_encrypted_summary": "This post is encrypted. Password required.",
+  "post_password_placeholder_front": "Enter password...",
+  "post_password_submit": "Verify",
+  "post_password_error": "Incorrect password, please try again"
 }

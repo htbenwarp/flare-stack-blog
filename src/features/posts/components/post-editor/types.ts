@@ -13,6 +13,8 @@ export interface PostEditorData {
   tagIds: Array<number>;
   isSynced: boolean;
   hasPublicCache: boolean;
+  isEncrypted: boolean;
+  password: string;
 }
 
 export interface PostEditorProps {
@@ -34,4 +36,6 @@ export const defaultPostData: PostEditorData = {
   tagIds: [],
   isSynced: true,
   hasPublicCache: false,
+  isEncrypted: boolean,
+  password: string,
 };

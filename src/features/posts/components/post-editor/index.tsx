@@ -19,7 +19,6 @@ import { PostEditorStatusBar } from "./post-editor-status-bar";
 import type { PostEditorData, PostEditorProps } from "./types";
 
 export function PostEditor({ initialData, onSave }: PostEditorProps) {
-  // Initialize post state from initialData (always provided)
   const [post, setPost] = useState<PostEditorData>(() => ({
     title: initialData.title,
     summary: initialData.summary,
@@ -32,9 +31,10 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
     tagIds: initialData.tagIds,
     isSynced: initialData.isSynced,
     hasPublicCache: initialData.hasPublicCache,
+    isEncrypted: initialData.isEncrypted ?? false,
+    password: "", // 永不回显密码
   }));
 
-  // Sync state when initialData updates (e.g. after background refetch/invalidation)
   const [prevInitialDataId, setPrevInitialDataId] = useState(initialData.id);
   const [prevTagIds, setPrevTagIds] = useState(() =>
     [...initialData.tagIds].sort().join(","),
@@ -49,24 +49,31 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
       ...prev,
       tagIds: initialData.tagIds,
       isSynced: initialData.isSynced,
+      isEncrypted: initialData.isEncrypted ?? false, // 同步加密状态
     }));
   }
 
-  const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(
-    null,
-  );
-  const [editorRenderKey, setEditorRenderKey] = useState(
-    `editor:${initialData.id}`,
-  );
+  const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
+  const [editorRenderKey, setEditorRenderKey] = useState(`editor:${initialData.id}`);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
-  // Fetch all tags for AI context and matching
   const { data: allTags = [] } = useQuery(tagsAdminQueryOptions());
 
-  // Auto-save hook
+  // ✅ 安全保存：过滤空密码，避免覆盖原密码
+  const safeSave = useCallback(
+    async (data: PostEditorData) => {
+      const cleanData = {
+        ...data,
+        password: data.password?.trim() || undefined, // 空字符串转 undefined
+      };
+      await onSave(cleanData);
+    },
+    [onSave],
+  );
+
   const useAutoSaveReturn = useAutoSave({
     post,
-    onSave,
+    onSave: safeSave, // ✅ 使用安全保存
   });
 
   const { saveStatus, lastSaved, setError, markSaved } = useAutoSaveReturn;
@@ -76,7 +83,6 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
     withResolver: true,
   });
 
-  // Post actions hook
   const {
     isGeneratingSlug,
     isCalculatingReadTime,
@@ -130,20 +136,21 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
         status: snapshot.status,
         readTimeInMinutes: snapshot.readTimeInMinutes,
         contentJson: snapshot.contentJson,
-        publishedAt: snapshot.publishedAt
-          ? new Date(snapshot.publishedAt)
-          : null,
+        publishedAt: snapshot.publishedAt ? new Date(snapshot.publishedAt) : null,
         pinnedAt: post.pinnedAt,
         tagIds: snapshot.tagIds,
         isSynced: snapshot.status === "draft" ? !hasPublicCache : false,
         hasPublicCache,
+        // ✅ 恢复时保留当前的加密设置
+        isEncrypted: post.isEncrypted,
+        password: post.password,
       };
 
       setPost(restoredPost);
       setEditorRenderKey(`editor:${initialData.id}:${Date.now()}`);
       markSaved(restoredPost);
     },
-    [initialData.id, markSaved, post.hasPublicCache],
+    [initialData.id, markSaved, post.hasPublicCache, post.isEncrypted, post.password],
   );
 
   const currentSnapshot = useMemo<PostRevisionSnapshot>(
@@ -200,7 +207,6 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
         onRestoreApplied={handleRestoreApplied}
       />
 
-      {/* Main Content Area (Only this scrolls) */}
       <div
         id="post-editor-scroll-container"
         className="flex-1 overflow-y-auto custom-scrollbar relative scroll-smooth animate-in fade-in slide-in-from-bottom-4 duration-1000 fill-mode-both delay-100"
@@ -233,7 +239,6 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
               onGenerateTags={handleGenerateTags}
             />
 
-            {/* Editor Area */}
             <div className="min-h-[60vh] pb-32">
               <Editor
                 key={editorRenderKey}
@@ -245,7 +250,6 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
             </div>
           </div>
 
-          {/* Sidebar */}
           <aside className="hidden xl:block sticky top-20 h-full max-h-[calc(100vh-10rem)] w-60">
             <div className="space-y-6">
               <button
@@ -262,18 +266,12 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
                   </p>
                 </div>
                 {saveStatus === "SAVING" ? (
-                  <Loader2
-                    size={14}
-                    className="animate-spin text-muted-foreground"
-                  />
+                  <Loader2 size={14} className="animate-spin text-muted-foreground" />
                 ) : (
                   <History size={16} className="text-muted-foreground" />
                 )}
               </button>
-
-              {editorInstance && (
-                <EditorTableOfContents editor={editorInstance} />
-              )}
+              {editorInstance && <EditorTableOfContents editor={editorInstance} />}
             </div>
           </aside>
         </div>

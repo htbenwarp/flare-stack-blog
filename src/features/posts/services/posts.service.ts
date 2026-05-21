@@ -36,6 +36,8 @@ import { generateTableOfContents } from "@/features/posts/utils/toc";
 import * as SearchService from "@/features/search/service/search.service";
 import { err, ok } from "@/lib/errors";
 import { purgePostCDNCache } from "@/lib/invalidate";
+import { hashPassword } from "@/lib/crypto";
+import { sql } from "drizzle-orm";
 
 function stripPublicContentJson<T extends { publicContentJson?: unknown }>(
   post: T,
@@ -249,6 +251,8 @@ export async function createEmptyPost(context: DbContext) {
     status: "draft",
     readTimeInMinutes: 1,
     contentJson: null,
+    isEncrypted: false,      // 新文章默认不加密
+    passwordHash: null, 
   });
 
   // No cache/index operations for drafts
@@ -330,16 +334,42 @@ export async function findPostById(
 
 export async function updatePost(
   context: DbContext & { executionCtx: ExecutionContext; env?: Env },
-  data: UpdatePostInput,
+  input: UpdatePostInput,
 ) {
-  const updatedPost = await PostRepo.updatePost(context.db, data.id, data.data);
+  const { id, data } = input;
+  const { password, ...restData } = data;
+
+  // 构建 Drizzle 更新对象（不包含 password 和 passwordHash）
+  const updateData: Record<string, any> = { ...restData };
+  delete updateData.id;
+  delete updateData.isSynced;
+  delete updateData.hasPublicCache;
+  delete updateData.password;
+  delete updateData.passwordHash;   // 绝不用 Drizzle 更新此字段
+
+  // 使用原始 SQL 单独处理密码哈希
+  if (restData.isEncrypted && password) {
+    const hash = await hashPassword(password);
+    console.log("[updatePost] 正在更新密码哈希...");
+    await context.db.run(
+      sql`UPDATE posts SET password_hash = ${hash} WHERE id = ${id}`
+    );
+    console.log("[updatePost] 密码哈希已写入数据库");
+  } else if (restData.isEncrypted === false) {
+    await context.db.run(
+      sql`UPDATE posts SET password_hash = NULL WHERE id = ${id}`
+    );
+  }
+  // 若 isEncrypted 为 true 但 password 为空，不修改密码
+
+  const updatedPost = await PostRepo.updatePost(context.db, id, updateData);
   if (!updatedPost) {
     return err({ reason: "POST_NOT_FOUND" });
   }
 
-  if (data.data.contentJson !== undefined) {
+  if (data.contentJson !== undefined) {
     context.executionCtx.waitUntil(
-      syncPostMedia(context.db, updatedPost.id, data.data.contentJson),
+      syncPostMedia(context.db, updatedPost.id, data.contentJson),
     );
   }
 
@@ -352,6 +382,7 @@ export async function updatePost(
 
   return ok(updatedPost);
 }
+
 
 export async function deletePost(
   context: DbContext & { executionCtx: ExecutionContext },

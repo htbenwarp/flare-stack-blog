@@ -15,6 +15,7 @@ import {
 const searchSchema = z.object({
   highlightCommentId: z.coerce.number().optional(),
   rootId: z.number().optional(),
+  unlocked: z.coerce.string().optional(),
 });
 
 const { relatedPostsLimit } = theme.config.post;

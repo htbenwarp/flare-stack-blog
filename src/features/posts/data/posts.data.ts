@@ -251,6 +251,7 @@ export async function getPublishedPostsForSitemapBatch(
         eq(PostsTable.status, "published"),
         isNotNull(PostsTable.publishedAt),
         sql`date(${PostsTable.publishedAt}, 'unixepoch') <= date('now')`,
+        eq(PostsTable.isEncrypted, false),
         cursor
           ? or(
               lt(PostsTable.publishedAt, cursor.publishedAt),

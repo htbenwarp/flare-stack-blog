@@ -25,6 +25,8 @@ export const PostsTable = sqliteTable(
       mode: "json",
     }).$type<JSONContent>(),
     status: text("status", { enum: POST_STATUSES }).notNull().default("draft"),
+    isEncrypted: integer("is_encrypted", { mode: "boolean" }).default(false).notNull(),
+    passwordHash: text("password_hash"),
     publishedAt: integer("published_at", { mode: "timestamp" }),
     pinnedAt: integer("pinned_at", { mode: "timestamp" }),
     createdAt,

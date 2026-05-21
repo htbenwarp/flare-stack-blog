@@ -9,10 +9,10 @@ import type { Post, PostStatus, Tag } from "@/lib/db/schema";
 import { POST_STATUSES, PostsTable } from "@/lib/db/schema";
 import { NullableJsonContentSchema } from "./json-content.schema";
 
-// Date fields need to accept both Date objects and ISO strings (for JSON serialization)
 const coercedDate = z.union([z.date(), z.string().pipe(z.coerce.date())]);
 const coercedDateNullable = coercedDate.nullable();
 
+// ✅ 基础查询 schema：已移除 passwordHash 和 publicContentJson
 export const PostSelectSchema = createSelectSchema(PostsTable, {
   publishedAt: coercedDateNullable,
   pinnedAt: coercedDateNullable,
@@ -20,24 +20,37 @@ export const PostSelectSchema = createSelectSchema(PostsTable, {
   updatedAt: coercedDate,
 }).omit({
   publicContentJson: true,
+  passwordHash: true,
 });
+
 export const PostInsertSchema = createInsertSchema(PostsTable);
+
 export const PostUpdateSchema = createUpdateSchema(PostsTable, {
   contentJson: NullableJsonContentSchema.optional(),
   publicContentJson: NullableJsonContentSchema.optional(),
-}).omit({
-  publicContentJson: true,
-});
+})
+  .omit({
+    publicContentJson: true,
+    passwordHash: true,
+  })
+  .extend({
+    password: z.string().optional(),
+  })
+  .passthrough();
 
+// ✅ 列表项：增加 isEncrypted 容错
 export const PostItemSchema = PostSelectSchema.omit({
   contentJson: true,
 }).extend({
   tags: z.array(TagSelectSchema).optional(),
+  isEncrypted: z.boolean().optional().default(false),
 });
+
 export const PostListResponseSchema = z.object({
   items: z.array(PostItemSchema),
   nextCursor: z.number().nullable(),
 });
+
 export const PostWithTocSchema = PostSelectSchema.extend({
   tags: z.array(TagSelectSchema).optional(),
   toc: z.array(

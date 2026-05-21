@@ -57,14 +57,10 @@ export function usePostActions({
   const [processState, setProcessState] = useState<
     "IDLE" | "PROCESSING" | "SUCCESS"
   >("IDLE");
-  // kvSnapshot tracks what is currently in the public KV storage.
-  // It is only updated on initial load or after a successful manual publish/sync.
+  // kvSnapshot 跟踪 KV 中的公网状态
   const [kvSnapshot, setKvSnapshot] = useState<PostEditorData>(initialData);
   const [sessionSynced, setSessionSynced] = useState(false);
 
-  // Sync state when initialData changes ONLY IF we haven't synced to KV yet
-  // but wait, if the post was already published and we just loaded it,
-  // initialData is our best guess for what's in KV.
   const [hasInitializedSnapshot, setHasInitializedSnapshot] = useState(false);
   useEffect(() => {
     if (!hasInitializedSnapshot) {
@@ -73,14 +69,12 @@ export function usePostActions({
     }
   }, [initialData, hasInitializedSnapshot]);
 
-  // Compare current post to kvSnapshot to determine if KV needs an update.
-  // This is INDEPENDENT of the auto-save state.
+  // 判断是否需要更新 KV（即“脏”状态）
   const isDirty = useMemo(() => {
     const compareTags = (a: Array<number>, b: Array<number>) => {
       return JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
     };
 
-    // If backend reports not synced, and we haven't synced in this session, it's dirty.
     if (!initialData.isSynced && !sessionSynced) {
       return true;
     }
@@ -93,44 +87,35 @@ export function usePostActions({
       post.readTimeInMinutes !== kvSnapshot.readTimeInMinutes ||
       post.publishedAt?.getTime() !== kvSnapshot.publishedAt?.getTime() ||
       post.pinnedAt?.getTime() !== kvSnapshot.pinnedAt?.getTime() ||
-      // For content, referential comparison is usually enough since Tiptap
-      // returns a new object on change, but we'll stick to it.
       post.contentJson !== kvSnapshot.contentJson ||
-      !compareTags(post.tagIds, kvSnapshot.tagIds)
+      !compareTags(post.tagIds, kvSnapshot.tagIds) ||
+      // ✅ 新增加密字段比较
+      post.isEncrypted !== kvSnapshot.isEncrypted ||
+      post.password !== kvSnapshot.password
     );
   }, [post, kvSnapshot, initialData.isSynced, sessionSynced]);
 
-  // Keep track of how slug was requested to control noisy toasts
   const slugGenerationMode = useRef<"manual" | "auto">("manual");
-  // Track previous values to detect actual changes & skip first mount
   const prevTitleRef = useRef(post.title);
   const prevContentRef = useRef(post.contentJson);
   const isFirstTitleMount = useRef(true);
   const isFirstContentMount = useRef(true);
 
-  // Debounced values
   const debouncedTitle = useDebounce(post.title, 500);
   const debouncedContentJson = useDebounce(post.contentJson, 500);
 
   const processDataMutation = useMutation({
     mutationFn: startPostProcessWorkflowFn,
     onSuccess: () => {
-      // Feedback: Notify user task is running
       toast(m.editor_action_publish_start(), {
         description: m.editor_action_publish_desc(),
         icon: <Radio className="animate-pulse text-foreground" />,
         className:
           "bg-background/95 backdrop-blur-2xl border border-border rounded-sm",
       });
-
       setProcessState("SUCCESS");
-
-      // Update the KV snapshot to match what we just published.
-      // This effectively 'resets' the isDirty state for the sync UI.
       setSessionSynced(true);
-      setKvSnapshot(post);
-
-      // Reset after cooldown
+      setKvSnapshot(post); // 发布后更新快照，清除脏状态
       setTimeout(() => {
         setProcessState("IDLE");
       }, 3000);
@@ -143,9 +128,7 @@ export function usePostActions({
 
   const handleProcessData = () => {
     if (processState !== "IDLE") return;
-
     setProcessState("PROCESSING");
-
     setTimeout(() => {
       processDataMutation.mutate({
         data: {
@@ -157,14 +140,10 @@ export function usePostActions({
     }, 800);
   };
 
-  // Slug generation mutation
   const slugMutation = useMutation({
     mutationFn: (title: string) =>
       generateSlugFn({
-        data: {
-          title,
-          excludeId: postId,
-        },
+        data: { title, excludeId: postId },
       }),
     onSuccess: (result) => {
       setPost((prev) => ({ ...prev, slug: result.slug }));
@@ -185,34 +164,21 @@ export function usePostActions({
 
   const previewSummaryMutation = useMutation({
     mutationFn: () =>
-      previewSummaryFn({
-        data: {
-          contentJson: post.contentJson,
-        },
-      }),
+      previewSummaryFn({ data: { contentJson: post.contentJson } }),
     onSuccess: (result) => {
       setPost((prev) => ({ ...prev, summary: result.summary }));
     },
   });
 
-  // Auto-generate slug on title change (debounced)
   useEffect(() => {
-    // Skip first mount to avoid regenerating slug on edit page load
     if (isFirstTitleMount.current) {
       isFirstTitleMount.current = false;
       prevTitleRef.current = debouncedTitle;
       return;
     }
-
-    // Only run if title actually changed
-    if (debouncedTitle === prevTitleRef.current) {
-      return;
-    }
+    if (debouncedTitle === prevTitleRef.current) return;
     prevTitleRef.current = debouncedTitle;
-
-    if (!debouncedTitle.trim()) {
-      return;
-    }
+    if (!debouncedTitle.trim()) return;
     if (slugMutation.isPending) return;
     slugGenerationMode.current = "auto";
     slugMutation.mutate(debouncedTitle);
@@ -229,18 +195,13 @@ export function usePostActions({
       return;
     }
     setIsCalculatingReadTime(true);
-
     setTimeout(() => {
       const { cjkChars, englishWords, words } = contentStats;
-
-      // Reading speed: ~400 CJK chars/min, ~200 English words/min
       const cjkMinutes = cjkChars / 400;
       const englishMinutes = englishWords / 200;
       const mins = Math.max(1, Math.ceil(cjkMinutes + englishMinutes));
-
       setPost((prev) => ({ ...prev, readTimeInMinutes: mins }));
       setIsCalculatingReadTime(false);
-
       if (!silent) {
         toast.success(m.editor_action_read_time_done(), {
           description: m.editor_action_read_time_desc({
@@ -252,24 +213,15 @@ export function usePostActions({
     }, 400);
   };
 
-  // Auto-calculate read time on content changes (debounced)
   useEffect(() => {
-    // Skip first mount
     if (isFirstContentMount.current) {
       isFirstContentMount.current = false;
       prevContentRef.current = debouncedContentJson;
       return;
     }
-
-    // Only run if content actually changed
-    if (debouncedContentJson === prevContentRef.current) {
-      return;
-    }
+    if (debouncedContentJson === prevContentRef.current) return;
     prevContentRef.current = debouncedContentJson;
-
-    if (!debouncedContentJson) {
-      return;
-    }
+    if (!debouncedContentJson) return;
     runReadTimeCalculation({ silent: true });
   }, [debouncedContentJson]);
 
@@ -295,9 +247,7 @@ export function usePostActions({
     }
     setIsGeneratingSummary(true);
     previewSummaryMutation.mutate(undefined, {
-      onSettled: () => {
-        setIsGeneratingSummary(false);
-      },
+      onSettled: () => setIsGeneratingSummary(false),
     });
   };
 
@@ -316,7 +266,6 @@ export function usePostActions({
         },
       });
 
-      // Match or Create Tags
       const newTagIds: Array<number> = [];
       const currentTagIds = new Set(post.tagIds);
 
@@ -324,7 +273,6 @@ export function usePostActions({
         const existingTag = allTags.find(
           (t) => t.name.toLowerCase() === name.toLowerCase(),
         );
-
         if (existingTag) {
           if (!currentTagIds.has(existingTag.id)) {
             newTagIds.push(existingTag.id);
@@ -332,25 +280,17 @@ export function usePostActions({
           }
         } else {
           const result = await createTagFn({ data: { name } });
-          if (result.error) {
-            // 当前仅会返回 TAG_NAME_ALREADY_EXISTS，直接跳过即可
-            continue;
-          }
+          if (result.error) continue;
           newTagIds.push(result.data.id);
           currentTagIds.add(result.data.id);
         }
       }
 
       if (newTagIds.length > 0) {
-        setPost((prev) => ({
-          ...prev,
-          tagIds: [...prev.tagIds, ...newTagIds],
-        }));
-
+        setPost((prev) => ({ ...prev, tagIds: [...prev.tagIds, ...newTagIds] }));
         await queryClient.invalidateQueries({
           queryKey: TAGS_KEYS.adminList({}),
         });
-
         toast.success(m.editor_action_tags_done(), {
           description: m.editor_action_tags_added({
             count: String(newTagIds.length),
