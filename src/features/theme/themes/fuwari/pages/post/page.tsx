@@ -33,26 +33,16 @@ function EncryptedPostGate({
     setError(false);
 
     try {
-      const verifyRes = await fetch("/api/posts/verify-password", {
+      const res = await fetch("/api/posts/verify-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slug, password: password.trim() }),
       });
-      const verifyResult = await verifyRes.json();
+      const result = await res.json();
 
-      if (!verifyResult.success) {
-        setError(true);
-        setLoading(false);
-        return;
-      }
-
-      const postRes = await fetch(`/api/post/${encodeURIComponent(slug)}`, {
-        headers: { Authorization: `Bearer ${verifyResult.token}` },
-      });
-      const fullPost = await postRes.json();
-
-      if (!fullPost.isEncrypted && fullPost.contentJson) {
-        onUnlocked(fullPost);
+      if (result.success && result.post) {
+        // 直接使用返回的文章内容解锁
+        onUnlocked(result.post);
       } else {
         setError(true);
       }
