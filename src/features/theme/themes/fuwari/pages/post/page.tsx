@@ -55,25 +55,10 @@ function EncryptedPostGate({
   return (
     <div className="fuwari-card-base z-10 px-6 md:px-9 pt-6 pb-4 relative w-full fuwari-onload-animation">
       <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
-
-      {/* 显示标签 */}
-      {post.tags && post.tags.length > 0 ? (
-        <div className="flex flex-wrap gap-2 mb-4">
-          {post.tags.map((tag: any) => (
-            <Link
-              key={tag.id}
-              to="/posts"
-              search={{ tagName: tag.name }}
-              className="text-xs px-2 py-1 rounded-md bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
-            >
-              {tag.name}
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <p className="text-xs fuwari-text-50 mb-4">无标签</p>
-      )}
-
+      
+      {/* 使用 PostMeta 统一展示元数据（含标签、日期等），与正文页完全一致 */}
+      <PostMeta post={post} className="mb-4" />
+      
       <p className="text-sm fuwari-text-50 mb-6">
         {m.post_encrypted_summary?.() ?? "此文章已加密，需要密码访问"}
       </p>
@@ -108,7 +93,7 @@ export function PostPage({ post }: PostPageProps) {
 
   const [unlockedPost, setUnlockedPost] = useState<any>(null);
 
-  // 切换文章时重置解锁状态，确保相关文章点击跳转正常
+  // 切换文章时重置解锁状态
   useEffect(() => {
     setUnlockedPost(null);
   }, [slug]);
