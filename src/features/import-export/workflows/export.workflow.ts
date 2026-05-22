@@ -82,7 +82,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           const slug = post.slug;
           const prefix = `posts/${slug}`;
 
-          // 安全处理日期字段（遵循 schema 允许 nullable）
+          // 安全处理日期字段（避免 undefined.toString 错误）
           const frontmatter: PostFrontmatter = {
             title: post.title,
             slug: post.slug,
@@ -93,9 +93,6 @@ export class ExportWorkflow extends WorkflowEntrypoint<
             updatedAt: post.updatedAt?.toISOString() ?? null,
             readTimeInMinutes: post.readTimeInMinutes,
             tags: (post.tags ?? []).map((t) => t.name),
-            // 加密字段（如果数据库中有）
-            isEncrypted: (post as any).isEncrypted ?? false,
-            passwordHash: (post as any).passwordHash ?? null,
           };
 
           const rewriter = makeExportImageRewriter();
@@ -153,10 +150,10 @@ export class ExportWorkflow extends WorkflowEntrypoint<
             }
           }
 
-          // ✅ 关键修复：每篇文章后释放 CPU
+          // 释放 CPU，避免工作流超时
           await step.sleep(0);
 
-          // 每 10 篇或最后一篇更新进度
+          // 每 10 篇或最后一篇更新进度（防止 KV 限流）
           if ((i + 1) % 10 === 0 || i === posts.length - 1) {
             await this.updateProgress(progressKey, {
               status: "processing",
@@ -179,7 +176,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           );
         }
 
-        // tags.json：确保 tag.createdAt 安全处理
+        // 生成 tags.json
         const uniqueTagsMap = new Map<string, (typeof posts)[0]["tags"][0]>();
         for (const post of posts) {
           for (const tag of post.tags ?? []) {
@@ -232,6 +229,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           throw error;
         }
 
+        // 标记完成
         await this.updateProgress(progressKey, {
           status: "completed",
           total: posts.length,
@@ -251,6 +249,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         }),
       );
 
+      // 24 小时后清理 R2 文件
       const cleanupTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await step.sleepUntil("cleanup delay", cleanupTime);
 
@@ -259,7 +258,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         try {
           await this.env.R2.delete(r2Key);
         } catch {
-          // ignore
+          // 忽略清理错误
         }
       });
     } catch (error) {
