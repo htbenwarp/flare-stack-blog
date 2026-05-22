@@ -24,6 +24,15 @@ import { getDb } from "@/lib/db";
 import { serverEnv } from "@/lib/env/server.env";
 import { m } from "@/paraglide/messages";
 
+type BaseContext = { env: Env };
+
+interface ExportWorkflowParams {
+  taskId: string;
+  postIds?: string[];
+  status?: string;
+  locale?: string;
+}
+
 export class ExportWorkflow extends WorkflowEntrypoint<
   Env,
   ExportWorkflowParams
@@ -80,17 +89,17 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           const slug = post.slug;
           const prefix = `posts/${slug}`;
 
-          // Generate frontmatter
+          // Generate frontmatter with safe date handling
           const frontmatter: PostFrontmatter = {
             title: post.title,
             slug: post.slug,
             summary: post.summary ?? undefined,
             status: post.status,
             publishedAt: post.publishedAt?.toISOString(),
-            createdAt: post.createdAt.toISOString(),
-            updatedAt: post.updatedAt.toISOString(),
+            createdAt: post.createdAt?.toISOString() ?? new Date().toISOString(),
+            updatedAt: post.updatedAt?.toISOString() ?? new Date().toISOString(),
             readTimeInMinutes: post.readTimeInMinutes,
-            tags: post.tags.map((t) => t.name),
+            tags: (post.tags ?? []).map((t) => t.name),
           };
 
           // Convert content to Markdown
@@ -151,7 +160,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
             }
           }
 
-          // ✅ 添加：每篇文章处理后释放 CPU，防止超出 CPU 时间限制
+          // ✅ 释放 CPU，防止超出 CPU 时间限制
           await step.sleep(0);
 
           // Update progress
@@ -177,10 +186,10 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           );
         }
 
-        // Add tags.json
+        // Add tags.json (safe handling of tag.createdAt)
         const uniqueTagsMap = new Map<string, (typeof posts)[0]["tags"][0]>();
         for (const post of posts) {
-          for (const tag of post.tags) {
+          for (const tag of post.tags ?? []) {
             uniqueTagsMap.set(tag.name, tag);
           }
         }
@@ -188,7 +197,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         zipFiles["tags.json"] = JSON.stringify(
           Array.from(uniqueTagsMap.values()).map((t) => ({
             name: t.name,
-            createdAt: t.createdAt.toISOString(),
+            createdAt: t.createdAt?.toISOString() ?? new Date().toISOString(),
           })),
           null,
           2,
