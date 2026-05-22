@@ -82,15 +82,20 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           const slug = post.slug;
           const prefix = `posts/${slug}`;
 
-          // 安全处理日期字段（避免 undefined.toString 错误）
+          // ✅ 显式转换为安全字符串，完全避免 undefined.toString()
+          const safeDate = (date: unknown): string | null => {
+            if (date instanceof Date) return date.toISOString();
+            return null;
+          };
+
           const frontmatter: PostFrontmatter = {
             title: post.title,
             slug: post.slug,
             summary: post.summary ?? undefined,
             status: post.status,
-            publishedAt: post.publishedAt?.toISOString() ?? null,
-            createdAt: post.createdAt?.toISOString() ?? null,
-            updatedAt: post.updatedAt?.toISOString() ?? null,
+            publishedAt: safeDate(post.publishedAt),
+            createdAt: safeDate(post.createdAt),
+            updatedAt: safeDate(post.updatedAt),
             readTimeInMinutes: post.readTimeInMinutes,
             tags: (post.tags ?? []).map((t) => t.name),
           };
@@ -115,7 +120,6 @@ export class ExportWorkflow extends WorkflowEntrypoint<
             );
           }
 
-          // 下载图片
           if (post.contentJson) {
             const imageKeys = extractAllImageKeys(post.contentJson);
             for (const key of imageKeys) {
@@ -150,10 +154,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
             }
           }
 
-          // 释放 CPU，避免工作流超时
-          await step.sleep(0);
-
-          // 每 10 篇或最后一篇更新进度（防止 KV 限流）
+          // 每 10 篇或最后一篇更新进度
           if ((i + 1) % 10 === 0 || i === posts.length - 1) {
             await this.updateProgress(progressKey, {
               status: "processing",
@@ -229,7 +230,6 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           throw error;
         }
 
-        // 标记完成
         await this.updateProgress(progressKey, {
           status: "completed",
           total: posts.length,
@@ -249,7 +249,6 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         }),
       );
 
-      // 24 小时后清理 R2 文件
       const cleanupTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await step.sleepUntil("cleanup delay", cleanupTime);
 
