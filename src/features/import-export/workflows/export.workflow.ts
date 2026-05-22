@@ -151,17 +151,20 @@ export class ExportWorkflow extends WorkflowEntrypoint<
             }
           }
 
-        // Update progress
-        if ((i + 1) % 10 === 0 || i === posts.length - 1) {
-          await this.updateProgress(progressKey, {
-            status: "processing",
-            total: posts.length,
-            completed: i + 1,
-            current: post.title,
-            errors: [],
-            warnings,
-          });
-        }
+          // ✅ 添加：每篇文章处理后释放 CPU，防止超出 CPU 时间限制
+          await step.sleep(0);
+
+          // Update progress
+          if ((i + 1) % 10 === 0 || i === posts.length - 1) {
+            await this.updateProgress(progressKey, {
+              status: "processing",
+              total: posts.length,
+              completed: i + 1,
+              current: post.title,
+              errors: [],
+              warnings,
+            });
+          }
 
           console.log(
             JSON.stringify({
