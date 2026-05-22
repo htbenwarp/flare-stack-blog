@@ -92,6 +92,24 @@ export function normalizeFrontmatter(
     mapped.tags = tagsSource.filter((t): t is string => typeof t === "string");
   }
 
+  // 加密字段 isEncrypted（仅支持布尔值，默认 false）
+  if (typeof data.isEncrypted === "boolean") {
+    mapped.isEncrypted = data.isEncrypted;
+  } else if (data.isEncrypted === "true" || data.isEncrypted === "yes") {
+    mapped.isEncrypted = true;
+  } else if (data.isEncrypted === "false" || data.isEncrypted === "no") {
+    mapped.isEncrypted = false;
+  } else {
+    mapped.isEncrypted = false; // 默认值
+  }
+
+  // 密码哈希字段：只使用 passwordHash（无别名）
+  if (typeof data.passwordHash === "string") {
+    mapped.passwordHash = data.passwordHash;
+  } else {
+    mapped.passwordHash = null;
+  }
+
   const result = PostFrontmatterSchema.safeParse(mapped);
   if (!result.success) {
     console.error(
@@ -107,6 +125,9 @@ export function normalizeFrontmatter(
   return result.data;
 }
 
+/**
+ * 将多种日期格式安全转换为 ISO 字符串
+ */
 function toISOString(value: unknown): string | undefined {
   if (value instanceof Date) {
     return value.toISOString();
