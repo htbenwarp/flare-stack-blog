@@ -32,6 +32,7 @@ export type SitemapPostRow = {
 };
 
 export async function insertPost(db: DB, data: typeof PostsTable.$inferInsert) {
+  // PostsTable.$inferInsert 应已包含 isEncrypted, passwordHash 等字段
   const [post] = await db.insert(PostsTable).values(data).returning();
   return post;
 }
@@ -200,7 +201,7 @@ export async function getPostsCursor(
         tag: {
           id: TagsTable.id,
           name: TagsTable.name,
-          createdAt: TagsTable.createdAt,
+          createdAt: TagsTable.createdAt, // 确保 tags.createdAt 被返回
         },
       })
       .from(PostTagsTable)
@@ -251,7 +252,7 @@ export async function getPublishedPostsForSitemapBatch(
         eq(PostsTable.status, "published"),
         isNotNull(PostsTable.publishedAt),
         sql`date(${PostsTable.publishedAt}, 'unixepoch') <= date('now')`,
-        eq(PostsTable.isEncrypted, false),
+        eq(PostsTable.isEncrypted, false), // 加密文章不出现在 sitemap 中
         cursor
           ? or(
               lt(PostsTable.publishedAt, cursor.publishedAt),
@@ -273,7 +274,7 @@ export async function findPostById(db: DB, id: number) {
     with: {
       postTags: {
         with: {
-          tag: true,
+          tag: true, // 自动包含 tag 所有字段，包括 createdAt
         },
       },
     },
@@ -308,7 +309,7 @@ export async function findPinnedPosts(db: DB) {
     },
     with: {
       postTags: {
-        with: { tag: true },
+        with: { tag: true }, // 包含 tag.createdAt
       },
     },
   });
@@ -535,6 +536,9 @@ export async function getPublicPostsByIds(db: DB, ids: Array<number>) {
 /**
  * Fetch full post data (including tags and content) for export or other detailed use cases.
  * Uses Drizzle relational queries for efficiency.
+ *
+ * 注意：此函数返回的 post.tags 数组中，每个 tag 对象应包含 createdAt 字段（如果数据库表有的话）。
+ * Drizzle 的 with 关系会自动获取 tag 的所有列，因此无需额外选择。
  */
 export async function findFullPosts(
   db: DB,
@@ -558,7 +562,7 @@ export async function findFullPosts(
     with: {
       postTags: {
         with: {
-          tag: true,
+          tag: true, // 自动包含 tag 的全部字段，包括 createdAt, updatedAt 等
         },
       },
     },
