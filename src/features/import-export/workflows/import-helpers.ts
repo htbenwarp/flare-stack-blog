@@ -230,7 +230,21 @@ export async function importSinglePost(
     }
   }
 
-  // 7. Insert post
+  // 7. Insert post (including encryption fields)
+  // 安全处理 publishedAt：无效日期或空值设为 null
+  let publishedAt: Date | null = null;
+  if (normalized.publishedAt) {
+    const parsedDate = new Date(normalized.publishedAt);
+    publishedAt = isNaN(parsedDate.getTime()) ? null : parsedDate;
+  }
+  if (!publishedAt && normalized.status !== "draft") {
+    publishedAt = new Date(); // 默认发布时间为当前时间
+  }
+
+  // 新增：提取加密字段
+  const isEncrypted = normalized.isEncrypted ?? false;
+  const passwordHash = normalized.passwordHash ?? null;
+
   const post = await PostRepo.insertPost(db, {
     title,
     slug,
@@ -238,11 +252,10 @@ export async function importSinglePost(
     contentJson,
     status: normalized.status === "draft" ? "draft" : "published",
     readTimeInMinutes: normalized.readTimeInMinutes,
-    publishedAt: normalized.publishedAt
-      ? new Date(normalized.publishedAt)
-      : normalized.status !== "draft"
-        ? new Date()
-        : null,
+    publishedAt,
+    // 新增：写入加密信息
+    isEncrypted,
+    passwordHash,
   });
 
   // 8. Link tags
