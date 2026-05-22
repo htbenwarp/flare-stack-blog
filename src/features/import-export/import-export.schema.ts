@@ -64,7 +64,7 @@ export const ExportManifestSchema = z.object({
 
 export type ExportManifest = z.infer<typeof ExportManifestSchema>;
 
-// --- Frontmatter ---
+// --- Frontmatter (修改点：增加加密字段，日期字段标记为 optional.nullable) ---
 
 export const PostFrontmatterSchema = z.object({
   title: z.string().default(""),
@@ -76,6 +76,9 @@ export const PostFrontmatterSchema = z.object({
   updatedAt: z.string().optional().nullable(),
   readTimeInMinutes: z.number().default(1),
   tags: z.array(z.string()).default([]),
+  // 新增：加密文章字段
+  isEncrypted: z.boolean().optional().default(false),
+  passwordHash: z.string().optional().nullable(),
 });
 
 export type PostFrontmatter = z.infer<typeof PostFrontmatterSchema>;
