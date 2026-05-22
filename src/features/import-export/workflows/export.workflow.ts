@@ -45,10 +45,8 @@ export class ExportWorkflow extends WorkflowEntrypoint<
     console.log(JSON.stringify({ message: "export workflow started", taskId }));
 
     try {
-      // 1. Fetch posts
       const posts = await step.do("fetch posts", async () => {
         const db = getDb(this.env);
-
         return await PostRepo.findFullPosts(db, {
           ids: postIds && postIds.length > 0 ? postIds : undefined,
           status: status ?? undefined,
@@ -75,11 +73,6 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         return;
       }
 
-      // 2. Process all posts, build ZIP, upload
-      // Consolidated into one step because zipFiles accumulates Uint8Array data
-      // which cannot survive JSON serialization through step.do() boundaries.
-      // A single atomic step guarantees all data is available for ZIP building,
-      // and retries the entire process on transient failures.
       await step.do("build and upload export", async () => {
         const zipFiles: Record<string, Uint8Array | string> = {};
         const warnings: Array<string> = [];
@@ -89,20 +82,22 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           const slug = post.slug;
           const prefix = `posts/${slug}`;
 
-          // Generate frontmatter with safe date handling
+          // 安全处理日期字段（遵循 schema 允许 nullable）
           const frontmatter: PostFrontmatter = {
             title: post.title,
             slug: post.slug,
             summary: post.summary ?? undefined,
             status: post.status,
-            publishedAt: post.publishedAt?.toISOString(),
-            createdAt: post.createdAt?.toISOString() ?? new Date().toISOString(),
-            updatedAt: post.updatedAt?.toISOString() ?? new Date().toISOString(),
+            publishedAt: post.publishedAt?.toISOString() ?? null,
+            createdAt: post.createdAt?.toISOString() ?? null,
+            updatedAt: post.updatedAt?.toISOString() ?? null,
             readTimeInMinutes: post.readTimeInMinutes,
             tags: (post.tags ?? []).map((t) => t.name),
+            // 加密字段（如果数据库中有）
+            isEncrypted: (post as any).isEncrypted ?? false,
+            passwordHash: (post as any).passwordHash ?? null,
           };
 
-          // Convert content to Markdown
           const rewriter = makeExportImageRewriter();
           const markdown = post.contentJson
             ? jsonContentToMarkdown(post.contentJson, {
@@ -110,13 +105,11 @@ export class ExportWorkflow extends WorkflowEntrypoint<
               })
             : "";
 
-          // Write index.md with frontmatter
           zipFiles[`${prefix}/index.md`] = stringifyFrontmatter(
             frontmatter,
             markdown,
           );
 
-          // Write content.json (lossless backup)
           if (post.contentJson) {
             zipFiles[`${prefix}/content.json`] = JSON.stringify(
               post.contentJson,
@@ -125,7 +118,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
             );
           }
 
-          // Download images from R2
+          // 下载图片
           if (post.contentJson) {
             const imageKeys = extractAllImageKeys(post.contentJson);
             for (const key of imageKeys) {
@@ -160,10 +153,10 @@ export class ExportWorkflow extends WorkflowEntrypoint<
             }
           }
 
-          // ✅ 释放 CPU，防止超出 CPU 时间限制
+          // ✅ 关键修复：每篇文章后释放 CPU
           await step.sleep(0);
 
-          // Update progress
+          // 每 10 篇或最后一篇更新进度
           if ((i + 1) % 10 === 0 || i === posts.length - 1) {
             await this.updateProgress(progressKey, {
               status: "processing",
@@ -186,7 +179,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           );
         }
 
-        // Add tags.json (safe handling of tag.createdAt)
+        // tags.json：确保 tag.createdAt 安全处理
         const uniqueTagsMap = new Map<string, (typeof posts)[0]["tags"][0]>();
         for (const post of posts) {
           for (const tag of post.tags ?? []) {
@@ -203,7 +196,6 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           2,
         );
 
-        // Add manifest.json
         const manifest: ExportManifest = {
           version: EXPORT_MANIFEST_VERSION,
           exportedAt: new Date().toISOString(),
@@ -212,11 +204,9 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         };
         zipFiles["manifest.json"] = JSON.stringify(manifest, null, 2);
 
-        // Build ZIP
         const zipData = buildZip(zipFiles);
-
-        // Upload ZIP to R2
         const r2Key = IMPORT_EXPORT_R2_KEYS.exportZip(taskId);
+
         try {
           await this.env.R2.put(r2Key, zipData, {
             httpMetadata: { contentType: "application/zip" },
@@ -242,7 +232,6 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           throw error;
         }
 
-        // Mark completed
         await this.updateProgress(progressKey, {
           status: "completed",
           total: posts.length,
@@ -262,7 +251,6 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         }),
       );
 
-      // 3. Cleanup R2 after 24h
       const cleanupTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await step.sleepUntil("cleanup delay", cleanupTime);
 
@@ -271,7 +259,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         try {
           await this.env.R2.delete(r2Key);
         } catch {
-          // Ignore cleanup errors
+          // ignore
         }
       });
     } catch (error) {
