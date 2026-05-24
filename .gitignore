@@ -20,4 +20,5 @@ wrangler.jsonc
 docs/superpowers/
 .cache/
 *.tsbuildinfo
-"- 副本.env" 
+.fallow
+
