@@ -29,9 +29,15 @@ app.post("/", async (c) => {
       return c.json({ success: false, error: "Wrong password" }, 401);
     }
 
-    // 移除密码哈希，并强制 isEncrypted 为 false
-    const { passwordHash, ...safePost } = post;
-    safePost.isEncrypted = false;
+    // 构建安全返回对象，确保日期字段是 Date 对象
+    const { passwordHash, ...rest } = post;
+    const safePost = {
+      ...rest,
+      publishedAt: rest.publishedAt ? new Date(rest.publishedAt) : null,
+      createdAt: rest.createdAt ? new Date(rest.createdAt) : null,
+      updatedAt: rest.updatedAt ? new Date(rest.updatedAt) : null,
+      isEncrypted: false,
+    };
 
     return c.json({ success: true, post: safePost });
   } catch (err: any) {
