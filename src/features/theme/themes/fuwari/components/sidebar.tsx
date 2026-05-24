@@ -21,7 +21,7 @@ export function Sidebar({ className }: { className?: string }) {
         style={{ animationDelay: "150ms" }}
       >
         <Suspense fallback={<TagsSkeleton />}>
-          <Tags />
+          <SiteInfo />
         </Suspense>
       </div>
 
@@ -30,7 +30,7 @@ export function Sidebar({ className }: { className?: string }) {
         className="sticky top-4 fuwari-onload-animation"
         style={{ animationDelay: "200ms" }}
       >
-        <SiteInfo />
+        <Tags />
       </div>
     </aside>
   );
