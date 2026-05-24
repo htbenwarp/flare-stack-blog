@@ -41,7 +41,14 @@ function EncryptedPostGate({
       const result = await res.json();
 
       if (result.success && result.post) {
-        onUnlocked(result.post);
+        // ✅ 将日期字符串显式转为 Date 对象，防止组件调用 .getTime() 报错
+        const safePost = {
+          ...result.post,
+          publishedAt: result.post.publishedAt ? new Date(result.post.publishedAt) : null,
+          createdAt: result.post.createdAt ? new Date(result.post.createdAt) : null,
+          updatedAt: result.post.updatedAt ? new Date(result.post.updatedAt) : null,
+        };
+        onUnlocked(safePost);
       } else {
         setError(true);
       }
@@ -137,30 +144,39 @@ export function PostPage({ post }: PostPageProps) {
 
   const isAdmin = session?.user?.role === "admin";
   const displayPost = unlockedPost || post;
-  const needPassword = !isAdmin && displayPost.isEncrypted && !displayPost.contentJson?.content?.length;
+
+  // ✅ 为 displayPost 统一做日期安全转换，确保传递给子组件的日期是 Date 对象
+  const safeDisplayPost = {
+    ...displayPost,
+    publishedAt: displayPost.publishedAt ? new Date(displayPost.publishedAt) : null,
+    createdAt: displayPost.createdAt ? new Date(displayPost.createdAt) : null,
+    updatedAt: displayPost.updatedAt ? new Date(displayPost.updatedAt) : null,
+  };
+
+  const needPassword = !isAdmin && safeDisplayPost.isEncrypted && !safeDisplayPost.contentJson?.content?.length;
 
   if (needPassword) {
     return (
       <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
         <EncryptedPostGate
-          post={displayPost}
+          post={safeDisplayPost}
           slug={slug}
           onUnlocked={(full) => setUnlockedPost(full)}
         />
         <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
-          <FuwariCommentSection postId={displayPost.id} />
+          <FuwariCommentSection postId={safeDisplayPost.id} />
         </div>
       </div>
     );
   }
 
   // 正常文章渲染
-  const wordCount = displayPost.readTimeInMinutes * 300;
+  const wordCount = safeDisplayPost.readTimeInMinutes * 300;
 
   return (
     <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
       <div className="hidden 2xl:block absolute top-0 h-full pl-4" style={{ right: "calc(var(--fuwari-toc-width) * -1)", width: "var(--fuwari-toc-width)" }}>
-        <TableOfContents headers={displayPost.toc} />
+        <TableOfContents headers={safeDisplayPost.toc} />
       </div>
 
       <div className="fuwari-card-base z-10 px-6 md:px-9 pt-6 pb-4 relative w-full fuwari-onload-animation">
@@ -175,10 +191,10 @@ export function PostPage({ post }: PostPageProps) {
             <div className="transition h-6 w-6 rounded-md bg-black/5 dark:bg-white/10 fuwari-text-50 flex items-center justify-center mr-2">
               <Clock strokeWidth={1.5} size={16} />
             </div>
-            <div className="text-sm">{m.read_time({ count: displayPost.readTimeInMinutes })}</div>
+            <div className="text-sm">{m.read_time({ count: safeDisplayPost.readTimeInMinutes })}</div>
           </div>
           {isAdmin && (
-            <Link to="/admin/posts/edit/$id" params={{ id: String(displayPost.id) }} className="flex flex-row items-center fuwari-text-30 hover:fuwari-text-90 transition animate-in fade-in duration-500">
+            <Link to="/admin/posts/edit/$id" params={{ id: String(safeDisplayPost.id) }} className="flex flex-row items-center fuwari-text-30 hover:fuwari-text-90 transition animate-in fade-in duration-500">
               <div className="transition h-6 w-6 rounded-md bg-black/5 dark:bg-white/10 fuwari-text-50 flex items-center justify-center mr-2">
                 <Pencil strokeWidth={1.5} size={16} />
               </div>
@@ -187,14 +203,14 @@ export function PostPage({ post }: PostPageProps) {
           )}
         </div>
 
-        <h1 className="transition w-full block font-bold mb-3 text-3xl md:text-[2.25rem]/[2.75rem] fuwari-text-90 md:before:w-1 before:h-5 before:rounded-md before:bg-(--fuwari-primary) before:absolute before:top-3 before:-left-4.5" style={{ viewTransitionName: `post-title-${displayPost.slug}` }}>
-          {displayPost.title}
+        <h1 className="transition w-full block font-bold mb-3 text-3xl md:text-[2.25rem]/[2.75rem] fuwari-text-90 md:before:w-1 before:h-5 before:rounded-md before:bg-(--fuwari-primary) before:absolute before:top-3 before:-left-4.5" style={{ viewTransitionName: `post-title-${safeDisplayPost.slug}` }}>
+          {safeDisplayPost.title}
         </h1>
 
-        <PostMeta post={displayPost} className="mb-5" />
-        <PostSummary summary={displayPost.summary} />
+        <PostMeta post={safeDisplayPost} className="mb-5" />
+        <PostSummary summary={safeDisplayPost.summary} />
         <div className="mb-6 prose dark:prose-invert prose-base max-w-none! fuwari-custom-md">
-          <ContentRenderer content={displayPost.contentJson} />
+          <ContentRenderer content={safeDisplayPost.contentJson} />
         </div>
 
         <div className="my-8 flex items-center justify-center w-full">
@@ -205,10 +221,10 @@ export function PostPage({ post }: PostPageProps) {
       </div>
 
       <Suspense fallback={<RelatedPostsSkeleton />}>
-        <RelatedPosts slug={displayPost.slug} />
+        <RelatedPosts slug={safeDisplayPost.slug} />
       </Suspense>
       <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
-        <FuwariCommentSection postId={displayPost.id} />
+        <FuwariCommentSection postId={safeDisplayPost.id} />
       </div>
     </div>
   );
