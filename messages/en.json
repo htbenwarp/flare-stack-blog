@@ -1487,5 +1487,9 @@
   "post_encrypted_summary": "This post is encrypted. Password required.",
   "post_password_placeholder_front": "Enter password...",
   "post_password_submit": "Verify",
-  "post_password_error": "Incorrect password, please try again"
+  "post_password_error": "Incorrect password, please try again",
+  "settings_site_fuwari_dark_home_bg": "Dark Mode Background",
+  "settings_site_fuwari_dark_home_bg_desc": "Leave empty to use light mode background",
+  "settings_site_fuwari_dark_primary_hue": "Dark Mode Primary Hue",
+  "settings_site_fuwari_dark_primary_hue_desc": "0-360, used in dark mode. Leave empty to follow light mode"
 }

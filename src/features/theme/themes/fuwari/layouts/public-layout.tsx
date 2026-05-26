@@ -1,5 +1,5 @@
 import { useLocation, useRouteContext } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { PublicLayoutProps } from "@/features/theme/contract/layouts";
 import { BackToTop } from "../components/control/back-to-top";
 import { Sidebar } from "../components/sidebar";
@@ -24,6 +24,22 @@ export function PublicLayout({
   const location = useLocation();
   const isHomePage = location.pathname === "/";
   const bannerHeightVh = isHomePage ? BANNER_HEIGHT_HOME : BANNER_HEIGHT_PAGE;
+
+  // 明暗模式 Banner 切换
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    const html = document.documentElement;
+    const check = () => setIsDark(html.classList.contains("dark"));
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(html, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
+  const fuwari = siteConfig?.theme?.fuwari;
+  const homeBg = isDark
+    ? fuwari?.darkHomeBg || fuwari?.homeBg
+    : fuwari?.homeBg;
 
   return (
     <div className="relative min-h-screen bg-(--fuwari-page-bg) transition-colors">
@@ -54,7 +70,7 @@ export function PublicLayout({
         style={{ height: `${bannerHeightVh}vh` }}
       >
         <img
-          src={siteConfig.theme.fuwari.homeBg}
+          src={homeBg}
           alt="banner"
           fetchPriority="high"
           className="w-full h-full object-cover object-center"

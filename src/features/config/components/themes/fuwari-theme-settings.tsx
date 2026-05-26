@@ -86,6 +86,7 @@ export function FuwariThemeSettings() {
 
   return (
     <>
+      {/* 亮色模式背景 */}
       <AssetUploadField
         name="site.theme.fuwari.homeBg"
         assetPath="themes/fuwari/home-bg.webp"
@@ -95,6 +96,19 @@ export function FuwariThemeSettings() {
         placeholder="/images/asset/themes/fuwari/home-bg.webp or https://picsum.photos/1600/900"
         error={errors.site?.theme?.fuwari?.homeBg?.message}
       />
+      
+      {/* 暗色模式背景 */}
+      <AssetUploadField
+        name="site.theme.fuwari.darkHomeBg"
+        assetPath="themes/fuwari/dark-home-bg.webp"
+        accept=".png,.webp,.jpg,.jpeg"
+        label={m.settings_site_fuwari_dark_home_bg()}
+        hint={m.settings_site_fuwari_dark_home_bg_desc()}
+        placeholder="/images/asset/themes/fuwari/dark-home-bg.webp"
+        error={errors.site?.theme?.fuwari?.darkHomeBg?.message}
+      />
+
+      {/* 头像 */}
       <AssetUploadField
         name="site.theme.fuwari.avatar"
         assetPath="themes/fuwari/avatar.png"
@@ -103,6 +117,8 @@ export function FuwariThemeSettings() {
         label={m.settings_site_field_avatar()}
         error={errors.site?.theme?.fuwari?.avatar?.message}
       />
+
+      {/* 亮色色相 */}
       <RangeField
         name="site.theme.fuwari.primaryHue"
         label={m.settings_site_field_primary_hue()}
@@ -114,6 +130,21 @@ export function FuwariThemeSettings() {
         defaultValue={250}
         error={errors.site?.theme?.fuwari?.primaryHue?.message}
       />
+      
+      {/* 暗色色相 */}
+      <RangeField
+        name="site.theme.fuwari.darkPrimaryHue"
+        label={m.settings_site_fuwari_dark_primary_hue()}
+        hint={m.settings_site_fuwari_dark_primary_hue_desc()}
+        min={FUWARI_THEME_HUE_MIN}
+        max={FUWARI_THEME_HUE_MAX}
+        step={1}
+        unit="deg"
+        defaultValue={250}
+        error={errors.site?.theme?.fuwari?.darkPrimaryHue?.message}
+      />
+
+      {/* 色相预览 */}
       <FuwariHuePreview />
     </>
   );

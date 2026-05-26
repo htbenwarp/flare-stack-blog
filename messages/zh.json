@@ -1479,5 +1479,9 @@
   "post_encrypted_summary": "此文章已加密，需要密码访问",
   "post_password_placeholder_front": "输入密码...",
   "post_password_submit": "验证",
-  "post_password_error": "密码错误，请重试"
+  "post_password_error": "密码错误，请重试",
+  "settings_site_fuwari_dark_home_bg": "暗色模式背景图",
+  "settings_site_fuwari_dark_home_bg_desc": "留空则使用明亮模式背景",
+  "settings_site_fuwari_dark_primary_hue": "暗色模式主题色相",
+  "settings_site_fuwari_dark_primary_hue_desc": "0-360，暗色模式下使用，留空则与明亮模式相同"
 }

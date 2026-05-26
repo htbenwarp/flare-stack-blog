@@ -60,6 +60,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const locale = getLocale();
   const { siteConfig } = useRouteContext({ from: "__root__" });
   const fontFamily = siteConfig?.fontFamily?.trim();
+  const hueLight = siteConfig?.theme?.fuwari?.primaryHue ?? 250;
+  const hueDark = siteConfig?.theme?.fuwari?.darkPrimaryHue ?? hueLight;
 
   useEffect(() => {
   if (fontFamily) {
@@ -101,7 +103,14 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 }, [fontFamily]);
 
   return (
-    <html lang={locale} suppressHydrationWarning style={theme.getDocumentStyle?.(siteConfig)}>
+    <html lang={locale} 
+              suppressHydrationWarning 
+              style={{
+                ...theme.getDocumentStyle?.(siteConfig),
+                '--fuwari-hue-light': hueLight,
+                '--fuwari-hue-dark': hueDark,
+              } as React.CSSProperties}
+            >
       <head>
         <HeadContent />
       </head>

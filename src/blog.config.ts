@@ -27,6 +27,8 @@ export const blogConfig = {
       homeBg: "/images/home-bg.webp",
       avatar: "/images/avatar.png",
       primaryHue: 250,
+      darkHomeBg: "",
+      darkPrimaryHue: undefined,
     },
   },
 } as const satisfies SiteConfig;

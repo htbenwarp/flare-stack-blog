@@ -130,6 +130,10 @@ export function resolveSiteConfig(
         primaryHue:
           config?.site?.theme?.fuwari?.primaryHue ??
           blogConfig.theme.fuwari.primaryHue,
+        darkHomeBg: 
+          config?.site?.theme?.fuwari?.darkHomeBg ?? config?.site?.theme?.fuwari?.homeBg ?? blogConfig.theme.fuwari.homeBg,
+        darkPrimaryHue: 
+          config?.site?.theme?.fuwari?.darkPrimaryHue ?? config?.site?.theme?.fuwari?.primaryHue ?? blogConfig.theme.fuwari.primaryHue,
       },
     },
   });

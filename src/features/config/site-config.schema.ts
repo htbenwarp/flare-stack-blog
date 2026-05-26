@@ -255,6 +255,8 @@ function createFuwariThemeSiteConfigSchema() {
     homeBg: createBackgroundImageRefSchema(),
     avatar: createAssetRefSchema(),
     primaryHue: createHueSchema(),
+    darkHomeBg: createBackgroundImageRefSchema().optional(),
+    darkPrimaryHue: createHueSchema().optional(),
   });
 }
 
@@ -263,6 +265,8 @@ function createFuwariThemeSiteConfigInputSchema() {
     homeBg: createBackgroundImageRefSchema().optional(),
     avatar: createAssetRefSchema().optional(),
     primaryHue: createHueSchema().optional(),
+    darkHomeBg: createBackgroundImageRefSchema().optional(),
+    darkPrimaryHue: createHueSchema().optional(),
   });
 }
 
@@ -271,6 +275,8 @@ function createFuwariThemeSiteConfigInputFormSchema(messages: Messages) {
     homeBg: createBackgroundImageRefFormSchema(messages).optional(),
     avatar: createAssetRefFormSchema(messages).optional(),
     primaryHue: createHueFormSchema(messages).optional(),
+    darkHomeBg: createBackgroundImageRefFormSchema(messages).optional(),
+    darkPrimaryHue: createHueFormSchema(messages).optional(),
   });
 }
 
