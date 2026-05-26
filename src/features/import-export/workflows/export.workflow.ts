@@ -41,7 +41,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
     const { taskId, postIds, status, locale: requestedLocale } = event.payload;
     const progressKey = IMPORT_EXPORT_CACHE_KEYS.exportProgress(taskId);
     const locale = requestedLocale ?? serverEnv(this.env).LOCALE;
-    const BATCH_SIZE = 10; // 每批处理 10 篇文章
+    const BATCH_SIZE = 10;
 
     console.log(JSON.stringify({ message: "export workflow started", taskId }));
 
@@ -75,118 +75,128 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         return;
       }
 
-      // 步骤2：分批处理文章
-      const allWarnings: string[] = [];
+      // 步骤2：分批处理文章，每批返回该批的 zipFiles 和 warnings
       const allZipFiles: Record<string, Uint8Array | string> = {};
+      const allWarnings: string[] = [];
 
       for (let batchStart = 0; batchStart < posts.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, posts.length);
-        
-        await step.do(`process batch ${batchStart}-${batchEnd}`, async () => {
-          for (let i = batchStart; i < batchEnd; i++) {
-            const post = posts[i];
-            const slug = post.slug;
-            const prefix = `posts/${slug}`;
 
-            // 安全日期函数
-            const safeDate = (date: unknown): string | null => {
-              if (date instanceof Date) return date.toISOString();
-              return null;
-            };
+        // 每个批次独立执行，返回 { zipFiles, warnings }
+        const batchResult = await step.do(
+          `process batch ${batchStart}-${batchEnd}`,
+          async () => {
+            const zipFiles: Record<string, Uint8Array | string> = {};
+            const warnings: string[] = [];
 
-            const frontmatter: PostFrontmatter = {
-              title: post.title,
-              slug: post.slug,
-              summary: post.summary ?? undefined,
-              status: post.status,
-              publishedAt: safeDate(post.publishedAt),
-              createdAt: safeDate(post.createdAt),
-              updatedAt: safeDate(post.updatedAt),
-              readTimeInMinutes: post.readTimeInMinutes,
-              tags: (post.tags ?? []).map((t) => t.name),
-            };
+            for (let i = batchStart; i < batchEnd; i++) {
+              const post = posts[i];
+              const slug = post.slug;
+              const prefix = `posts/${slug}`;
 
-            const rewriter = makeExportImageRewriter();
-            const markdown = post.contentJson
-              ? jsonContentToMarkdown(post.contentJson, {
-                  rewriteImageSrc: rewriter,
-                })
-              : "";
+              const safeDate = (date: unknown): string | null => {
+                if (date instanceof Date) return date.toISOString();
+                return null;
+              };
 
-            allZipFiles[`${prefix}/index.md`] = stringifyFrontmatter(
-              frontmatter,
-              markdown,
-            );
+              const frontmatter: PostFrontmatter = {
+                title: post.title,
+                slug: post.slug,
+                summary: post.summary ?? undefined,
+                status: post.status,
+                publishedAt: safeDate(post.publishedAt),
+                createdAt: safeDate(post.createdAt),
+                updatedAt: safeDate(post.updatedAt),
+                readTimeInMinutes: post.readTimeInMinutes,
+                tags: (post.tags ?? []).map((t) => t.name),
+              };
 
-            if (post.contentJson) {
-              allZipFiles[`${prefix}/content.json`] = JSON.stringify(
-                post.contentJson,
-                null,
-                2,
+              const rewriter = makeExportImageRewriter();
+              const markdown = post.contentJson
+                ? jsonContentToMarkdown(post.contentJson, {
+                    rewriteImageSrc: rewriter,
+                  })
+                : "";
+
+              zipFiles[`${prefix}/index.md`] = stringifyFrontmatter(
+                frontmatter,
+                markdown,
               );
-            }
 
-            // 下载图片
-            if (post.contentJson) {
-              const imageKeys = extractAllImageKeys(post.contentJson);
-              for (const key of imageKeys) {
-                try {
-                  const r2Object = await getFromR2(this.env, key);
-                  if (r2Object) {
-                    const arrayBuffer = await r2Object.arrayBuffer();
-                    allZipFiles[`${prefix}/images/${key}`] = new Uint8Array(
-                      arrayBuffer,
-                    );
-                  } else {
-                    allWarnings.push(
-                      m.import_export_export_warning_image_missing(
-                        { key, title: post.title },
+              if (post.contentJson) {
+                zipFiles[`${prefix}/content.json`] = JSON.stringify(
+                  post.contentJson,
+                  null,
+                  2,
+                );
+              }
+
+              if (post.contentJson) {
+                const imageKeys = extractAllImageKeys(post.contentJson);
+                for (const key of imageKeys) {
+                  try {
+                    const r2Object = await getFromR2(this.env, key);
+                    if (r2Object) {
+                      const arrayBuffer = await r2Object.arrayBuffer();
+                      zipFiles[`${prefix}/images/${key}`] = new Uint8Array(
+                        arrayBuffer,
+                      );
+                    } else {
+                      warnings.push(
+                        m.import_export_export_warning_image_missing(
+                          { key, title: post.title },
+                          { locale },
+                        ),
+                      );
+                    }
+                  } catch (error) {
+                    warnings.push(
+                      m.import_export_export_warning_image_download_failed(
+                        {
+                          key,
+                          title: post.title,
+                          error:
+                            error instanceof Error ? error.message : String(error),
+                        },
                         { locale },
                       ),
                     );
                   }
-                } catch (error) {
-                  allWarnings.push(
-                    m.import_export_export_warning_image_download_failed(
-                      {
-                        key,
-                        title: post.title,
-                        error:
-                          error instanceof Error ? error.message : String(error),
-                      },
-                      { locale },
-                    ),
-                  );
                 }
               }
+
+              console.log(
+                JSON.stringify({
+                  message: "post exported",
+                  taskId,
+                  step: i + 1,
+                  total: posts.length,
+                  slug: post.slug,
+                }),
+              );
             }
 
-            console.log(
-              JSON.stringify({
-                message: "post exported",
-                taskId,
-                step: i + 1,
-                total: posts.length,
-                slug: post.slug,
-              }),
-            );
-          }
+            return { zipFiles, warnings };
+          },
+        );
 
-          // 每批处理完更新进度
-          await this.updateProgress(progressKey, {
-            status: "processing",
-            total: posts.length,
-            completed: batchEnd,
-            current: posts[batchEnd - 1]?.title ?? "",
-            errors: [],
-            warnings: allWarnings,
-          });
+        // 将本批结果合并到总集合中
+        Object.assign(allZipFiles, batchResult.zipFiles);
+        allWarnings.push(...batchResult.warnings);
+
+        // 每批完成更新进度
+        await this.updateProgress(progressKey, {
+          status: "processing",
+          total: posts.length,
+          completed: batchEnd,
+          current: posts[batchEnd - 1]?.title ?? "",
+          errors: [],
+          warnings: allWarnings,
         });
       }
 
-      // 步骤3：打包并上传 ZIP
+      // 步骤3：生成 tags.json、manifest.json，打包并上传
       await step.do("build and upload zip", async () => {
-        // 添加 tags.json
         const uniqueTagsMap = new Map<string, (typeof posts)[0]["tags"][0]>();
         for (const post of posts) {
           for (const tag of post.tags ?? []) {
