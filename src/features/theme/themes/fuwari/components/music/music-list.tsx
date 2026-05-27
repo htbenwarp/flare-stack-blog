@@ -13,7 +13,7 @@ export function MusicList({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className="fuwari-card-base pb-4 transition-all duration-300">
-      {/* 标题区域：与 SiteInfo 完全一致 */}
+      {/* 标题行：左侧竖杠 + 歌单名 + 展开/折叠箭头 */}
       <div
         className="font-bold text-lg fuwari-text-90 relative ml-6 mt-4 mb-4 flex items-center justify-between cursor-pointer"
         onClick={() => setExpanded(!expanded)}
@@ -26,7 +26,7 @@ export function MusicList({ compact = false }: { compact?: boolean }) {
         {expanded ? <ChevronUp size={16} className="mr-2" /> : <ChevronDown size={16} className="mr-2" />}
       </div>
 
-      {/* 常驻迷你播放器：仅在播放中或有当前歌曲时显示 */}
+      {/* 常驻迷你播放器 */}
       {currentTrack && (
         <div className="px-4 py-1">
           <div className="flex items-center gap-3 bg-(--fuwari-card-bg) rounded-lg p-2 border border-(--fuwari-primary)/10">
@@ -52,8 +52,13 @@ export function MusicList({ compact = false }: { compact?: boolean }) {
         </div>
       )}
 
-      {/* 可折叠歌单列表 */}
-      {expanded && (
+      {/* 可折叠歌单列表：增加滑入滑出动画 */}
+      <div
+        className={cn(
+          "transition-all duration-300 ease-out overflow-hidden",
+          expanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+        )}
+      >
         <ul className="space-y-1 px-4 pt-2 max-h-60 overflow-y-auto">
           {playlist.map((track, i) => (
             <li
@@ -75,7 +80,7 @@ export function MusicList({ compact = false }: { compact?: boolean }) {
             </li>
           ))}
         </ul>
-      )}
+      </div>
     </div>
   );
 }
