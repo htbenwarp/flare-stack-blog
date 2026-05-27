@@ -12,25 +12,23 @@ export function MusicList({ compact = false }: { compact?: boolean }) {
   if (playlist.length === 0) return null;
 
   return (
-    <div className={cn("space-y-1", compact ? "pb-2" : "p-2")}>
-      {/* 标题行：竖杠 + 歌单名 + 展开/折叠箭头 */}
+    <div className="fuwari-card-base pb-4 transition-all duration-300">
+      {/* 标题区域：与 SiteInfo 完全一致 */}
       <div
-        className="font-bold text-lg fuwari-text-90 relative ml-6 mt-2 mb-2 flex items-center justify-between cursor-pointer"
+        className="font-bold text-lg fuwari-text-90 relative ml-6 mt-4 mb-4 flex items-center justify-between cursor-pointer"
         onClick={() => setExpanded(!expanded)}
       >
-        <div className="flex items-center">
-          <span
-            className="absolute -left-4 top-[5.5px] w-1 h-4 rounded-md"
-            style={{ backgroundColor: "var(--fuwari-primary)" }}
-          />
-          {m.music_playlist_title?.() ?? "歌单"}
-        </div>
+        <span
+          className="absolute -left-4 top-[5.5px] w-1 h-4 rounded-md"
+          style={{ backgroundColor: "var(--fuwari-primary)" }}
+        />
+        <span>{m.music_playlist_title?.() ?? "歌单"}</span>
         {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
       </div>
 
       {/* 常驻迷你播放器：仅在播放中或有当前歌曲时显示 */}
       {currentTrack && (
-        <div className="px-2 py-1">
+        <div className="px-4 py-1">
           <div className="flex items-center gap-3 bg-(--fuwari-card-bg) rounded-lg p-2 border border-(--fuwari-primary)/10">
             <img
               src={currentTrack.cover || "/images/music-placeholder.png"}
@@ -56,7 +54,7 @@ export function MusicList({ compact = false }: { compact?: boolean }) {
 
       {/* 可折叠歌单列表 */}
       {expanded && (
-        <ul className="space-y-1 px-2 pt-2 max-h-60 overflow-y-auto">
+        <ul className="space-y-1 px-4 pt-2 max-h-60 overflow-y-auto">
           {playlist.map((track, i) => (
             <li
               key={i}
