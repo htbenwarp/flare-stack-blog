@@ -28,7 +28,7 @@ export function Sidebar({ className }: { className?: string }) {
 
       {/* 音乐播放器（歌单列表，常驻显示） */}
       <div
-        className="sticky top-4 fuwari-onload-animation"
+        className="fuwari-onload-animation"
         style={{ animationDelay: "200ms" }}
       >
         <div className="fuwari-card-base p-4">
