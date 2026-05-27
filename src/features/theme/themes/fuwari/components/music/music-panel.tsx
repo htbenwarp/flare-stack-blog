@@ -4,7 +4,9 @@ import {
   Repeat, Shuffle, Volume2, VolumeX
 } from "lucide-react";
 import { MusicList } from "./music-list";
+import { useState, useEffect, useCallback } from "react";
 import { m } from "@/paraglide/messages";
+import { cn } from "@/lib/utils";
 
 function formatTime(seconds: number) {
   if (!isFinite(seconds)) return "0:00";
@@ -21,23 +23,41 @@ export function MusicPanel({ onClose }: { onClose: () => void }) {
   } = useMusic();
 
   const track = playlist[currentIndex];
+  const [closing, setClosing] = useState(false);
+
+  const handleClose = useCallback(() => {
+    setClosing(true);
+    setTimeout(() => {
+      onClose();
+    }, 200); // 动画持续时间与下方 transition 一致
+  }, [onClose]);
 
   if (!track) {
     return (
-      <div className="fixed bottom-20 right-6 z-50 w-80 rounded-2xl bg-(--fuwari-card-bg)/95 backdrop-blur-2xl border border-(--fuwari-primary)/20 shadow-2xl shadow-black/20 overflow-hidden p-6 text-center">
+      <div className="fixed bottom-20 right-6 z-50 w-80 rounded-2xl bg-(--fuwari-card-bg)/95 backdrop-blur-2xl border border-(--fuwari-primary)/20 shadow-2xl shadow-black/20 overflow-hidden p-6 text-center
+        animate-in fade-in slide-in-from-bottom-4 duration-200">
         <p className="text-muted-foreground text-sm">暂无歌曲</p>
-        <button onClick={onClose} className="mt-3 text-(--fuwari-primary) text-sm hover:underline">关闭</button>
+        <button onClick={handleClose} className="mt-3 text-(--fuwari-primary) text-sm hover:underline">关闭</button>
       </div>
     );
   }
 
   return (
-    <div className="fixed bottom-20 right-6 z-50 w-80 rounded-2xl bg-(--fuwari-card-bg)/95 backdrop-blur-2xl border border-(--fuwari-primary)/20 shadow-2xl shadow-black/20 overflow-hidden">
+    <div className={cn(
+      "fixed bottom-20 right-6 z-50 w-80 rounded-2xl",
+      "bg-(--fuwari-card-bg)/95 backdrop-blur-2xl",
+      "border border-(--fuwari-primary)/20",
+      "shadow-2xl shadow-black/20 overflow-hidden",
+      "transition-all duration-200 ease-out",
+      closing
+        ? "opacity-0 scale-95 translate-y-2"
+        : "animate-in fade-in slide-in-from-bottom-4"
+    )}>
       {/* 封面区域 */}
       <div className="relative h-40 overflow-hidden">
         <img src={track.cover || "/images/music-placeholder.png"} alt="cover" className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-        <button onClick={onClose} className="absolute top-2 right-2 p-1 rounded-full bg-black/30 text-white hover:bg-black/50">
+        <button onClick={handleClose} className="absolute top-2 right-2 p-1 rounded-full bg-black/30 text-white hover:bg-black/50">
           <X size={16} />
         </button>
         <div className="absolute bottom-0 left-0 right-0 p-4">
