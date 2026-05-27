@@ -6,6 +6,10 @@ import { Sidebar } from "../components/sidebar";
 import { Footer } from "./footer";
 import { MobileMenu } from "./mobile-menu";
 import { Navbar } from "./navbar";
+import { MusicProvider } from "../components/music/music-provider";
+import { MusicWidget } from "../components/music/music-widget";
+import { MusicPanel } from "../components/music/music-panel";
+import { GlobalLyricsBar } from "../components/music/global-lyrics-bar";
 
 const BANNER_HEIGHT_HOME = 65;
 const BANNER_HEIGHT_PAGE = 35;
@@ -21,11 +25,11 @@ export function PublicLayout({
 }: PublicLayoutProps) {
   const { siteConfig } = useRouteContext({ from: "__root__" });
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showMusicPanel, setShowMusicPanel] = useState(false);
   const location = useLocation();
   const isHomePage = location.pathname === "/";
   const bannerHeightVh = isHomePage ? BANNER_HEIGHT_HOME : BANNER_HEIGHT_PAGE;
 
-  // 明暗模式 Banner 切换
   const [isDark, setIsDark] = useState(false);
   useEffect(() => {
     const html = document.documentElement;
@@ -42,71 +46,74 @@ export function PublicLayout({
     : fuwari?.homeBg;
 
   return (
-    <div className="relative min-h-screen bg-(--fuwari-page-bg) transition-colors">
-      <MobileMenu
-        navOptions={navOptions}
-        isOpen={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
-        user={user}
-        logout={logout}
-      />
+    <MusicProvider>
+      <div className="relative min-h-screen bg-(--fuwari-page-bg) transition-colors">
+        <MobileMenu
+          navOptions={navOptions}
+          isOpen={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+          user={user}
+          logout={logout}
+        />
 
-      {/* Top row: Navbar - sticky */}
-      <div className="sticky top-0 z-50 pointer-events-none">
-        <div className="pointer-events-auto max-w-(--fuwari-page-width) mx-auto px-0 md:px-4">
-          <Navbar
-            navOptions={navOptions}
-            onMenuClick={() => setIsMenuOpen(true)}
-            user={user}
-            isLoading={isSessionLoading}
-            bannerHeightVh={bannerHeightVh}
+        {/* Navbar */}
+        <div className="sticky top-0 z-50 pointer-events-none">
+          <div className="pointer-events-auto max-w-(--fuwari-page-width) mx-auto px-0 md:px-4">
+            <Navbar
+              navOptions={navOptions}
+              onMenuClick={() => setIsMenuOpen(true)}
+              user={user}
+              isLoading={isSessionLoading}
+              bannerHeightVh={bannerHeightVh}
+            />
+          </div>
+        </div>
+
+        {/* Banner */}
+        <div
+          className="absolute left-0 right-0 top-0 z-10 overflow-hidden transition-[height] duration-300 ease-in-out"
+          style={{ height: `${bannerHeightVh}vh` }}
+        >
+          <img
+            src={homeBg}
+            alt="banner"
+            fetchPriority="high"
+            className="w-full h-full object-cover object-center"
           />
         </div>
-      </div>
 
-      {/* Banner - full width background */}
-      <div
-        className="absolute left-0 right-0 top-0 z-10 overflow-hidden transition-[height] duration-300 ease-in-out"
-        style={{ height: `${bannerHeightVh}vh` }}
-      >
-        <img
-          src={homeBg}
-          alt="banner"
-          fetchPriority="high"
-          className="w-full h-full object-cover object-center"
-        />
-      </div>
-
-      {/* Main content - overlaps banner by MAIN_OVERLAP_REM */}
-      <div
-        className="relative z-30 transition-[margin-top] duration-300 ease-in-out"
-        style={{
-          marginTop: `calc(${bannerHeightVh}vh - ${MAIN_OVERLAP_REM}rem - ${NAVBAR_HEIGHT_REM}rem)`,
-        }}
-      >
+        {/* Main content */}
         <div
-          className="relative mx-auto px-0 md:px-4 pb-8 grid grid-cols-1 lg:grid-cols-[17.5rem_1fr] gap-4"
-          style={{ maxWidth: "var(--fuwari-page-width)" }}
+          className="relative z-30 transition-[margin-top] duration-300 ease-in-out"
+          style={{
+            marginTop: `calc(${bannerHeightVh}vh - ${MAIN_OVERLAP_REM}rem - ${NAVBAR_HEIGHT_REM}rem)`,
+          }}
         >
-          {/* Sidebar Column */}
-          <Sidebar className="order-2 lg:order-1" />
-
-          {/* Main Content Column */}
-          <main className="order-1 lg:order-2 flex flex-col gap-4 min-w-0">
-            {children}
-          </main>
-
-          {/* Footer Column (Desktop: below main, Mobile: below sidebar) */}
           <div
-            className="order-3 lg:col-start-2 fuwari-onload-animation mt-auto"
-            style={{ animationDelay: "250ms" }}
+            className="relative mx-auto px-0 md:px-4 pb-8 grid grid-cols-1 lg:grid-cols-[17.5rem_1fr] gap-4"
+            style={{ maxWidth: "var(--fuwari-page-width)" }}
           >
-            <Footer navOptions={navOptions} />
+            <Sidebar className="order-2 lg:order-1" />
+            <main className="order-1 lg:order-2 flex flex-col gap-4 min-w-0">
+              {children}
+            </main>
+            <div
+              className="order-3 lg:col-start-2 fuwari-onload-animation mt-auto"
+              style={{ animationDelay: "250ms" }}
+            >
+              <Footer navOptions={navOptions} />
+            </div>
+            <BackToTop />
           </div>
-
-          <BackToTop />
         </div>
       </div>
-    </div>
+
+      {/* 音乐播放器悬浮组件 */}
+      <MusicWidget onClick={() => setShowMusicPanel(!showMusicPanel)} />
+      {showMusicPanel && <MusicPanel onClose={() => setShowMusicPanel(false)} />}
+
+      {/* 全局底部歌词条 */}
+      <GlobalLyricsBar />
+    </MusicProvider>
   );
 }

@@ -1157,7 +1157,7 @@
   "settings_site_field_primary_hue": "Primary Hue",
   "settings_site_field_primary_hue_hint": "Controls the fuwari theme accent hue. Changing it updates links, buttons, highlights, and tinted surfaces.",
   "settings_site_primary_preview_title": "Theme Preview",
-  "settings_site_primary_preview_desc": "Live fuwari accent preview, current hue: {hue}deg.",
+  "settings_site_primary_preview_desc": "Live fuwari accent preview(Light mode), current hue: {hue}deg.",
   "settings_site_primary_preview_card_label": "Tinted Card",
   "settings_site_primary_preview_card_title": "Primary Atmosphere",
   "settings_site_primary_preview_card_desc": "This preview uses the same hue-driven palette as fuwari buttons, highlights, and soft backgrounds.",
@@ -1491,5 +1491,16 @@
   "settings_site_fuwari_dark_home_bg": "Dark Mode Background",
   "settings_site_fuwari_dark_home_bg_desc": "Leave empty to use light mode background",
   "settings_site_fuwari_dark_primary_hue": "Dark Mode Primary Hue",
-  "settings_site_fuwari_dark_primary_hue_desc": "0-360, used in dark mode. Leave empty to follow light mode"
+  "settings_site_fuwari_dark_primary_hue_desc": "0-360, used in dark mode. Leave empty to follow light mode",
+  "music_playlist_title": "Playlist",
+  "music_no_songs": "No songs",
+  "music_close": "Close",
+  "music_show_lyrics": "Show Lyrics",
+  "music_hide_lyrics": "Hide Lyrics",
+  "music_loading_lyrics": "Loading lyrics...",
+  "music_no_lyrics": "No lyrics",
+  "settings_site_field_music_playlist_id": "Playlist ID",
+  "settings_site_field_music_playlist_id_hint": "Enter NetEase Music playlist ID",
+  "settings_site_section_music_title": "Music Player",
+  "settings_site_section_music_desc": "Configure music player"
 }

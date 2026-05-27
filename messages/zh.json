@@ -1152,7 +1152,7 @@
   "settings_site_field_primary_hue": "主色 Hue",
   "settings_site_field_primary_hue_hint": "控制 fuwari 主题的主强调色相。调整后会同步影响链接、按钮、高亮和带色背景。",
   "settings_site_primary_preview_title": "主题预览",
-  "settings_site_primary_preview_desc": "fuwari 主色实时预览，当前 hue：{hue}deg。",
+  "settings_site_primary_preview_desc": "fuwari 主色实时预览（明亮模式），当前 hue：{hue}deg。",
   "settings_site_primary_preview_card_label": "染色卡片",
   "settings_site_primary_preview_card_title": "主色氛围",
   "settings_site_primary_preview_card_desc": "这个预览使用了和 fuwari 按钮、高亮、浅色背景相同的 hue 派生颜色。",
@@ -1483,5 +1483,16 @@
   "settings_site_fuwari_dark_home_bg": "暗色模式背景图",
   "settings_site_fuwari_dark_home_bg_desc": "留空则使用明亮模式背景",
   "settings_site_fuwari_dark_primary_hue": "暗色模式主题色相",
-  "settings_site_fuwari_dark_primary_hue_desc": "0-360，暗色模式下使用，留空则与明亮模式相同"
+  "settings_site_fuwari_dark_primary_hue_desc": "0-360，暗色模式下使用，留空则与明亮模式相同",
+  "music_playlist_title": "歌单",
+  "music_no_songs": "暂无歌曲",
+  "music_close": "关闭",
+  "music_show_lyrics": "显示歌词",
+  "music_hide_lyrics": "隐藏歌词",
+  "music_loading_lyrics": "加载歌词中...",
+  "music_no_lyrics": "暂无歌词",
+  "settings_site_field_music_playlist_id": "歌单 ID",
+  "settings_site_field_music_playlist_id_hint": "输入网易云音乐歌单 ID",
+  "settings_site_section_music_title": "音乐播放器",
+  "settings_site_section_music_desc": "配置音乐播放器"
 }

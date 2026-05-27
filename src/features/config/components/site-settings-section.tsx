@@ -53,6 +53,7 @@ export function SiteSettingsSection() {
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-700">
+      {/* 基本设置 */}
       <SectionShell
         title={m.settings_site_section_basic_title()}
         description={m.settings_site_section_basic_desc()}
@@ -103,6 +104,7 @@ export function SiteSettingsSection() {
         </Field>
       </SectionShell>
 
+      {/* 社交链接 */}
       <SectionShell
         title={m.settings_site_section_social_title()}
         description={m.settings_site_section_social_desc()}
@@ -112,6 +114,7 @@ export function SiteSettingsSection() {
         </div>
       </SectionShell>
 
+      {/* 图标 */}
       <SectionShell
         title={m.settings_site_section_icons_title()}
         description={m.settings_site_section_icons_desc()}
@@ -166,6 +169,24 @@ export function SiteSettingsSection() {
         />
       </SectionShell>
 
+      {/* 音乐播放器设置 */}
+      <SectionShell
+        title={m.settings_site_section_music_title?.() ?? "音乐播放器"}
+        description={m.settings_site_section_music_desc?.() ?? "配置音乐播放器"}
+      >
+        <Field
+          label={m.settings_site_field_music_playlist_id?.() ?? "歌单 ID"}
+          hint={m.settings_site_field_music_playlist_id_hint?.() ?? "输入网易云音乐歌单 ID"}
+          error={errors.site?.musicPlaylistId?.message}
+        >
+          <Input
+            {...register("site.musicPlaylistId")}
+            placeholder="例如 123456789"
+          />
+        </Field>
+      </SectionShell>
+
+      {/* 主题设置 */}
       <SectionShell
         title={m.settings_site_section_theme_title()}
         description={m.settings_site_section_theme_desc({

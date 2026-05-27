@@ -4,6 +4,7 @@ export const blogConfig = {
   startDate: "2026-04-19",  // 请替换为你的站点实际上线日期
   title: "站点名称",
   author: "作者",
+  musicPlaylistId: "",
   description:
     "这是我的个人网站和博客。在这里，我主要分享与技术和生活相关的内容。欢迎阅读！",
   social: [

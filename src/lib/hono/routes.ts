@@ -13,6 +13,7 @@ import siteDocumentsRoute from "@/features/site-documents/api/hono/site-document
 import tagsRoute from "@/features/tags/api/hono/tags.list.route";
 import { serverEnv } from "@/lib/env/server.env";
 import { createRateLimiterIdentifier, getExecutionContext } from "./helper";
+import musicPlaylistRoute from "@/features/music/api/hono/playlist.route";
 import {
   baseMiddleware,
   cacheMiddleware,
@@ -38,6 +39,7 @@ const publicApi = new Hono<{ Bindings: Env }>()
   .route("/post", postsDetailRoute)
   .route("/post", postsRelatedRoute)
   .route("/posts/verify-password", verifyPasswordRoute)
+  .route("/music/playlist", musicPlaylistRoute)
   .route("/tags", tagsRoute)
   .route("/search", searchRoute);
 
