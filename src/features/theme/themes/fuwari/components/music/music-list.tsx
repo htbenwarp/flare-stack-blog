@@ -23,7 +23,7 @@ export function MusicList({ compact = false }: { compact?: boolean }) {
           style={{ backgroundColor: "var(--fuwari-primary)" }}
         />
         <span>{m.music_playlist_title?.() ?? "歌单"}</span>
-        {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        {expanded ? <ChevronUp size={16} className="mr-2" /> : <ChevronDown size={16} className="mr-2" />}
       </div>
 
       {/* 常驻迷你播放器：仅在播放中或有当前歌曲时显示 */}
