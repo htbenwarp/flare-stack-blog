@@ -42,12 +42,11 @@ export function GlobalLyricsBar() {
       ?.filter((l) => l.time <= currentTime)
       .pop()?.text ?? "";
 
-  // ✅ 增加 showGlobalLyrics 判断，开关关闭时隐藏
   if (!showGlobalLyrics || !isPlaying || !currentLyric) return null;
 
   return (
     <div className="fixed bottom-12 left-0 right-0 z-40 flex justify-center pointer-events-none">
-      <p className="text-sm text-white/80 drop-shadow-lg px-4 py-2 rounded-lg transition-opacity duration-500">
+      <p className="text-sm text-black/70 dark:text-white/80 drop-shadow-md px-4 py-2 rounded-lg transition-opacity duration-500">
         {currentLyric}
       </p>
     </div>
