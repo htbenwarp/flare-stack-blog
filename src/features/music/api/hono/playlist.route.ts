@@ -5,6 +5,37 @@ import { SystemConfigTable } from "@/lib/db/schema/config.table";
 const app = new Hono<{ Bindings: Env }>();
 const METING_API = "https://api.i-meto.com/meting/api";
 
+// 从代理地址解析真实高清图片链接，结果缓存到 KV（24 小时）
+async function resolveHighResPic(picUrl: string, env: Env): Promise<string> {
+  if (!picUrl) return "";
+
+  // 1. 检查 KV 缓存
+  const cacheKey = `music:pic:${picUrl}`;
+  const cached = await env.KV.get(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const picRes = await fetch(picUrl, {
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    const location = picRes.headers.get("location");
+    if (location) {
+      const highRes = location.replace(/param=\d+y\d+/, "param=1024y1024");
+      // 2. 写入 KV 缓存（24 小时后自动过期）
+      await env.KV.put(cacheKey, highRes, { expirationTtl: 86400 });
+      return highRes;
+    }
+  } catch {
+    // 解析失败返回原始链接
+  }
+  return picUrl;
+}
+
 app.get("/", async (c) => {
   try {
     const db = getDb(c.env);
@@ -20,29 +51,16 @@ app.get("/", async (c) => {
       return c.json({ error: "未配置歌单ID，请在后台设置" }, 400);
     }
 
-    const url = `${METING_API}?server=netease&type=playlist&id=${playlistId}&size=1024`;
+    const url = `${METING_API}?server=netease&type=playlist&id=${playlistId}`;
     const res = await fetch(url);
     const data = await res.json();
 
-    // 🔑 核心修复：为每首歌解析真实图片链接并替换尺寸
+    // 并发处理所有歌曲封面（利用 Worker 并发能力）
     const processedData = await Promise.all(
-      data.map(async (track: any) => {
-        let pic = track.pic || "";
-        if (pic) {
-          try {
-            // 请求代理地址，获取 302 重定向后的真实 CDN 链接
-            const picRes = await fetch(pic, { redirect: "manual" });
-            const location = picRes.headers.get("location");
-            if (location) {
-              // 替换真实链接中的尺寸参数
-              pic = location.replace(/param=\d+y\d+/, "param=1024y1024");
-            }
-          } catch {
-            // 获取失败则保持原样
-          }
-        }
-        return { ...track, pic };
-      })
+      data.map(async (track: any) => ({
+        ...track,
+        pic: await resolveHighResPic(track.pic || "", c.env),
+      }))
     );
 
     c.header("Cache-Control", "no-cache, no-store, must-revalidate");
