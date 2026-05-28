@@ -15,8 +15,10 @@ export function musicPlaylistQueryOptions() {
           name: track.name || track.title || "未知歌曲",
           artist: track.singer || track.artist || track.author || "未知歌手",
           url: track.url || "",
-          cover: track.pic || track.cover || "",
-            ?.replace(/param=\d+y\d+/, "param=1024y1024"),
+          cover: (track.pic || track.cover || "").replace(
+            /param=\d+y\d+/,
+            "param=1024y1024"
+          ),
           lrc: track.lrc || "",
         }));
 
