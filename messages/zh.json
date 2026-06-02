@@ -1494,5 +1494,7 @@
   "settings_site_field_music_playlist_id": "歌单 ID",
   "settings_site_field_music_playlist_id_hint": "输入网易云音乐歌单 ID",
   "settings_site_section_music_title": "音乐播放器",
-  "settings_site_section_music_desc": "配置音乐播放器"
+  "settings_site_section_music_desc": "配置音乐播放器",
+  "post_prev_post": "上一篇",
+  "post_next_post": "下一篇"
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { and, asc, desc, eq, gt, lt, ne, sql } from "drizzle-orm";
 import * as AiService from "@/features/ai/ai.service";
 import * as CacheService from "@/features/cache/cache.service";
 import { syncPostMedia } from "@/features/posts/data/post-media.data";
@@ -37,7 +38,7 @@ import * as SearchService from "@/features/search/service/search.service";
 import { err, ok } from "@/lib/errors";
 import { purgePostCDNCache } from "@/lib/invalidate";
 import { hashPassword } from "@/lib/crypto";
-import { sql } from "drizzle-orm";
+import { PostsTable } from "@/lib/db/schema";
 
 function stripPublicContentJson<T extends { publicContentJson?: unknown }>(
   post: T,
@@ -102,8 +103,6 @@ export async function findPostBySlug(
     if (!post) return null;
 
     let contentJson = post.publicContentJson ?? post.contentJson;
-    // Backward-compatible fallback for posts that haven't been reprocessed yet.
-    // New publishes should read pre-highlighted content from `publicContentJson`.
     if (!post.publicContentJson && contentJson) {
       contentJson = await highlightCodeBlocks(contentJson);
       context.executionCtx.waitUntil(
@@ -140,8 +139,6 @@ export async function getRelatedPosts(
     return postIds;
   };
 
-  // Cache IDs for 7 days (long-lived cache)
-  // This key is NOT dependent on version, so it persists across publishes
   const cacheKey = POSTS_CACHE_KEYS.related(data.slug, data.limit);
   const cachedIds = await CacheService.get(
     context,
@@ -157,10 +154,8 @@ export async function getRelatedPosts(
     return [];
   }
 
-  // Real-time hydration: fetch actual post data (automatically filters non-published)
   const posts = await PostRepo.getPublicPostsByIds(context.db, cachedIds);
 
-  // Restore order because SQL 'IN' clause doesn't guarantee order
   const orderedPosts = cachedIds
     .map((id) => posts.find((p) => p.id === id))
     .filter((p): p is NonNullable<typeof p> => !!p);
@@ -181,7 +176,6 @@ export async function generateSummaryByPostId({
     return err({ reason: "POST_NOT_FOUND" });
   }
 
-  // 如果已经存在摘要，则直接返回
   if (post.summary && post.summary.trim().length > 0) return ok(post);
 
   const plainText = convertToPlainText(post.contentJson);
@@ -209,7 +203,6 @@ export async function generateSlug(
   data: GenerateSlugInput,
 ) {
   const baseSlug = slugify(data.title);
-  // 1. 先查有没有完全一样的 (比如 'hello-world')
   const exactMatch = await PostRepo.slugExists(context.db, baseSlug, {
     excludeId: data.excludeId,
   });
@@ -217,13 +210,10 @@ export async function generateSlug(
     return { slug: baseSlug };
   }
 
-  // 2. 既然 'hello-world' 被占了，那就查所有 'hello-world-%' 的
   const similarSlugs = await PostRepo.findSimilarSlugs(context.db, baseSlug, {
     excludeId: data.excludeId,
   });
 
-  // 3. 在内存里找最大的数字后缀
-  // 正则含义：匹配以 "-数字" 结尾的字符串，并捕获那个数字
   const regex = new RegExp(`^${baseSlug}-(\\d+)$`);
 
   let maxSuffix = 0;
@@ -237,7 +227,6 @@ export async function generateSlug(
     }
   }
 
-  // 4. 结果就是最大值 + 1
   return { slug: `${baseSlug}-${maxSuffix + 1}` };
 }
 
@@ -251,11 +240,9 @@ export async function createEmptyPost(context: DbContext) {
     status: "draft",
     readTimeInMinutes: 1,
     contentJson: null,
-    isEncrypted: false,      // 新文章默认不加密
+    isEncrypted: false,
     passwordHash: null, 
   });
-
-  // No cache/index operations for drafts
 
   return { id: post.id };
 }
@@ -312,10 +299,8 @@ export async function findPostById(
 
   let isSynced: boolean;
   if (post.status === "draft") {
-    // 草稿：同步 = KV 中没有旧缓存
     isSynced = !hasPublicCache;
   } else {
-    // 已发布：同步 = 内容 hash 一致
     const dbHash = await calculatePostHash({
       title: post.title,
       contentJson: post.contentJson,
@@ -339,28 +324,23 @@ export async function updatePost(
   const { id, data } = input;
   const { password, ...restData } = data;
 
-  // 构建 Drizzle 更新对象（不包含 password 和 passwordHash）
   const updateData: Record<string, any> = { ...restData };
   delete updateData.id;
   delete updateData.isSynced;
   delete updateData.hasPublicCache;
   delete updateData.password;
-  delete updateData.passwordHash;   // 绝不用 Drizzle 更新此字段
+  delete updateData.passwordHash;
 
-  // 使用原始 SQL 单独处理密码哈希
   if (restData.isEncrypted && password) {
     const hash = await hashPassword(password);
-    console.log("[updatePost] 正在更新密码哈希...");
     await context.db.run(
       sql`UPDATE posts SET password_hash = ${hash} WHERE id = ${id}`
     );
-    console.log("[updatePost] 密码哈希已写入数据库");
   } else if (restData.isEncrypted === false) {
     await context.db.run(
       sql`UPDATE posts SET password_hash = NULL WHERE id = ${id}`
     );
   }
-  // 若 isEncrypted 为 true 但 password 为空，不修改密码
 
   const updatedPost = await PostRepo.updatePost(context.db, id, updateData);
   if (!updatedPost) {
@@ -383,7 +363,6 @@ export async function updatePost(
   return ok(updatedPost);
 }
 
-
 export async function deletePost(
   context: DbContext & { executionCtx: ExecutionContext },
   data: DeletePostInput,
@@ -395,7 +374,6 @@ export async function deletePost(
 
   await PostRepo.deletePost(context.db, data.id);
 
-  // Only clear cache/index for published posts
   if (post.status === "published") {
     const tasks = [];
     const version = await CacheService.getVersion(context, "posts:detail");
@@ -414,7 +392,6 @@ export async function deletePost(
 
     context.executionCtx.waitUntil(Promise.all(tasks));
   } else {
-    // Even for drafts, clean up hash if exists
     context.executionCtx.waitUntil(
       CacheService.deleteKey(context, POSTS_CACHE_KEYS.syncHash(data.id)),
     );
@@ -478,7 +455,6 @@ export async function startPostProcessWorkflow(
     }
   }
 
-  // Check if we need to auto-set the published date
   if (data.status === "published") {
     const post = await PostRepo.findPostById(context.db, data.id);
     if (post && !post.publishedAt) {
@@ -504,7 +480,6 @@ export async function startPostProcessWorkflow(
     },
   });
 
-  // Defensively terminate any existing scheduled publish workflow for this post
   const scheduledId = `post-${data.id}-scheduled`;
   try {
     const oldInstance =
@@ -514,7 +489,6 @@ export async function startPostProcessWorkflow(
     // Instance doesn't exist or already completed, ignore
   }
 
-  // If this is a future post, create a new scheduled publish workflow
   if (data.status === "published" && isFuture) {
     await context.env.SCHEDULED_PUBLISH_WORKFLOW.createBatch([
       {
@@ -523,4 +497,38 @@ export async function startPostProcessWorkflow(
       },
     ]);
   }
+}
+
+// ============ Adjacent Posts Navigation ============
+
+export async function getAdjacentPosts(
+  context: DbContext,
+  slug: string,
+) {
+  const post = await PostRepo.findPostBySlug(context.db, slug, {
+    publicOnly: true,
+  });
+  if (!post || !post.publishedAt) return { prev: null, next: null };
+
+  const prevPost = await context.db.query.PostsTable.findFirst({
+    where: and(
+      lt(PostsTable.publishedAt, post.publishedAt),
+      eq(PostsTable.status, "published"),
+      ne(PostsTable.slug, slug),
+    ),
+    orderBy: desc(PostsTable.publishedAt),
+    columns: { title: true, slug: true },
+  });
+
+  const nextPost = await context.db.query.PostsTable.findFirst({
+    where: and(
+      gt(PostsTable.publishedAt, post.publishedAt),
+      eq(PostsTable.status, "published"),
+      ne(PostsTable.slug, slug),
+    ),
+    orderBy: asc(PostsTable.publishedAt),
+    columns: { title: true, slug: true },
+  });
+
+  return { prev: prevPost ?? null, next: nextPost ?? null };
 }

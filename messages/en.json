@@ -1502,5 +1502,7 @@
   "settings_site_field_music_playlist_id": "Playlist ID",
   "settings_site_field_music_playlist_id_hint": "Enter NetEase Music playlist ID",
   "settings_site_section_music_title": "Music Player",
-  "settings_site_section_music_desc": "Configure music player"
+  "settings_site_section_music_desc": "Configure music player",
+  "post_prev_post": "Previous",
+  "post_next_post": "Next"
 }

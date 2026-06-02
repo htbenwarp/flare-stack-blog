@@ -74,3 +74,10 @@ export const getPopularPostsFn = createServerFn()
   .handler(({ data, context }) =>
     PageviewService.getPopularPosts(context, data.limit),
   );
+
+export const getAdjacentPostsFn = createServerFn()
+  .middleware([dbMiddleware])
+  .inputValidator(z.object({ slug: z.string() }))
+  .handler(async ({ data, context }) => {
+    return await PostService.getAdjacentPosts(context, data.slug);
+  });

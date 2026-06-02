@@ -1,7 +1,7 @@
-import { Link } from "@tanstack/react-router";
-import { Clock, FileText, Pencil } from "lucide-react";
+import { Link, useParams } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Clock, FileText, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
 import { Suspense, useState, useEffect } from "react";
-import { useParams } from "@tanstack/react-router";
 import type { PostPageProps } from "@/features/theme/contract/pages";
 import { FuwariCommentSection } from "@/features/theme/themes/fuwari/components/comments/view/comment-section";
 import { ContentRenderer } from "@/features/theme/themes/fuwari/components/content/content-renderer";
@@ -11,7 +11,9 @@ import { PostMeta } from "./components/post-meta";
 import { PostSummary } from "./components/post-summary";
 import { RelatedPosts, RelatedPostsSkeleton } from "./components/related-posts";
 import TableOfContents from "./components/table-of-contents";
+import { getAdjacentPostsFn } from "@/features/posts/api/posts.public.api";
 
+// 加密文章密码输入组件
 function EncryptedPostGate({
   post,
   slug,
@@ -41,7 +43,7 @@ function EncryptedPostGate({
       const result = await res.json();
 
       if (result.success && result.post) {
-        // ✅ 将日期字符串显式转为 Date 对象，防止组件调用 .getTime() 报错
+        // 将日期字符串显式转为 Date 对象，防止组件调用 .getTime() 报错
         const safePost = {
           ...result.post,
           publishedAt: result.post.publishedAt ? new Date(result.post.publishedAt) : null,
@@ -62,10 +64,7 @@ function EncryptedPostGate({
   return (
     <div className="fuwari-card-base z-10 px-6 md:px-9 pt-6 pb-4 relative w-full fuwari-onload-animation">
       <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
-      
-      {/* 使用 PostMeta 统一展示元数据（含标签、日期等），与正文页完全一致 */}
       <PostMeta post={post} className="mb-4" />
-      
       <p className="text-sm fuwari-text-50 mb-6">
         {m.post_encrypted_summary?.() ?? "此文章已加密，需要密码访问"}
       </p>
@@ -90,6 +89,57 @@ function EncryptedPostGate({
           </p>
         )}
       </form>
+    </div>
+  );
+}
+
+// 上一篇 / 下一篇导航
+function AdjacentPosts({ slug }: { slug: string }) {
+  const { data } = useQuery({
+    queryKey: ["adjacent-posts", slug],
+    queryFn: () => getAdjacentPostsFn({ data: { slug } }),
+    staleTime: 60 * 60 * 1000, // 1 小时缓存
+  });
+
+  const prev = data?.prev;
+  const next = data?.next;
+
+  return (
+    <div className="flex justify-between gap-4 mt-4">
+      {prev ? (
+        <Link
+          to="/post/$slug"
+          params={{ slug: prev.slug }}
+          className="fuwari-card-base flex-1 flex items-center gap-3 p-4 transition-all hover:shadow-lg hover:bg-(--fuwari-primary)/5"
+        >
+          <ChevronLeft size={20} className="text-(--fuwari-primary)" />
+          <div className="text-left min-w-0">
+            <p className="text-xs text-muted-foreground">
+              {m.post_prev_post?.() ?? "上一篇"}
+            </p>
+            <p className="text-sm font-medium truncate">{prev.title}</p>
+          </div>
+        </Link>
+      ) : (
+        <div className="flex-1" />
+      )}
+      {next ? (
+        <Link
+          to="/post/$slug"
+          params={{ slug: next.slug }}
+          className="fuwari-card-base flex-1 flex items-center justify-end gap-3 p-4 text-right transition-all hover:shadow-lg hover:bg-(--fuwari-primary)/5"
+        >
+          <div className="text-right min-w-0">
+            <p className="text-xs text-muted-foreground">
+              {m.post_next_post?.() ?? "下一篇"}
+            </p>
+            <p className="text-sm font-medium truncate">{next.title}</p>
+          </div>
+          <ChevronRight size={20} className="text-(--fuwari-primary)" />
+        </Link>
+      ) : (
+        <div className="flex-1" />
+      )}
     </div>
   );
 }
@@ -145,7 +195,7 @@ export function PostPage({ post }: PostPageProps) {
   const isAdmin = session?.user?.role === "admin";
   const displayPost = unlockedPost || post;
 
-  // ✅ 为 displayPost 统一做日期安全转换，确保传递给子组件的日期是 Date 对象
+  // 为 displayPost 统一做日期安全转换，确保传递给子组件的日期是 Date 对象
   const safeDisplayPost = {
     ...displayPost,
     publishedAt: displayPost.publishedAt ? new Date(displayPost.publishedAt) : null,
@@ -219,6 +269,9 @@ export function PostPage({ post }: PostPageProps) {
           <div className="h-px w-full bg-linear-to-r from-(--fuwari-meta-divider) via-transparent to-transparent opacity-20" />
         </div>
       </div>
+
+      {/* 上一篇 / 下一篇导航 */}
+      <AdjacentPosts slug={safeDisplayPost.slug} />
 
       <Suspense fallback={<RelatedPostsSkeleton />}>
         <RelatedPosts slug={safeDisplayPost.slug} />
