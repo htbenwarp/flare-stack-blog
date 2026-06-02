@@ -213,6 +213,7 @@ export function PostPage({ post }: PostPageProps) {
           slug={slug}
           onUnlocked={(full) => setUnlockedPost(full)}
         />
+        <AdjacentPosts slug={slug} />
         <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
           <FuwariCommentSection postId={safeDisplayPost.id} />
         </div>
