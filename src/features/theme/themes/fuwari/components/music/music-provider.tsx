@@ -43,6 +43,8 @@ export const useMusic = () => {
       seek: () => {},
       setVolume: () => {},
       setMode: () => {},
+      showGlobalLyrics: false,
+      setShowGlobalLyrics: () => {},
     };
   }
   return ctx;
@@ -50,10 +52,7 @@ export const useMusic = () => {
 
 export function MusicProvider({ children }: { children: React.ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  // 延迟初始化 Audio 对象，避免 SSR 错误
-  if (typeof window !== 'undefined' && !audioRef.current) {
-    audioRef.current = new Audio();
-  }
+  const nextTrackRef = useRef<() => void>(() => {});
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -61,10 +60,17 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.7);
   const [mode, setMode] = useState<"list" | "single" | "random">("list");
-  const location = useLocation();
   const [showGlobalLyrics, setShowGlobalLyrics] = useState(false);
 
+  const location = useLocation();
   const { data: playlist = [] } = useQuery(musicPlaylistQueryOptions());
+
+  // 在客户端创建 Audio 实例（避免 SSR 报错）
+  useEffect(() => {
+    if (typeof window !== "undefined" && !audioRef.current) {
+      audioRef.current = new Audio();
+    }
+  }, []);
 
   // 进入管理后台时暂停
   useEffect(() => {
@@ -73,47 +79,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     }
   }, [location.pathname]);
 
-  // 绑定音频事件
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const onTimeUpdate = () => {
-      if (isFinite(audio.currentTime)) {
-        setCurrentTime(audio.currentTime);
-      }
-    };
-    const onLoadedMetadata = () => {
-      if (isFinite(audio.duration)) {
-        setDuration(audio.duration);
-      }
-    };
-    const onEnded = () => nextTrack();
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
-
-    audio.addEventListener("timeupdate", onTimeUpdate);
-    audio.addEventListener("loadedmetadata", onLoadedMetadata);
-    audio.addEventListener("ended", onEnded);
-    audio.addEventListener("play", onPlay);
-    audio.addEventListener("pause", onPause);
-
-    return () => {
-      audio.removeEventListener("timeupdate", onTimeUpdate);
-      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
-      audio.removeEventListener("ended", onEnded);
-      audio.removeEventListener("play", onPlay);
-      audio.removeEventListener("pause", onPause);
-    };
-  }, [currentIndex, mode]);
-
-  // 音量同步
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-    }
-  }, [volume]);
-
+  // 核心播放函数
   const loadAndPlay = useCallback(
     (index: number) => {
       const track = playlist[index];
@@ -172,11 +138,53 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     loadAndPlay(nextIndex);
   }, [currentIndex, playlist, mode, loadAndPlay]);
 
+  // 保持 nextTrack 引用最新
+  useEffect(() => {
+    nextTrackRef.current = nextTrack;
+  }, [nextTrack]);
+
   const seek = useCallback((time: number) => {
     if (audioRef.current && isFinite(time)) {
       audioRef.current.currentTime = time;
     }
   }, []);
+
+  // 绑定音频事件（使用 ref 避免闭包陷阱）
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const onTimeUpdate = () => {
+      if (isFinite(audio.currentTime)) setCurrentTime(audio.currentTime);
+    };
+    const onLoadedMetadata = () => {
+      if (isFinite(audio.duration)) setDuration(audio.duration);
+    };
+    const onEnded = () => nextTrackRef.current();  // ← 关键：使用最新引用
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+
+    audio.addEventListener("timeupdate", onTimeUpdate);
+    audio.addEventListener("loadedmetadata", onLoadedMetadata);
+    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("pause", onPause);
+
+    return () => {
+      audio.removeEventListener("timeupdate", onTimeUpdate);
+      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
+      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("pause", onPause);
+    };
+  }, [currentIndex, mode]); // 重新绑定事件当 currentIndex 或 mode 变化
+
+  // 音量同步
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
 
   return (
     <MusicContext.Provider
@@ -195,7 +203,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
         seek,
         setVolume,
         setMode,
-        showGlobalLyrics,          
+        showGlobalLyrics,
         setShowGlobalLyrics,
       }}
     >
