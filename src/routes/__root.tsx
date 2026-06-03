@@ -15,6 +15,7 @@ import TanStackQueryDevtools from "@/integrations/tanstack-query/devtools";
 import { clientEnv } from "@/lib/env/client.env";
 import { getLocale } from "@/paraglide/runtime";
 import appCss from "@/styles.css?url";
+import { MusicProvider } from "@/features/theme/themes/fuwari/components/music/music-provider";
 
 interface MyRouterContext {
   queryClient: QueryClient;
@@ -115,7 +116,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <MusicProvider>
+            {children}
+          </MusicProvider>
+        </ThemeProvider>
         <TanStackDevtools
           config={{ position: "bottom-right" }}
           plugins={[
