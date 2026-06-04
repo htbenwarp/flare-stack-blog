@@ -39,7 +39,6 @@ function collectFootnotes(content: JSONContent): Array<{ id: string; index: numb
   return footnotes;
 }
 
-// 根据脚注的 text 和 note 查找索引（用于渲染时映射）
 function findFootnoteIndex(
   footnotes: Array<{ id: string; index: number; text: string; note: string }>,
   text: string,
@@ -144,12 +143,15 @@ export function renderReact(content: JSONContent) {
           const index = findFootnoteIndex(footnotes, text, note) ?? 0;
           const refId = `fn-${index}`;
           return (
-            <sup id={`fnref-${index}`} className="fn-tip-wrap">
-              <a href={`#${refId}`} className="footnote-ref no-styling">
-                [{index}]
-              </a>
-              <span className="fn-tip">{note}</span>
-            </sup>
+            <span className="fn-tip-wrap">
+              {text}
+              <sup id={`fnref-${index}`} className="footnote-sup">
+                <a href={`#${refId}`} className="footnote-ref no-styling">
+                  [{index}]
+                </a>
+                <span className="fn-tip">{note}</span>
+              </sup>
+            </span>
           );
         },
         detailsBlock: ({ node, children }) => {
@@ -187,7 +189,6 @@ export function renderReact(content: JSONContent) {
         </ol>
       </div>
     );
-    // 确保 element 和列表都返回，使用 Fragment 避免额外 DOM
     return React.createElement(React.Fragment, null, element, footnotesList);
   }
 
