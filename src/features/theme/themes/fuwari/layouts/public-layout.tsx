@@ -15,7 +15,6 @@ const BANNER_HEIGHT_PAGE = 35;
 const MAIN_OVERLAP_REM = 3.5;
 const NAVBAR_HEIGHT_REM = 4.5;
 
-// 预加载图片辅助函数
 function preloadImage(src: string | undefined) {
   if (!src) return;
   const img = new Image();
@@ -47,23 +46,20 @@ export function PublicLayout({
     return () => observer.disconnect();
   }, []);
 
-  // 获取配置中的亮/暗背景图
   const fuwari = siteConfig?.theme?.fuwari;
   const lightBg = fuwari?.homeBg ?? "";
-  const darkBg = fuwari?.darkHomeBg || fuwari?.homeBg ?? "";
+  // 修复：使用 || 连接，避免 ?? 和 || 混合优先级问题
+  const darkBg = fuwari?.darkHomeBg || fuwari?.homeBg || "";
 
   // 预加载当前未显示的另一张背景图
   useEffect(() => {
     if (isDark) {
-      // 当前是暗色，预加载亮色背景（当切换回亮色时立即可用）
       preloadImage(lightBg);
     } else {
-      // 当前是亮色，预加载暗色背景
       preloadImage(darkBg);
     }
   }, [isDark, lightBg, darkBg]);
 
-  // 同时渲染两个 img，用类名控制可见性；都设置 fetchpriority="high" 尽快加载
   const bannerImage = (src: string, visible: boolean, alt: string) => (
     <img
       src={src}
