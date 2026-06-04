@@ -15,6 +15,13 @@ const BANNER_HEIGHT_PAGE = 35;
 const MAIN_OVERLAP_REM = 3.5;
 const NAVBAR_HEIGHT_REM = 4.5;
 
+// 预加载图片辅助函数
+function preloadImage(src: string | undefined) {
+  if (!src) return;
+  const img = new Image();
+  img.src = src;
+}
+
 export function PublicLayout({
   children,
   navOptions,
@@ -30,6 +37,7 @@ export function PublicLayout({
   const bannerHeightVh = isHomePage ? BANNER_HEIGHT_HOME : BANNER_HEIGHT_PAGE;
 
   const [isDark, setIsDark] = useState(false);
+
   useEffect(() => {
     const html = document.documentElement;
     const check = () => setIsDark(html.classList.contains("dark"));
@@ -39,10 +47,33 @@ export function PublicLayout({
     return () => observer.disconnect();
   }, []);
 
+  // 获取配置中的亮/暗背景图
   const fuwari = siteConfig?.theme?.fuwari;
-  const homeBg = isDark
-    ? fuwari?.darkHomeBg || fuwari?.homeBg
-    : fuwari?.homeBg;
+  const lightBg = fuwari?.homeBg ?? "";
+  const darkBg = fuwari?.darkHomeBg || fuwari?.homeBg ?? "";
+
+  // 预加载当前未显示的另一张背景图
+  useEffect(() => {
+    if (isDark) {
+      // 当前是暗色，预加载亮色背景（当切换回亮色时立即可用）
+      preloadImage(lightBg);
+    } else {
+      // 当前是亮色，预加载暗色背景
+      preloadImage(darkBg);
+    }
+  }, [isDark, lightBg, darkBg]);
+
+  // 同时渲染两个 img，用类名控制可见性；都设置 fetchpriority="high" 尽快加载
+  const bannerImage = (src: string, visible: boolean, alt: string) => (
+    <img
+      src={src}
+      alt={alt}
+      fetchPriority="high"
+      className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-300 ${
+        visible ? "opacity-100" : "opacity-0"
+      }`}
+    />
+  );
 
   return (
     <div className="relative min-h-screen bg-(--fuwari-page-bg) transition-colors">
@@ -67,17 +98,13 @@ export function PublicLayout({
         </div>
       </div>
 
-      {/* Banner */}
+      {/* Banner - 使用两张重叠图片，根据主题切换可见性 */}
       <div
         className="absolute left-0 right-0 top-0 z-10 overflow-hidden transition-[height] duration-300 ease-in-out"
         style={{ height: `${bannerHeightVh}vh` }}
       >
-        <img
-          src={homeBg}
-          alt="banner"
-          fetchPriority="high"
-          className="w-full h-full object-cover object-center"
-        />
+        {bannerImage(lightBg, !isDark, "banner light")}
+        {bannerImage(darkBg, isDark, "banner dark")}
       </div>
 
       {/* Main content */}
