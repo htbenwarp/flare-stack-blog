@@ -141,7 +141,6 @@
       @apply content-[''] absolute -left-1 block transition bg-(--fuwari-btn-regular-bg) h-full w-1 rounded-full;
     }
 
-    /* Remove the double quotes from default styles */
     p:before,
     p:after {
       @apply content-none;
@@ -161,8 +160,202 @@
     overflow-y: hidden;
     text-align: center;
   }
+
+  /* =====================================================================
+     以下为新增 Markdown 扩展功能
+     ===================================================================== */
+
+  /* ── 脚注工具提示 ──────────────────────────────────── */
+  .fn-tip-wrap {
+    position: relative;
+    display: inline-block;
+    line-height: inherit;
+  }
+
+  .fn-tip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 8px;
+    max-width: 280px !important;
+    width: max-content;
+    padding: 0.75rem 0.9rem;
+    background: var(--fuwari-card-bg);
+    color: var(--fuwari-text-90);
+    border: 1px solid var(--fuwari-btn-regular-bg-active);
+    border-radius: var(--fuwari-radius-large);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    font-family: var(--font-sans);
+    font-weight: normal;
+    letter-spacing: normal;
+    text-transform: none;
+    text-align: left;
+    word-wrap: break-word;            
+    overflow-wrap: break-word;        
+    white-space: normal;              
+    line-height: 1.6;
+    white-space: normal;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.18s ease-in-out, visibility 0.18s ease-in-out;
+    z-index: 200;
+  }
+
+  .fn-tip p,
+  .fn-tip ul,
+  .fn-tip ol,
+  .fn-tip li {
+    margin: 0;
+    font-size: 0.92rem !important;
+  }
+
+  .fn-tip-wrap:hover .fn-tip {
+    opacity: 1;
+    visibility: visible;
+  }
+
+/* GitHub 卡片样式 */
+a.card-github {
+  display: block;
+  background: var(--fuwari-btn-regular-bg);
+  padding: 1.1rem 1.5rem;
+  border-radius: var(--fuwari-radius-large);
+  text-decoration: none !important;
+  transition: background-color 0.15s ease;
+  color: var(--fuwari-text-90);
 }
 
+a.card-github:hover {
+  background-color: var(--fuwari-btn-regular-bg-hover);
+}
+
+.gc-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.gc-titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gc-owner {
+  display: flex;
+  align-items: center;          
+  gap: 0.5rem;
+}
+
+.gc-avatar {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background-size: cover;
+  background-color: var(--fuwari-primary);
+  flex-shrink: 0;
+}
+
+.gc-divider {
+  margin: 0 0.25rem;
+}
+
+.gc-description {
+  margin-bottom: 0.7rem;
+  font-size: 0.9rem;
+  color: var(--fuwari-text-75);
+  line-height: 1.5;
+}
+
+.gc-infobar {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--fuwari-text-50);
+}
+
+.gc-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* 加载与错误状态 */
+.card-github.fetch-waiting .gc-avatar,
+.card-github.fetch-waiting .gc-description,
+.card-github.fetch-waiting .gc-infobar {
+  opacity: 0.5;
+}
+
+.card-github.fetch-error {
+  opacity: 0.8;
+}
+
+@keyframes pulsate {
+  0% { opacity: 0.15; }
+  50% { opacity: 0.25; }
+  100% { opacity: 0.15; }
+}
+
+
+  /* ── 折叠块（details/summary） ───────────────────── */
+  .details-wrap {
+    position: relative;
+    margin: 1rem 0;
+  }
+
+  .details-block {
+    border: 1px solid var(--fuwari-btn-regular-bg-active);
+    border-radius: var(--fuwari-radius-large);
+    overflow: hidden;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+    &[open] .details-summary {
+      border-bottom: 1px solid var(--fuwari-btn-regular-bg-active);
+    }
+  }
+
+  .details-summary {
+    padding: 0.65rem 1rem;
+    cursor: pointer;
+    font-weight: 500;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    user-select: none;
+
+    &::before {
+      content: "▸";
+      font-size: 0.8em;
+      color: var(--fuwari-primary);
+      transition: transform 0.2s ease;
+    }
+  }
+
+  .details-block[open] .details-summary::before {
+    transform: rotate(90deg);
+  }
+
+  .details-body {
+    padding: 1.5rem 2rem;
+  }
+
+  /* ── 着重号（CJK emphasis） ────────────────────────── */
+  .emphasis-cjk {
+    font-style: normal;
+    padding-bottom: 0.3em;
+    background-image: radial-gradient(circle, var(--fuwari-primary) 2px, transparent 2px);
+    background-size: 1em 0.3em;
+    background-repeat: repeat-x;
+    background-position: left bottom;
+  }
+}
+
+/* 暗色模式适配 */
 :is(.dark .fuwari-custom-md) {
   --tw-prose-body: rgb(255 255 255 / 0.9);
   --tw-prose-headings: rgb(255 255 255 / 0.9);
@@ -180,8 +373,112 @@
   --tw-prose-pre-bg: var(--fuwari-card-bg);
   --tw-prose-th-borders: var(--fuwari-meta-divider);
   --tw-prose-td-borders: var(--fuwari-meta-divider);
+
+  .fn-tip {
+    background: var(--fuwari-card-bg);
+    color: var(--fuwari-text-90);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+
+  .card-github {
+    background: var(--fuwari-btn-regular-bg);
+    color: var(--fuwari-text-90);
+    &:hover {
+      background-color: var(--fuwari-btn-regular-bg-hover);
+    }
+  }
 }
 
 :is(.dark .fuwari-custom-md) code span.line:before {
   @apply text-white/30;
+}
+
+/* 全局脉动动画（用于骨架屏） */
+@keyframes pulsate {
+  0% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.25;
+  }
+  100% {
+    opacity: 0.15;
+  }
+}
+
+/* =====================================================================
+   编辑器内预览样式
+   ===================================================================== */
+.fuwari-custom-md-editor .fn-tip-wrap {
+  display: inline;
+  border-bottom: 2px dotted var(--fuwari-primary);
+  cursor: pointer;
+}
+.fuwari-custom-md-editor .fn-tip-wrap:hover {
+  background-color: var(--fuwari-primary-hover);
+  color: white;
+}
+
+/* 折叠块编辑器样式 */
+.fuwari-custom-md-editor .details-block {
+  border: 1px dashed var(--fuwari-btn-regular-bg-active);
+  border-radius: var(--fuwari-radius-large);
+  margin: 1rem 0;
+  padding: 0.5rem 1rem;
+  background: var(--fuwari-btn-regular-bg);
+}
+.fuwari-custom-md-editor .details-summary-wrapper {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+/* 手动添加小三角 */
+.fuwari-custom-md-editor .details-summary-wrapper::before {
+  content: "▸";
+  font-size: 0.8em;
+  color: var(--fuwari-primary);
+  margin-right: 0.4em;
+  transition: transform 0.2s ease;
+}
+.fuwari-custom-md-editor .details-block[open] .details-summary-wrapper::before {
+  transform: rotate(90deg);
+}
+.fuwari-custom-md-editor .details-summary-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  outline: none;
+  font-weight: bold;
+  font-size: inherit;
+  color: var(--fuwari-text-90);
+  padding: 0.2em 0;
+}
+.fuwari-custom-md-editor .details-summary-input:focus {
+  border-bottom-color: var(--fuwari-primary);
+}
+.fuwari-custom-md-editor .details-body {
+  margin-top: 0.5rem;
+}
+
+.fuwari-custom-md-editor .emphasis-cjk {
+  font-style: normal;
+  padding-bottom: 0.3em;
+  background-image: radial-gradient(circle, var(--fuwari-primary) 2px, transparent 2px);
+  background-size: 1em 0.3em;
+  background-repeat: repeat-x;
+  background-position: left bottom;
+}
+
+.fuwari-custom-md-editor .card-github {
+  display: block;
+  border: 1px solid var(--fuwari-btn-regular-bg-active);
+  border-radius: var(--fuwari-radius-large);
+  margin: 0.5rem 0;
+  background: var(--fuwari-btn-regular-bg);
+  padding: 0.5rem;
+  cursor: pointer;
+}
+.fuwari-custom-md-editor .card-github:hover {
+  background-color: var(--fuwari-btn-regular-bg-hover);
 }

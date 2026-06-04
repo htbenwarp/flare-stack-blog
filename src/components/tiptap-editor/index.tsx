@@ -42,6 +42,7 @@ export const Editor = memo(function Editor({
   const formulaOpenerKeyRef = useRef(Symbol("formula-modal-opener"));
   const [modalOpen, setModalOpen] = useState<ModalType>(null);
   const [modalInitialUrl, setModalInitialUrl] = useState("");
+  const [selectedText, setSelectedText] = useState(""); // 用于脚注初始文本
   const [formulaModalOpen, setFormulaModalOpen] = useState(false);
   const [formulaPayload, setFormulaPayload] = useState<{
     mode: FormulaMode;
@@ -62,7 +63,7 @@ export const Editor = memo(function Editor({
     editorProps: {
       attributes: {
         class: cn(
-          "max-w-none focus:outline-none text-lg leading-relaxed min-h-[500px]",
+          "max-w-none focus:outline-none text-lg leading-relaxed min-h-[500px] fuwari-custom-md-editor",
           !editable && "min-h-0 text-base leading-7",
           contentClassName,
         ),
@@ -82,6 +83,30 @@ export const Editor = memo(function Editor({
     setModalOpen("IMAGE");
   }, []);
 
+  const openFootnoteModal = useCallback(() => {
+    if (!editor) return;
+    // 获取当前选中的文本
+    const text = editor.state.doc.textBetween(
+      editor.state.selection.from,
+      editor.state.selection.to,
+      " ",
+    );
+    setSelectedText(text || "");
+    setModalOpen("FOOTNOTE");
+  }, [editor]);
+
+  const openGitHubCardModal = useCallback(() => {
+    setModalOpen("GITHUB_CARD");
+  }, []);
+
+  const handleDetailsClick = useCallback(() => {
+    editor?.chain().focus().setDetailsBlock({ summary: "折叠标题" }).run();
+  }, [editor]);
+
+  const handleEmphasisClick = useCallback(() => {
+    editor?.chain().focus().toggleEmphasisCjk().run();
+  }, [editor]);
+
   const openFormulaModal = useCallback((mode: FormulaMode) => {
     setFormulaPayload({
       mode,
@@ -93,7 +118,6 @@ export const Editor = memo(function Editor({
 
   useEffect(() => {
     if (!editable) return;
-
     const opener = (payload: FormulaModalPayload) => {
       setFormulaPayload({
         mode: payload.type,
@@ -156,29 +180,42 @@ export const Editor = memo(function Editor({
     [editor],
   );
 
-  const handleModalSubmit = (
-    url: string,
-    attrs?: { width?: number; height?: number },
-  ) => {
-    if (modalOpen === "LINK") {
-      if (url === "") {
-        editor?.chain().focus().extendMarkRange("link").unsetLink().run();
-      } else {
-        const href = normalizeLinkHref(url);
-        editor?.chain().focus().extendMarkRange("link").setLink({ href }).run();
+  const handleModalSubmit = useCallback(
+    (
+      url: string,
+      attrs?: { width?: number; height?: number },
+      nodeData?: { type: string; attrs?: Record<string, any>; content?: any[] },
+    ) => {
+      if (modalOpen === "LINK") {
+        if (url === "") {
+          editor?.chain().focus().extendMarkRange("link").unsetLink().run();
+        } else {
+          const href = normalizeLinkHref(url);
+          editor?.chain().focus().extendMarkRange("link").setLink({ href }).run();
+        }
+      } else if (modalOpen === "IMAGE") {
+        if (url) {
+          editor
+            ?.chain()
+            .focus()
+            .setImage({ src: url, ...attrs })
+            .run();
+        }
+      } else if (nodeData) {
+        // 处理扩展节点
+        if (nodeData.type === "footnoteTip") {
+          editor?.chain().focus().insertContent({
+            type: "footnoteTip",
+            attrs: nodeData.attrs,
+          }).run();
+        } else if (nodeData.type === "githubCard") {
+          editor?.chain().focus().setGithubCard(nodeData.attrs).run();
+        }
       }
-    } else if (modalOpen === "IMAGE") {
-      if (url) {
-        editor
-          ?.chain()
-          .focus()
-          .setImage({ src: url, ...attrs })
-          .run();
-      }
-    }
-
-    setModalOpen(null);
-  };
+      setModalOpen(null);
+    },
+    [editor, modalOpen],
+  );
 
   return (
     <div className={cn("relative flex flex-col group", className)}>
@@ -189,6 +226,10 @@ export const Editor = memo(function Editor({
           onImageClick={openImageModal}
           onFormulaInlineClick={() => openFormulaModal("inline")}
           onFormulaBlockClick={() => openFormulaModal("block")}
+          onFootnoteClick={openFootnoteModal}
+          onDetailsClick={handleDetailsClick}
+          onEmphasisClick={handleEmphasisClick}
+          onGitHubCardClick={openGitHubCardModal}
         />
       )}
 
@@ -206,7 +247,11 @@ export const Editor = memo(function Editor({
         <InsertModal
           type={modalOpen}
           initialUrl={modalInitialUrl}
-          onClose={() => setModalOpen(null)}
+          initialText={selectedText}
+          onClose={() => {
+            setModalOpen(null);
+            setSelectedText("");
+          }}
           onSubmit={handleModalSubmit}
         />
       )}

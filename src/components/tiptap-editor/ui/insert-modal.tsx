@@ -7,6 +7,8 @@ import {
   Loader2,
   Search,
   X,
+  Bookmark,
+  ExternalLink,
 } from "lucide-react";
 import type React from "react";
 import { memo, useEffect, useRef, useState } from "react";
@@ -17,13 +19,24 @@ import { getOptimizedImageUrl } from "@/features/media/utils/media.utils";
 import { useDelayUnmount } from "@/hooks/use-delay-unmount";
 import { m } from "@/paraglide/messages";
 
-export type ModalType = "LINK" | "IMAGE" | null;
+// 移除 DETAILS 和 EMPHASIS，因为它们的插入已由工具栏直接处理
+export type ModalType =
+  | "LINK"
+  | "IMAGE"
+  | "FOOTNOTE"
+  | "GITHUB_CARD"
+  | null;
 
 interface InsertModalProps {
   type: ModalType;
   initialUrl?: string;
+  initialText?: string; // 用于脚注提示文本
   onClose: () => void;
-  onSubmit: (url: string, attrs?: { width?: number; height?: number }) => void;
+  onSubmit: (
+    url: string,
+    attrs?: { width?: number; height?: number },
+    nodeData?: { type: string; attrs?: Record<string, any>; content?: any[] },
+  ) => void;
 }
 
 const MediaItem = memo(
@@ -37,25 +50,23 @@ const MediaItem = memo(
     onSelect: (m: MediaAsset) => void;
   }) => {
     const [isLoaded, setIsLoaded] = useState(false);
-
     return (
       <div
         onClick={() => onSelect(media)}
         className={`
-                relative aspect-square border cursor-pointer transition-all duration-500 bg-muted/30 group overflow-hidden rounded-sm
-                ${
-                  isSelected
-                    ? "border-primary opacity-100 shadow-lg"
-                    : "border-border opacity-60 hover:opacity-100 hover:border-foreground"
-                }
-            `}
+          relative aspect-square border cursor-pointer transition-all duration-500 bg-muted/30 group overflow-hidden rounded-sm
+          ${
+            isSelected
+              ? "border-primary opacity-100 shadow-lg"
+              : "border-border opacity-60 hover:opacity-100 hover:border-foreground"
+          }
+        `}
       >
         {!isLoaded && (
           <div className="absolute inset-0 bg-muted animate-pulse flex items-center justify-center">
             <ImageIcon size={18} className="text-muted-foreground/30" />
           </div>
         )}
-
         <img
           src={getOptimizedImageUrl(media.key)}
           alt={media.fileName}
@@ -65,7 +76,6 @@ const MediaItem = memo(
           loading="lazy"
           onLoad={() => setIsLoaded(true)}
         />
-
         {isSelected && (
           <div className="absolute inset-0 bg-primary/10 flex items-center justify-center backdrop-blur-[1px]">
             <div className="bg-primary text-primary-foreground rounded-full p-1.5 shadow-xl animate-in zoom-in-50 duration-300">
@@ -77,12 +87,12 @@ const MediaItem = memo(
     );
   },
 );
-
 MediaItem.displayName = "MediaItem";
 
 const InsertModalInternal: React.FC<InsertModalProps> = ({
   type,
   initialUrl = "",
+  initialText = "",
   onClose,
   onSubmit,
 }) => {
@@ -94,6 +104,7 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
     if (type) setActiveType(type);
   }, [type]);
 
+  // 链接/图片状态
   const [inputUrl, setInputUrl] = useState(initialUrl);
   const [selectedMedia, setSelectedMedia] = useState<MediaAsset | null>(null);
 
@@ -112,7 +123,6 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
   useEffect(() => {
     const target = observerTarget.current;
     if (!target) return;
-
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
@@ -121,7 +131,6 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
       },
       { threshold: 0.1 },
     );
-
     observer.observe(target);
     return () => observer.disconnect();
   }, [hasMore, isLoadingMore, loadMore]);
@@ -134,23 +143,64 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
     }
   }, [initialUrl, type, setSearchQuery]);
 
+  // 扩展功能状态
+  const [footnoteText, setFootnoteText] = useState(initialText || "");
+  const [footnoteNote, setFootnoteNote] = useState("");
+  const [githubUrl, setGithubUrl] = useState("");
+
+  // 重置脚注文本当类型变为 FOOTNOTE 时
+  useEffect(() => {
+    if (type === "FOOTNOTE") {
+      setFootnoteText(initialText || "");
+      setFootnoteNote("");
+    }
+  }, [type, initialText]);
+
+  // 重置 GitHub URL 当类型变为 GITHUB_CARD 时
+  useEffect(() => {
+    if (type === "GITHUB_CARD") {
+      setGithubUrl("");
+    }
+  }, [type]);
+
   const handleSubmit = () => {
     const trimmed = inputUrl.trim();
+
     if (activeType === "LINK") {
-      // Allow empty submit to support "remove link" when editing an existing link.
       if (trimmed || initialUrl.trim()) onSubmit(trimmed);
       return;
     }
 
-    if (trimmed) {
-      if (selectedMedia && selectedMedia.url === trimmed) {
-        onSubmit(trimmed, {
-          width: selectedMedia.width || undefined,
-          height: selectedMedia.height || undefined,
-        });
-      } else {
-        onSubmit(trimmed);
+    if (activeType === "IMAGE") {
+      if (trimmed) {
+        if (selectedMedia && selectedMedia.url === trimmed) {
+          onSubmit(trimmed, {
+            width: selectedMedia.width || undefined,
+            height: selectedMedia.height || undefined,
+          });
+        } else {
+          onSubmit(trimmed);
+        }
       }
+      return;
+    }
+
+    if (activeType === "FOOTNOTE") {
+      if (!footnoteText.trim() || !footnoteNote.trim()) return;
+      onSubmit("", undefined, {
+        type: "footnoteTip",
+        attrs: { text: footnoteText, note: footnoteNote },
+      });
+      return;
+    }
+
+    if (activeType === "GITHUB_CARD") {
+      if (!githubUrl.trim()) return;
+      onSubmit("", undefined, {
+        type: "githubCard",
+        attrs: { repoUrl: githubUrl },
+      });
+      return;
     }
   };
 
@@ -164,23 +214,16 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
           : "opacity-0 pointer-events-none"
       }`}
     >
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-background/80 backdrop-blur-sm"
         onClick={onClose}
       />
-
-      {/* Modal Content - Command Palette Style */}
       <div
         className={`
-            relative w-full max-w-2xl bg-background border border-border shadow-2xl 
-            flex flex-col overflow-hidden rounded-none max-h-[80vh] transition-all duration-300 ease-out transform
-            ${
-              isMounted
-                ? "translate-y-0 scale-100 opacity-100"
-                : "translate-y-4 scale-[0.98] opacity-0"
-            }
-       `}
+          relative w-full max-w-2xl bg-background border border-border shadow-2xl 
+          flex flex-col overflow-hidden rounded-none max-h-[80vh] transition-all duration-300 ease-out transform
+          ${isMounted ? "translate-y-0 scale-100 opacity-100" : "translate-y-4 scale-[0.98] opacity-0"}
+        `}
       >
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-border/50 bg-muted/5">
@@ -188,9 +231,13 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
             <div className="flex items-center justify-center w-8 h-8 border border-border bg-background text-foreground">
               {activeType === "LINK" ? (
                 <LinkIcon size={14} />
-              ) : (
+              ) : activeType === "IMAGE" ? (
                 <ImageIcon size={14} />
-              )}
+              ) : activeType === "FOOTNOTE" ? (
+                <Bookmark size={14} />
+              ) : activeType === "GITHUB_CARD" ? (
+                <ExternalLink size={14} />
+              ) : null}
             </div>
             <div className="flex flex-col">
               <span className="text-xs uppercase tracking-widest font-mono text-muted-foreground leading-none mb-1">
@@ -199,7 +246,13 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
               <span className="text-base font-bold font-mono tracking-wider text-foreground uppercase">
                 {activeType === "LINK"
                   ? m.editor_insert_link_title()
-                  : m.editor_insert_media_title()}
+                  : activeType === "IMAGE"
+                    ? m.editor_insert_media_title()
+                    : activeType === "FOOTNOTE"
+                      ? m.editor_insert_footnote_title?.() ?? "插入脚注"
+                      : activeType === "GITHUB_CARD"
+                        ? m.editor_insert_github_card_title?.() ?? "插入GitHub卡片"
+                        : ""}
               </span>
             </div>
           </div>
@@ -213,14 +266,11 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
         </div>
 
         <div className="flex flex-col flex-1 overflow-hidden min-h-0 bg-background">
+          {/* 图片搜索区域 */}
           {activeType === "IMAGE" && (
             <div className="flex flex-col flex-1 min-h-0">
-              {/* Search Bar */}
               <div className="relative shrink-0 border-b border-border/50">
-                <Search
-                  className="absolute left-6 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  size={14}
-                />
+                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
                 <input
                   type="text"
                   placeholder={m.editor_insert_search_placeholder()}
@@ -229,24 +279,18 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
                   className="w-full bg-transparent border-none text-foreground text-sm font-mono pl-12 pr-6 py-4 focus:ring-0 placeholder:text-muted-foreground/40"
                 />
               </div>
-
-              {/* Media Grid */}
               <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-muted/5">
+                {/* ... media grid 代码保持不变 ... */}
                 {isPending ? (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
                     {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                      <div
-                        key={i}
-                        className="aspect-square bg-muted/20 animate-pulse border border-border/20"
-                      />
+                      <div key={i} className="aspect-square bg-muted/20 animate-pulse border border-border/20" />
                     ))}
                   </div>
                 ) : mediaItems.length === 0 ? (
                   <div className="h-48 flex flex-col items-center justify-center text-muted-foreground gap-2">
                     <Search size={24} className="opacity-20" />
-                    <span className="text-sm font-mono">
-                      {m.media_grid_empty()}
-                    </span>
+                    <span className="text-sm font-mono">{m.media_grid_empty()}</span>
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 content-start pb-4">
@@ -261,16 +305,8 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
                         }}
                       />
                     ))}
-                    <div
-                      ref={observerTarget}
-                      className="col-span-full h-8 flex items-center justify-center p-4"
-                    >
-                      {isLoadingMore && (
-                        <Loader2
-                          size={14}
-                          className="animate-spin text-muted-foreground"
-                        />
-                      )}
+                    <div ref={observerTarget} className="col-span-full h-8 flex items-center justify-center p-4">
+                      {isLoadingMore && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
                     </div>
                   </div>
                 )}
@@ -278,35 +314,69 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
             </div>
           )}
 
-          {/* URL Input Area */}
-          <div className="p-6 space-y-4 border-t border-border/50 bg-background">
-            <div className="flex items-center gap-2 mb-2">
-              <Globe size={12} className="text-muted-foreground" />
-              <label className="text-xs uppercase tracking-widest font-mono text-muted-foreground">
-                {activeType === "IMAGE"
-                  ? m.editor_insert_external_link()
-                  : m.editor_insert_target_url()}
-              </label>
-            </div>
-            <div className="group relative">
-              <span className="absolute left-0 top-1/2 -translate-y-1/2 text-muted-foreground font-mono text-sm pointer-events-none group-focus-within:text-foreground transition-colors"></span>
+          {/* 脚注表单 */}
+          {activeType === "FOOTNOTE" && (
+            <div className="p-6 space-y-4">
               <input
                 type="text"
-                autoFocus={activeType === "LINK"}
-                value={inputUrl}
-                onChange={(e) => {
-                  setInputUrl(e.target.value);
-                  if (selectedMedia) setSelectedMedia(null);
-                }}
-                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-                placeholder="https://..."
-                className="w-full bg-transparent border-b border-border text-foreground font-mono text-base py-2 pl-4 focus:border-foreground focus:outline-none transition-all placeholder:text-muted-foreground/20"
+                placeholder={m.editor_insert_footnote_text_placeholder?.() ?? "提示文本"}
+                value={footnoteText}
+                onChange={(e) => setFootnoteText(e.target.value)}
+                className="w-full bg-transparent border-b border-border text-foreground font-mono text-base py-2 px-4 focus:border-foreground focus:outline-none"
+              />
+              <textarea
+                placeholder={m.editor_insert_footnote_note_placeholder?.() ?? "脚注内容"}
+                value={footnoteNote}
+                onChange={(e) => setFootnoteNote(e.target.value)}
+                className="w-full bg-transparent border-b border-border text-foreground font-mono text-base py-2 px-4 focus:border-foreground focus:outline-none resize-none"
+                rows={3}
               />
             </div>
-          </div>
+          )}
+
+          {/* GitHub 卡片表单 */}
+          {activeType === "GITHUB_CARD" && (
+            <div className="p-6">
+              <input
+                type="text"
+                placeholder={m.editor_insert_github_url_placeholder?.() ?? "https://github.com/user/repo"}
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                className="w-full bg-transparent border-b border-border text-foreground font-mono text-base py-2 px-4 focus:border-foreground focus:outline-none"
+              />
+            </div>
+          )}
+
+          {/* URL 输入区域（链接/图片） */}
+          {(activeType === "LINK" || activeType === "IMAGE") && (
+            <div className="p-6 space-y-4 border-t border-border/50 bg-background">
+              <div className="flex items-center gap-2 mb-2">
+                <Globe size={12} className="text-muted-foreground" />
+                <label className="text-xs uppercase tracking-widest font-mono text-muted-foreground">
+                  {activeType === "IMAGE"
+                    ? m.editor_insert_external_link()
+                    : m.editor_insert_target_url()}
+                </label>
+              </div>
+              <div className="group relative">
+                <input
+                  type="text"
+                  autoFocus={activeType === "LINK"}
+                  value={inputUrl}
+                  onChange={(e) => {
+                    setInputUrl(e.target.value);
+                    if (selectedMedia) setSelectedMedia(null);
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                  placeholder="https://..."
+                  className="w-full bg-transparent border-b border-border text-foreground font-mono text-base py-2 pl-4 focus:border-foreground focus:outline-none transition-all placeholder:text-muted-foreground/20"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Actions Footer */}
+        {/* Footer */}
         <div className="flex items-center justify-end gap-0 border-t border-border/50">
           <button
             type="button"
@@ -318,18 +388,9 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={
-              activeType === "LINK"
-                ? !inputUrl.trim() && !initialUrl.trim()
-                : !inputUrl.trim()
-            }
             className="flex-1 px-6 py-4 text-xs font-mono font-bold uppercase tracking-widest text-foreground hover:bg-foreground hover:text-background transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-foreground"
           >
-            [{" "}
-            {activeType === "LINK" && !inputUrl.trim() && initialUrl.trim()
-              ? m.editor_insert_remove()
-              : m.editor_insert_confirm()}{" "}
-            ]
+            [ {m.editor_insert_confirm()} ]
           </button>
         </div>
       </div>
@@ -338,12 +399,10 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
   );
 };
 
-const InsertModal: React.FC<InsertModalProps> = (props) => {
-  return (
-    <ClientOnly>
-      <InsertModalInternal {...props} />
-    </ClientOnly>
-  );
-};
+const InsertModal: React.FC<InsertModalProps> = (props) => (
+  <ClientOnly>
+    <InsertModalInternal {...props} />
+  </ClientOnly>
+);
 
 export default InsertModal;

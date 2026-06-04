@@ -1504,5 +1504,18 @@
   "settings_site_section_music_title": "Music Player",
   "settings_site_section_music_desc": "Configure music player",
   "post_prev_post": "Previous",
-  "post_next_post": "Next"
+  "post_next_post": "Next",
+  "editor_toolbar_emphasis": "Emphasis",
+  "editor_toolbar_details": "Details",
+  "editor_toolbar_footnote": "Footnote",
+  "editor_toolbar_github_card": "GitHub Card",
+  "editor_insert_footnote_title": "Insert Footnote",
+  "editor_insert_details_title": "Insert Details",
+  "editor_insert_emphasis_title": "Insert Emphasis",
+  "editor_insert_github_card_title": "Insert GitHub Card",
+  "editor_insert_footnote_text_placeholder": "Prompt text",
+  "editor_insert_footnote_note_placeholder": "Footnote content",
+  "editor_insert_github_url_placeholder": "https://github.com/user/repo",
+  "editor_insert_details_summary_placeholder": "Details summary",
+  "editor_insert_emphasis_text_placeholder": "Emphasized text"
 }

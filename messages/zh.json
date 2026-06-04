@@ -1496,5 +1496,18 @@
   "settings_site_section_music_title": "音乐播放器",
   "settings_site_section_music_desc": "配置音乐播放器",
   "post_prev_post": "上一篇",
-  "post_next_post": "下一篇"
+  "post_next_post": "下一篇",
+  "editor_toolbar_emphasis": "着重号",
+  "editor_toolbar_details": "折叠块",
+  "editor_toolbar_footnote": "脚注",
+  "editor_toolbar_github_card": "GitHub卡片",
+  "editor_insert_footnote_title": "插入脚注",
+  "editor_insert_details_title": "插入折叠块",
+  "editor_insert_emphasis_title": "插入着重号",
+  "editor_insert_github_card_title": "插入GitHub卡片",
+  "editor_insert_footnote_text_placeholder": "提示文本",
+  "editor_insert_footnote_note_placeholder": "脚注内容",
+  "editor_insert_github_url_placeholder": "https://github.com/user/repo",
+  "editor_insert_details_summary_placeholder": "折叠块标题",
+  "editor_insert_emphasis_text_placeholder": "强调文字"
 }

@@ -18,6 +18,10 @@ import { HeadingExtension } from "@/features/posts/editor/extensions/typography/
 import type { ImageUploadResult } from "@/features/posts/editor/extensions/upload-image";
 import { ImageUpload } from "@/features/posts/editor/extensions/upload-image";
 import { slugify } from "@/features/posts/utils/content";
+import { EmphasisCjk } from "./extensions/emphasis-cjk";
+import { FootnoteTip } from "./extensions/footnote-tip";
+import { DetailsBlock } from "./extensions/details-block";
+import { GithubCard } from "./extensions/github-card";
 import { m } from "@/paraglide/messages";
 
 const ALLOWED_IMAGE_MIME_TYPES = [
@@ -145,4 +149,8 @@ export const extensions = [
   TableOfContents.configure({
     getId: (text) => slugify(text),
   }),
+  EmphasisCjk,
+  FootnoteTip,
+  DetailsBlock,
+  GithubCard,
 ];

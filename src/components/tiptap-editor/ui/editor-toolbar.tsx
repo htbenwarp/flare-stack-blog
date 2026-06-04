@@ -21,6 +21,10 @@ import {
   Terminal,
   Underline as UnderlineIcon,
   Undo,
+  Bookmark,
+  ChevronRight,
+  Highlighter,
+  ExternalLink,
 } from "lucide-react";
 import type React from "react";
 import { m } from "@/paraglide/messages";
@@ -31,6 +35,10 @@ interface EditorToolbarProps {
   onImageClick: () => void;
   onFormulaInlineClick: () => void;
   onFormulaBlockClick: () => void;
+  onFootnoteClick: () => void;
+  onDetailsClick: () => void;
+  onEmphasisClick: () => void;
+  onGitHubCardClick: () => void;
 }
 
 interface ToolbarButtonProps {
@@ -38,7 +46,6 @@ interface ToolbarButtonProps {
   isActive?: boolean;
   icon: LucideIcon;
   label?: string;
-  variant?: "default" | "ghost";
 }
 
 const ToolbarButton: React.FC<ToolbarButtonProps> = ({
@@ -68,23 +75,12 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onImageClick,
   onFormulaInlineClick,
   onFormulaBlockClick,
+  onFootnoteClick,
+  onDetailsClick,
+  onEmphasisClick,
+  onGitHubCardClick,
 }) => {
-  const {
-    isBold,
-    isHeading2,
-    isHeading3,
-    isItalic,
-    isUnderline,
-    isStrike,
-    isCode,
-    isCodeBlock,
-    isInlineMath,
-    isBlockMath,
-    isBulletList,
-    isOrderedList,
-    isBlockquote,
-    isLink,
-  } = useEditorState({
+  const state = useEditorState({
     editor,
     selector: (ctx) => {
       if (!ctx.editor) {
@@ -96,12 +92,16 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
           isUnderline: false,
           isStrike: false,
           isCode: false,
+          isCodeBlock: false,
+          isInlineMath: false,
+          isBlockMath: false,
           isBulletList: false,
           isOrderedList: false,
           isBlockquote: false,
           isLink: false,
-          isInlineMath: false,
-          isBlockMath: false,
+          isEmphasisCjk: false,
+          isDetailsActive: false,
+          isFootnoteActive: false,
         };
       }
       return {
@@ -119,6 +119,9 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         isOrderedList: ctx.editor.isActive("orderedList"),
         isBlockquote: ctx.editor.isActive("blockquote"),
         isLink: ctx.editor.isActive("link"),
+        isEmphasisCjk: ctx.editor.isActive("emphasisCjk"),
+        isDetailsActive: ctx.editor.isActive("detailsBlock"),
+        isFootnoteActive: ctx.editor.isActive("footnoteTip"),
       };
     },
   }) || {
@@ -136,6 +139,9 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
     isOrderedList: false,
     isBlockquote: false,
     isLink: false,
+    isEmphasisCjk: false,
+    isDetailsActive: false,
+    isFootnoteActive: false,
   };
 
   return (
@@ -145,7 +151,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         onClick={() =>
           editor?.chain().focus().toggleHeading({ level: 2 }).run()
         }
-        isActive={isHeading2}
+        isActive={state.isHeading2}
         icon={Heading2}
         label={m.editor_toolbar_heading2()}
       />
@@ -153,7 +159,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         onClick={() =>
           editor?.chain().focus().toggleHeading({ level: 3 }).run()
         }
-        isActive={isHeading3}
+        isActive={state.isHeading3}
         icon={Heading3}
         label={m.editor_toolbar_heading3()}
       />
@@ -163,49 +169,49 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
       {/* Formatting */}
       <ToolbarButton
         onClick={() => editor?.chain().focus().toggleBold().run()}
-        isActive={isBold}
+        isActive={state.isBold}
         icon={Bold}
         label={m.editor_toolbar_bold()}
       />
       <ToolbarButton
         onClick={() => editor?.chain().focus().toggleItalic().run()}
-        isActive={isItalic}
+        isActive={state.isItalic}
         icon={Italic}
         label={m.editor_toolbar_italic()}
       />
       <ToolbarButton
         onClick={() => editor?.chain().focus().toggleUnderline().run()}
-        isActive={isUnderline}
+        isActive={state.isUnderline}
         icon={UnderlineIcon}
         label={m.editor_toolbar_underline()}
       />
       <ToolbarButton
         onClick={() => editor?.chain().focus().toggleStrike().run()}
-        isActive={isStrike}
+        isActive={state.isStrike}
         icon={Strikethrough}
         label={m.editor_toolbar_strike()}
       />
       <ToolbarButton
         onClick={() => editor?.chain().focus().toggleCode().run()}
-        isActive={isCode}
+        isActive={state.isCode}
         icon={Code}
         label={m.editor_toolbar_code()}
       />
       <ToolbarButton
         onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
-        isActive={isCodeBlock}
+        isActive={state.isCodeBlock}
         icon={Terminal}
         label={m.editor_toolbar_code_block()}
       />
       <ToolbarButton
         onClick={onFormulaInlineClick}
-        isActive={isInlineMath}
+        isActive={state.isInlineMath}
         icon={Sigma}
         label={m.editor_toolbar_formula_inline()}
       />
       <ToolbarButton
         onClick={onFormulaBlockClick}
-        isActive={isBlockMath}
+        isActive={state.isBlockMath}
         icon={SquareFunction}
         label={m.editor_toolbar_formula_block()}
       />
@@ -215,19 +221,19 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
       {/* Lists & Blocks */}
       <ToolbarButton
         onClick={() => editor?.chain().focus().toggleBulletList().run()}
-        isActive={isBulletList}
+        isActive={state.isBulletList}
         icon={List}
         label={m.editor_toolbar_bullet_list()}
       />
       <ToolbarButton
         onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-        isActive={isOrderedList}
+        isActive={state.isOrderedList}
         icon={ListOrdered}
         label={m.editor_toolbar_ordered_list()}
       />
       <ToolbarButton
         onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-        isActive={isBlockquote}
+        isActive={state.isBlockquote}
         icon={Quote}
         label={m.editor_toolbar_blockquote()}
       />
@@ -249,7 +255,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
       {/* Inserts */}
       <ToolbarButton
         onClick={onLinkClick}
-        isActive={isLink}
+        isActive={state.isLink}
         icon={LinkIcon}
         label={m.editor_toolbar_link()}
       />
@@ -258,6 +264,32 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         isActive={false}
         icon={ImageIcon}
         label={m.editor_toolbar_image()}
+      />
+
+      {/* 扩展功能按钮 */}
+      <ToolbarButton
+        onClick={onEmphasisClick}
+        isActive={state.isEmphasisCjk}
+        icon={Highlighter}
+        label={m.editor_toolbar_emphasis?.() ?? "着重号"}
+      />
+      <ToolbarButton
+        onClick={onDetailsClick}
+        isActive={state.isDetailsActive}
+        icon={ChevronRight}
+        label={m.editor_toolbar_details?.() ?? "折叠块"}
+      />
+      <ToolbarButton
+        onClick={onFootnoteClick}
+        isActive={state.isFootnoteActive}
+        icon={Bookmark}
+        label={m.editor_toolbar_footnote?.() ?? "脚注"}
+      />
+      <ToolbarButton
+        onClick={onGitHubCardClick}
+        isActive={false}
+        icon={ExternalLink}
+        label={m.editor_toolbar_github_card?.() ?? "GitHub卡片"}
       />
 
       <div className="ml-auto flex gap-1">
