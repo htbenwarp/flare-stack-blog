@@ -1,13 +1,58 @@
 import type { JSONContent } from "@tiptap/react";
 import { renderToReactElement } from "@tiptap/static-renderer/pm/react";
+import React from "react";
 import { MathFormula } from "@/components/content/math-formula";
 import { extensions } from "@/features/posts/editor/config";
 import { CodeBlock } from "@/features/theme/themes/fuwari/components/content/code-block";
 import { ImageDisplay } from "@/features/theme/themes/fuwari/components/content/image-display";
 import { GithubCard } from "@/features/theme/themes/fuwari/components/content/github-card";
 
+// 递归收集所有脚注节点
+function collectFootnotes(content: JSONContent): Array<{ id: string; index: number; text: string; note: string }> {
+  const footnotes: Array<{ id: string; index: number; text: string; note: string }> = [];
+  let counter = 0;
+
+  function walk(node: JSONContent | undefined | null) {
+    if (!node) return;
+    if (node.type === "footnoteTip") {
+      counter++;
+      const id = `fn-${counter}`;
+      footnotes.push({
+        id,
+        index: counter,
+        text: node.attrs?.text || "",
+        note: node.attrs?.note || "",
+      });
+    }
+    if (node.content) {
+      node.content.forEach(walk);
+    }
+    if (node.marks) {
+      node.marks.forEach(walk);
+    }
+    if (node.text && node.marks) {
+      node.marks.forEach(walk);
+    }
+  }
+
+  walk(content);
+  return footnotes;
+}
+
+// 根据脚注的 text 和 note 查找索引（用于渲染时映射）
+function findFootnoteIndex(
+  footnotes: Array<{ id: string; index: number; text: string; note: string }>,
+  text: string,
+  note: string,
+): number | undefined {
+  const match = footnotes.find(fn => fn.text === text && fn.note === note);
+  return match?.index;
+}
+
 export function renderReact(content: JSONContent) {
-  return renderToReactElement({
+  const footnotes = collectFootnotes(content);
+
+  const element = renderToReactElement({
     extensions,
     content,
     options: {
@@ -24,17 +69,9 @@ export function renderReact(content: JSONContent) {
             width?: number | string;
             height?: number | string;
           };
-          const alt =
-            (attrs.alt && attrs.alt !== "null" ? attrs.alt : null) ||
-            "blog image";
-          const width =
-            typeof attrs.width === "string"
-              ? parseInt(attrs.width)
-              : attrs.width;
-          const height =
-            typeof attrs.height === "string"
-              ? parseInt(attrs.height)
-              : attrs.height;
+          const alt = (attrs.alt && attrs.alt !== "null" ? attrs.alt : null) || "blog image";
+          const width = typeof attrs.width === "string" ? parseInt(attrs.width) : attrs.width;
+          const height = typeof attrs.height === "string" ? parseInt(attrs.height) : attrs.height;
           return (
             <ImageDisplay
               src={attrs.src}
@@ -102,20 +139,24 @@ export function renderReact(content: JSONContent) {
         },
         footnoteTip: ({ node }) => {
           const attrs = node.attrs as { text?: string; note?: string };
+          const text = attrs.text || "";
+          const note = attrs.note || "";
+          const index = findFootnoteIndex(footnotes, text, note) ?? 0;
+          const refId = `fn-${index}`;
           return (
-            <span className="fn-tip-wrap">
-              {attrs.text}
-              <span className="fn-tip">{attrs.note}</span>
-            </span>
+            <sup id={`fnref-${index}`} className="fn-tip-wrap">
+              <a href={`#${refId}`} className="footnote-ref no-styling">
+                [{index}]
+              </a>
+              <span className="fn-tip">{note}</span>
+            </sup>
           );
         },
         detailsBlock: ({ node, children }) => {
           const attrs = node.attrs as { summary?: string };
           return (
             <details className="details-block">
-              <summary className="details-summary">
-                {attrs.summary || ""}
-              </summary>
+              <summary className="details-summary">{attrs.summary || ""}</summary>
               <div className="details-body">{children}</div>
             </details>
           );
@@ -129,4 +170,26 @@ export function renderReact(content: JSONContent) {
       },
     },
   });
+
+  if (footnotes.length > 0) {
+    const footnotesList = (
+      <div className="footnotes" key="footnotes-block">
+        <hr className="footnotes-sep" />
+        <ol className="footnotes-list">
+          {footnotes.map((fn) => (
+            <li key={fn.id} id={fn.id} className="footnote-item">
+              <span className="footnote-text">{fn.note}</span>
+              <a href={`#fnref-${fn.index}`} className="footnote-backref">
+                ↩
+              </a>
+            </li>
+          ))}
+        </ol>
+      </div>
+    );
+    // 确保 element 和列表都返回，使用 Fragment 避免额外 DOM
+    return React.createElement(React.Fragment, null, element, footnotesList);
+  }
+
+  return element;
 }

@@ -216,6 +216,90 @@
     visibility: visible;
   }
 
+sup.fn-tip-wrap {
+  position: relative;
+  cursor: pointer;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+sup.fn-tip-wrap .fn-tip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  max-width: 280px;
+  width: max-content;
+  padding: 0.5rem 0.8rem;
+  background: var(--fuwari-card-bg);
+  color: var(--fuwari-btn-content);
+  border: 1px solid var(--fuwari-btn-regular-bg-active);
+  border-radius: var(--fuwari-radius-large);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  line-height: 1.5;
+  white-space: normal;
+  word-wrap: break-word;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.18s ease-in-out, visibility 0.18s ease-in-out;
+  z-index: 200;
+}
+
+sup.fn-tip-wrap:hover .fn-tip {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 脚注参考链接样式 */
+.footnote-ref {
+  text-decoration: none !important;
+  color: var(--fuwari-primary) !important;
+  font-family: var(--font-mono);
+}
+
+.footnote-ref:hover, .footnote-ref:active {
+  text-decoration: none !important;
+  background: none !important;
+}
+
+/* 脚注列表样式 */
+.footnotes {
+  margin-top: 2rem;
+  font-size: 0.9rem;
+  color: var(--fuwari-text-75);
+}
+
+.footnotes-sep {
+  border: none;
+  border-top: 1px dashed var(--fuwari-meta-divider);
+  margin: 1rem 0;
+}
+
+.footnotes-list {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+
+.footnote-item {
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+}
+
+.footnote-backref {
+  margin-left: 0.3rem;
+  font-size: 0.8rem;
+  text-decoration: none;
+  color: var(--fuwari-primary);
+}
+
 /* GitHub 卡片样式 */
 a.card-github {
   display: block;
