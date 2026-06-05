@@ -100,22 +100,44 @@ export function PostCard({
                 <Tag size={20} strokeWidth={1.5} />
               </div>
               <div className="flex flex-row flex-wrap items-center gap-x-1.5">
-                {tagNames.map((name, i) => (
-                  <span key={name} className="flex items-center">
-                    {i > 0 && (
-                      <span className="mx-1.5 text-(--fuwari-meta-divider) text-sm">
-                        /
+                {tagNames.map((name, i) => {
+                  const separator = i > 0 ? (
+                    <span className="mx-1.5 text-(--fuwari-meta-divider) text-sm">
+                      /
+                    </span>
+                  ) : null;
+
+                  // 客邸文章：标签链接到客邸作者页并携带 tagName 参数
+                  if (post.isGuestPost && (post as any).guestAuthorSlug) {
+                    return (
+                      <span key={name} className="flex items-center">
+                        {separator}
+                        <Link
+                          to="/guest-house/author/$slug"
+                          params={{ slug: (post as any).guestAuthorSlug }}
+                          search={{ tagName: name }}
+                          className="fuwari-expand-animation rounded-md px-1.5 py-1 -m-1.5 text-sm font-medium hover:text-(--fuwari-primary)"
+                        >
+                          {name}
+                        </Link>
                       </span>
-                    )}
-                    <Link
-                      to="/posts"
-                      search={{ tagName: name }}
-                      className="fuwari-expand-animation rounded-md px-1.5 py-1 -m-1.5 text-sm font-medium hover:text-(--fuwari-primary)"
-                    >
-                      {name}
-                    </Link>
-                  </span>
-                ))}
+                    );
+                  }
+
+                  // 普通文章：标签链接到 /posts
+                  return (
+                    <span key={name} className="flex items-center">
+                      {separator}
+                      <Link
+                        to="/posts"
+                        search={{ tagName: name }}
+                        className="fuwari-expand-animation rounded-md px-1.5 py-1 -m-1.5 text-sm font-medium hover:text-(--fuwari-primary)"
+                      >
+                        {name}
+                      </Link>
+                    </span>
+                  );
+                })}
               </div>
             </div>
           )}

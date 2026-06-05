@@ -124,8 +124,10 @@ export const getGuestPostsCursorFn = createServerFn()
         updatedAt: PostsTable.updatedAt,
         isGuestPost: PostsTable.isGuestPost,
         guestAuthorId: PostsTable.guestAuthorId,
+        guestAuthorSlug: GuestAuthorsTable.slug,   // 新增
       })
       .from(PostsTable)
+      .leftJoin(GuestAuthorsTable, eq(PostsTable.guestAuthorId, GuestAuthorsTable.id))  // 新增
       .$dynamic();
 
     if (tagName) {
