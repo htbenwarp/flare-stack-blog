@@ -75,6 +75,7 @@ export const PostWithTocSchema = PostSelectSchema.extend({
     .optional(),
   isGuestPost: z.boolean().optional().default(false),
   guestAuthorId: z.number().nullable().optional(),
+  guestAuthorSlug: z.string().nullable().optional(),
 }).nullable();
 
 

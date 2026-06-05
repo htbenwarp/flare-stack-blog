@@ -99,7 +99,7 @@ export async function findPostBySlug(
   const fetcher = async () => {
     const post = await PostRepo.findPostBySlug(context.db, data.slug, {
       publicOnly: true,
-      excludeGuestPosts: false,
+      excludeGuestPosts: false,   // 必须为 false，否则客邸文章查不到
     });
     if (!post) return null;
 
@@ -115,20 +115,33 @@ export async function findPostBySlug(
       );
     }
 
-    // 为客邸文章获取作者信息
     let guestAuthor = post.guestAuthor ?? null;
-    if (post.isGuestPost && post.guestAuthorId) {
+    let guestAuthorSlug = guestAuthor?.slug ?? null;
+
+    // 如果关联查询没有返回作者，手动查询
+    if (!guestAuthor && post.isGuestPost && post.guestAuthorId) {
       guestAuthor = await context.db.query.GuestAuthorsTable.findFirst({
         where: eq(GuestAuthorsTable.id, post.guestAuthorId),
         columns: { id: true, name: true, slug: true, avatar: true },
       });
+      guestAuthorSlug = guestAuthor?.slug ?? null;
+    }
+
+    // 双重保险：单独查询 slug
+    if (!guestAuthorSlug && post.isGuestPost && post.guestAuthorId) {
+      const slugRow = await context.db.query.GuestAuthorsTable.findFirst({
+        where: eq(GuestAuthorsTable.id, post.guestAuthorId),
+        columns: { slug: true },
+      });
+      guestAuthorSlug = slugRow?.slug ?? null;
     }
 
     return {
       ...stripPublicContentJson(post),
       contentJson,
       toc: generateTableOfContents(contentJson),
-      guestAuthor: post.guestAuthor,
+      guestAuthor,
+      guestAuthorSlug,   // ← 显式注入 slug 字符串
       isGuestPost: post.isGuestPost ?? false,
       guestAuthorId: post.guestAuthorId ?? null,
     };

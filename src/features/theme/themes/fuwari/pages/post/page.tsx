@@ -159,7 +159,7 @@ export function PostPage({ post }: PostPageProps) {
     updatedAt: displayPost.updatedAt ? new Date(displayPost.updatedAt) : null,
   };
 
-  const isGuestPost = safeDisplayPost.isGuestPost;
+  const isGuestPost = safeDisplayPost.isGuestPost || !!safeDisplayPost.guestAuthor;
 
   // ✅ 动态选择相邻文章查询函数
   const { data: adjacentData } = useQuery({

@@ -1,4 +1,4 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -8,6 +8,7 @@ import {
   guestHouseTagsQueryOptions,
   guestAuthorTagsQueryOptions,
 } from "@/features/guest-authors/queries/public";
+import { postBySlugQuery } from "@/features/posts/queries";
 import { m } from "@/paraglide/messages";
 
 export function TagsSkeleton() {
@@ -24,32 +25,57 @@ export function TagsSkeleton() {
 }
 
 export function Tags() {
-  // 根据当前路由判断页面类型
   const routerState = useRouterState();
   const pathname = routerState.location.pathname;
   const isGuestHouse = pathname.startsWith("/guest-house");
   const authorMatch = pathname.match(/\/guest-house\/author\/([^/]+)/);
   const authorSlug = authorMatch ? decodeURIComponent(authorMatch[1]) : null;
 
-  // 选择对应数据源
-  const queryOptions = authorSlug
-    ? guestAuthorTagsQueryOptions(authorSlug)
-    : isGuestHouse
-    ? guestHouseTagsQueryOptions()
-    : tagsQueryOptions;   // 主站标签（需确保已排除客邸）
+  // 判断是否在文章详情页，并获取 slug
+  const postMatch = routerState.matches.find(
+    (m) => m.routeId === "/_public/post/$slug"
+  );
+  const slug = (postMatch?.params as any)?.slug;
+
+  // 查询文章数据（仅在可能为文章详情页时启用）
+  const { data: postData } = useQuery({
+    ...postBySlugQuery(slug),
+    enabled: !!slug && !isGuestHouse,
+  });
+
+  // 从文章数据中提取客邸信息（直接、可靠）
+  const isGuestPost = !!(postData?.isGuestPost);
+  const guestAuthorSlug = postData?.guestAuthorSlug || postData?.guestAuthor?.slug;
+
+  // 选择标签数据源
+  let queryOptions;
+  if (authorSlug) {
+    // 在作者页，使用该作者标签
+    queryOptions = guestAuthorTagsQueryOptions(authorSlug);
+  } else if (isGuestPost && guestAuthorSlug) {
+    // 客邸文章详情页，使用该作者专属标签
+    queryOptions = guestAuthorTagsQueryOptions(guestAuthorSlug);
+  } else if (isGuestHouse || isGuestPost) {
+    // 客邸主页，或客邸文章但无作者信息，使用全客邸标签
+    queryOptions = guestHouseTagsQueryOptions();
+  } else {
+    // 主站
+    queryOptions = tagsQueryOptions;
+  }
 
   const { data: tags } = useSuspenseQuery(queryOptions);
 
-  // 根据页面类型生成标签链接
+  // 生成标签链接
   const getTagLink = (tagName: string) => {
-    if (authorSlug) {
+    const effectiveAuthorSlug = authorSlug || guestAuthorSlug;
+    if (effectiveAuthorSlug) {
       return {
         to: "/guest-house/author/$slug",
-        params: { slug: authorSlug },
+        params: { slug: effectiveAuthorSlug },
         search: { tagName },
       };
     }
-    if (isGuestHouse) {
+    if (isGuestHouse || isGuestPost) {
       return {
         to: "/guest-house",
         search: { tagName },
@@ -71,7 +97,7 @@ export function Tags() {
     }
   }, [tags]);
 
-  if (tags.length === 0) return null;
+  if (!tags || tags.length === 0) return null;
 
   return (
     <div className="fuwari-card-base pb-4 transition-all duration-300">
@@ -93,7 +119,7 @@ export function Tags() {
           const link = getTagLink(tag.name);
           return (
             <Link
-              key={tag.name}   // 客邸标签可能无 id，改用 name
+              key={tag.name ?? tag.id}
               to={link.to as any}
               params={'params' in link ? link.params : undefined}
               search={link.search}

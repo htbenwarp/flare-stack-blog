@@ -13,19 +13,22 @@ export function PostMeta({ post, className }: PostMetaProps) {
   const updated = post.updatedAt;
   const isUpdated = Boolean(published && updated && published.getTime() !== updated.getTime());
 
-  const getTagLink = (tagName: string) => {
-    if (post.isGuestPost && post.guestAuthorSlug) {
-      return {
-        to: "/guest-house/author/$slug",
-        params: { slug: post.guestAuthorSlug },
-        search: { tagName },
-      };
-    }
+const getTagLink = (tagName: string) => {
+  // 健壮判断：满足任一条件即为客邸文章
+  const isGuest = post.isGuestPost || post.guestAuthorId != null || post.guestAuthor != null;
+
+  if (isGuest) {
+    // 优先跳转到客邸主页过滤标签（避免因缺少作者slug而失败）
     return {
-      to: "/posts",
+      to: "/guest-house",
       search: { tagName },
     };
+  }
+  return {
+    to: "/posts",
+    search: { tagName },
   };
+};
 
   return (
     <div className={cn("flex flex-wrap text-black/50 dark:text-white/40 items-center gap-4 gap-x-4 gap-y-2", className)}>
