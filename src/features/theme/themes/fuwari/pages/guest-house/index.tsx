@@ -1,5 +1,5 @@
 import { Link, useSearch } from "@tanstack/react-router";
-import { useQuery, useSuspenseInfiniteQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import theme from "@theme";
 import {
   guestAuthorsQueryOptions,
@@ -8,6 +8,7 @@ import {
 import { m } from "@/paraglide/messages";
 import { FileText } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { GuestHousePageSkeleton } from "./skeleton";
 
 export function GuestHousePage() {
   const search = useSearch({ from: "/_public/guest-house/" }) as {
@@ -24,7 +25,8 @@ export function GuestHousePage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useSuspenseInfiniteQuery(
+    isLoading: postsLoading,
+  } = useInfiniteQuery(
     guestPostsInfiniteQueryOptions({ tagName: search.tagName, limit: 12 })
   );
 
@@ -45,7 +47,12 @@ export function GuestHousePage() {
     return () => { if (el) observer.unobserve(el); };
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // 选中标签时，使用卡片包裹返回链接与文章列表
+  // 手动加载态：显示骨架屏
+  if (authorsLoading || postsLoading) {
+    return <GuestHousePageSkeleton />;
+  }
+
+  // 选中标签时，显示文章列表（归档样式）
   if (search.tagName) {
     return (
       <div className="fuwari-card-base p-4">
@@ -86,44 +93,40 @@ export function GuestHousePage() {
         </div>
       </div>
 
-      {authorsLoading ? (
-        <div className="text-center py-8 fuwari-text-50">加载中...</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {authors.map((author, idx) => (
-            <Link
-              key={author.id}
-              to="/guest-house/author/$slug"
-              params={{ slug: author.slug }}
-              className="fuwari-card-base p-5 flex items-center gap-4 hover:shadow-lg transition-shadow hover:bg-(--fuwari-primary)/5 fuwari-onload-animation"
-              style={{ animationDelay: `${100 + idx * 50}ms` }}
-            >
-              <img
-                src={
-                  author.avatar ||
-                  "data:image/svg+xml,..." // 省略长字符串，保持原样
-                }
-                alt={author.name}
-                className="w-14 h-14 rounded-full object-cover border border-(--fuwari-primary)/20"
-              />
-              <div className="flex-1 min-w-0">
-                <h2 className="text-xl font-bold fuwari-text-90 truncate">
-                  {author.name}
-                </h2>
-                {author.bio && (
-                  <p className="text-sm fuwari-text-50 mt-1 truncate">
-                    {author.bio}
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-1 text-sm fuwari-text-50">
-                <FileText size={14} />
-                <span>{author.postCount}</span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {authors.map((author, idx) => (
+          <Link
+            key={author.id}
+            to="/guest-house/author/$slug"
+            params={{ slug: author.slug }}
+            className="fuwari-card-base p-5 flex items-center gap-4 hover:shadow-lg transition-shadow hover:bg-(--fuwari-primary)/5 fuwari-onload-animation"
+            style={{ animationDelay: `${100 + idx * 50}ms` }}
+          >
+            <img
+              src={
+                author.avatar ||
+                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' fill='%23ccc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23666' font-size='24'%3E?%3C/text%3E%3C/svg%3E"
+              }
+              alt={author.name}
+              className="w-14 h-14 rounded-full object-cover border border-(--fuwari-primary)/20"
+            />
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl font-bold fuwari-text-90 truncate">
+                {author.name}
+              </h2>
+              {author.bio && (
+                <p className="text-sm fuwari-text-50 mt-1 truncate">
+                  {author.bio}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-1 text-sm fuwari-text-50">
+              <FileText size={14} />
+              <span>{author.postCount}</span>
+            </div>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

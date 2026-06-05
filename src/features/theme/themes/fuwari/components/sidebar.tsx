@@ -20,17 +20,19 @@ export function Sidebar({ className }: { className?: string }) {
         </Suspense>
       </div>
 
-      {/* 音乐播放器 - 移除 sticky 和额外卡片包装 */}
+      {/* 音乐播放器 */}
       <div className="fuwari-onload-animation" style={{ animationDelay: "200ms" }}>
         <MusicList compact />
       </div>
 
-      {/* 标签 - 保持 sticky */}
+      {/* 标签 - 添加 Suspense 边界 */}
       <div
         className="sticky top-4 fuwari-onload-animation"
         style={{ animationDelay: "250ms" }}
       >
-        <Tags />
+        <Suspense fallback={<TagsSkeleton />}>
+          <Tags />
+        </Suspense>
       </div>
     </aside>
   );

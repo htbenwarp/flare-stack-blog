@@ -150,8 +150,6 @@ export function PostPage({ post }: PostPageProps) {
     }
   }, [post.id]);
 
-  if (sessionLoading) return <div className="p-8 text-center text-sm text-muted-foreground">加载中...</div>;
-
   const isAdmin = session?.user?.role === "admin";
   const displayPost = unlockedPost || post;
   const safeDisplayPost = {
