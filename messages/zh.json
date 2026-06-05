@@ -1530,7 +1530,7 @@
   "admin_guest_authors_created": "作者已创建",
   "admin_guest_authors_updated": "作者已更新",
   "admin_guest_authors_deleted": "作者已删除",
-  "admin_sidebar_guest_authors": "客邸作者",
+  "admin_sidebar_guest_authors": "客邸作者管理",
   "nav_guest_house": "客邸",
   "guest_house_total": "当前共 {authorCount} 位作者，{postCount} 篇字句。"
 }
