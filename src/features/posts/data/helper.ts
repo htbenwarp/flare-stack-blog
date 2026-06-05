@@ -10,8 +10,10 @@ export function buildPostWhereClause(options: {
   status?: PostStatus;
   publicOnly?: boolean; // For public pages - checks publishedAt <= now
   search?: string;
+  excludeGuestPosts?: boolean;
 }) {
   const whereClauses = [];
+  const shouldExcludeGuest = options.excludeGuestPosts ?? true;
 
   if (options.status) {
     whereClauses.push(eq(PostsTable.status, options.status));
@@ -20,6 +22,9 @@ export function buildPostWhereClause(options: {
   // For public pages, also filter by publishedAt
   if (options.publicOnly) {
     whereClauses.push(eq(PostsTable.status, "published"));
+    if (shouldExcludeGuest) {                     // ✅ 可控制
+      whereClauses.push(eq(PostsTable.isGuestPost, false));
+      }
     // Compare date portions only (ignore time-of-day) to avoid timezone issues.
     // publishedAt is stored as Unix seconds; date('now') returns today's UTC date.
     // This matches the isFuturePublishDate() string-based date comparison used in scheduling.

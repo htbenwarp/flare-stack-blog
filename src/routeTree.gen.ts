@@ -32,10 +32,13 @@ import { Route as AdminTagsIndexRouteImport } from './routes/admin/tags/index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin/settings/index'
 import { Route as AdminPostsIndexRouteImport } from './routes/admin/posts/index'
 import { Route as AdminMediaIndexRouteImport } from './routes/admin/media/index'
+import { Route as AdminGuestAuthorsIndexRouteImport } from './routes/admin/guest-authors/index'
 import { Route as AdminFriendLinksIndexRouteImport } from './routes/admin/friend-links/index'
 import { Route as AdminCommentsIndexRouteImport } from './routes/admin/comments/index'
+import { Route as PublicGuestHouseIndexRouteImport } from './routes/_public/guest-house/index'
 import { Route as PublicPostSlugRouteImport } from './routes/_public/post/$slug'
 import { Route as AdminPostsEditIdRouteImport } from './routes/admin/posts/edit.$id'
+import { Route as PublicGuestHouseAuthorSlugRouteImport } from './routes/_public/guest-house/author.$slug'
 
 const AdminRouteRoute = AdminRouteRouteImport.update({
   id: '/admin',
@@ -149,6 +152,11 @@ const AdminMediaIndexRoute = AdminMediaIndexRouteImport.update({
   path: '/media/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminGuestAuthorsIndexRoute = AdminGuestAuthorsIndexRouteImport.update({
+  id: '/guest-authors/',
+  path: '/guest-authors/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminFriendLinksIndexRoute = AdminFriendLinksIndexRouteImport.update({
   id: '/friend-links/',
   path: '/friend-links/',
@@ -158,6 +166,11 @@ const AdminCommentsIndexRoute = AdminCommentsIndexRouteImport.update({
   id: '/comments/',
   path: '/comments/',
   getParentRoute: () => AdminRouteRoute,
+} as any)
+const PublicGuestHouseIndexRoute = PublicGuestHouseIndexRouteImport.update({
+  id: '/guest-house/',
+  path: '/guest-house/',
+  getParentRoute: () => PublicRouteRoute,
 } as any)
 const PublicPostSlugRoute = PublicPostSlugRouteImport.update({
   id: '/post/$slug',
@@ -169,6 +182,12 @@ const AdminPostsEditIdRoute = AdminPostsEditIdRouteImport.update({
   path: '/edit/$id',
   getParentRoute: () => AdminPostsRouteRoute,
 } as any)
+const PublicGuestHouseAuthorSlugRoute =
+  PublicGuestHouseAuthorSlugRouteImport.update({
+    id: '/guest-house/author/$slug',
+    path: '/guest-house/author/$slug',
+    getParentRoute: () => PublicRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof PublicIndexRoute
@@ -188,12 +207,15 @@ export interface FileRoutesByFullPath {
   '/oauth/consent': typeof OauthConsentRoute
   '/admin/': typeof AdminIndexRoute
   '/post/$slug': typeof PublicPostSlugRoute
+  '/guest-house/': typeof PublicGuestHouseIndexRoute
   '/admin/comments/': typeof AdminCommentsIndexRoute
   '/admin/friend-links/': typeof AdminFriendLinksIndexRoute
+  '/admin/guest-authors/': typeof AdminGuestAuthorsIndexRoute
   '/admin/media/': typeof AdminMediaIndexRoute
   '/admin/posts/': typeof AdminPostsIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/tags/': typeof AdminTagsIndexRoute
+  '/guest-house/author/$slug': typeof PublicGuestHouseAuthorSlugRoute
   '/admin/posts/edit/$id': typeof AdminPostsEditIdRoute
 }
 export interface FileRoutesByTo {
@@ -212,12 +234,15 @@ export interface FileRoutesByTo {
   '/oauth/consent': typeof OauthConsentRoute
   '/admin': typeof AdminIndexRoute
   '/post/$slug': typeof PublicPostSlugRoute
+  '/guest-house': typeof PublicGuestHouseIndexRoute
   '/admin/comments': typeof AdminCommentsIndexRoute
   '/admin/friend-links': typeof AdminFriendLinksIndexRoute
+  '/admin/guest-authors': typeof AdminGuestAuthorsIndexRoute
   '/admin/media': typeof AdminMediaIndexRoute
   '/admin/posts': typeof AdminPostsIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/tags': typeof AdminTagsIndexRoute
+  '/guest-house/author/$slug': typeof PublicGuestHouseAuthorSlugRoute
   '/admin/posts/edit/$id': typeof AdminPostsEditIdRoute
 }
 export interface FileRoutesById {
@@ -242,12 +267,15 @@ export interface FileRoutesById {
   '/_public/': typeof PublicIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/_public/post/$slug': typeof PublicPostSlugRoute
+  '/_public/guest-house/': typeof PublicGuestHouseIndexRoute
   '/admin/comments/': typeof AdminCommentsIndexRoute
   '/admin/friend-links/': typeof AdminFriendLinksIndexRoute
+  '/admin/guest-authors/': typeof AdminGuestAuthorsIndexRoute
   '/admin/media/': typeof AdminMediaIndexRoute
   '/admin/posts/': typeof AdminPostsIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/tags/': typeof AdminTagsIndexRoute
+  '/_public/guest-house/author/$slug': typeof PublicGuestHouseAuthorSlugRoute
   '/admin/posts/edit/$id': typeof AdminPostsEditIdRoute
 }
 export interface FileRouteTypes {
@@ -270,12 +298,15 @@ export interface FileRouteTypes {
     | '/oauth/consent'
     | '/admin/'
     | '/post/$slug'
+    | '/guest-house/'
     | '/admin/comments/'
     | '/admin/friend-links/'
+    | '/admin/guest-authors/'
     | '/admin/media/'
     | '/admin/posts/'
     | '/admin/settings/'
     | '/admin/tags/'
+    | '/guest-house/author/$slug'
     | '/admin/posts/edit/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -294,12 +325,15 @@ export interface FileRouteTypes {
     | '/oauth/consent'
     | '/admin'
     | '/post/$slug'
+    | '/guest-house'
     | '/admin/comments'
     | '/admin/friend-links'
+    | '/admin/guest-authors'
     | '/admin/media'
     | '/admin/posts'
     | '/admin/settings'
     | '/admin/tags'
+    | '/guest-house/author/$slug'
     | '/admin/posts/edit/$id'
   id:
     | '__root__'
@@ -323,12 +357,15 @@ export interface FileRouteTypes {
     | '/_public/'
     | '/admin/'
     | '/_public/post/$slug'
+    | '/_public/guest-house/'
     | '/admin/comments/'
     | '/admin/friend-links/'
+    | '/admin/guest-authors/'
     | '/admin/media/'
     | '/admin/posts/'
     | '/admin/settings/'
     | '/admin/tags/'
+    | '/_public/guest-house/author/$slug'
     | '/admin/posts/edit/$id'
   fileRoutesById: FileRoutesById
 }
@@ -503,6 +540,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminMediaIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/guest-authors/': {
+      id: '/admin/guest-authors/'
+      path: '/guest-authors'
+      fullPath: '/admin/guest-authors/'
+      preLoaderRoute: typeof AdminGuestAuthorsIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/friend-links/': {
       id: '/admin/friend-links/'
       path: '/friend-links'
@@ -517,6 +561,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCommentsIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/_public/guest-house/': {
+      id: '/_public/guest-house/'
+      path: '/guest-house'
+      fullPath: '/guest-house/'
+      preLoaderRoute: typeof PublicGuestHouseIndexRouteImport
+      parentRoute: typeof PublicRouteRoute
+    }
     '/_public/post/$slug': {
       id: '/_public/post/$slug'
       path: '/post/$slug'
@@ -530,6 +581,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/posts/edit/$id'
       preLoaderRoute: typeof AdminPostsEditIdRouteImport
       parentRoute: typeof AdminPostsRouteRoute
+    }
+    '/_public/guest-house/author/$slug': {
+      id: '/_public/guest-house/author/$slug'
+      path: '/guest-house/author/$slug'
+      fullPath: '/guest-house/author/$slug'
+      preLoaderRoute: typeof PublicGuestHouseAuthorSlugRouteImport
+      parentRoute: typeof PublicRouteRoute
     }
   }
 }
@@ -561,6 +619,8 @@ interface PublicRouteRouteChildren {
   PublicUnsubscribeRoute: typeof PublicUnsubscribeRoute
   PublicIndexRoute: typeof PublicIndexRoute
   PublicPostSlugRoute: typeof PublicPostSlugRoute
+  PublicGuestHouseIndexRoute: typeof PublicGuestHouseIndexRoute
+  PublicGuestHouseAuthorSlugRoute: typeof PublicGuestHouseAuthorSlugRoute
 }
 
 const PublicRouteRouteChildren: PublicRouteRouteChildren = {
@@ -570,6 +630,8 @@ const PublicRouteRouteChildren: PublicRouteRouteChildren = {
   PublicUnsubscribeRoute: PublicUnsubscribeRoute,
   PublicIndexRoute: PublicIndexRoute,
   PublicPostSlugRoute: PublicPostSlugRoute,
+  PublicGuestHouseIndexRoute: PublicGuestHouseIndexRoute,
+  PublicGuestHouseAuthorSlugRoute: PublicGuestHouseAuthorSlugRoute,
 }
 
 const PublicRouteRouteWithChildren = PublicRouteRoute._addFileChildren(
@@ -609,6 +671,7 @@ interface AdminRouteRouteChildren {
   AdminIndexRoute: typeof AdminIndexRoute
   AdminCommentsIndexRoute: typeof AdminCommentsIndexRoute
   AdminFriendLinksIndexRoute: typeof AdminFriendLinksIndexRoute
+  AdminGuestAuthorsIndexRoute: typeof AdminGuestAuthorsIndexRoute
   AdminMediaIndexRoute: typeof AdminMediaIndexRoute
   AdminSettingsIndexRoute: typeof AdminSettingsIndexRoute
   AdminTagsIndexRoute: typeof AdminTagsIndexRoute
@@ -619,6 +682,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminIndexRoute: AdminIndexRoute,
   AdminCommentsIndexRoute: AdminCommentsIndexRoute,
   AdminFriendLinksIndexRoute: AdminFriendLinksIndexRoute,
+  AdminGuestAuthorsIndexRoute: AdminGuestAuthorsIndexRoute,
   AdminMediaIndexRoute: AdminMediaIndexRoute,
   AdminSettingsIndexRoute: AdminSettingsIndexRoute,
   AdminTagsIndexRoute: AdminTagsIndexRoute,

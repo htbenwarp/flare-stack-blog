@@ -33,6 +33,8 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
     hasPublicCache: initialData.hasPublicCache,
     isEncrypted: initialData.isEncrypted ?? false,
     password: "", // 永不回显密码
+    isGuestPost: initialData.isGuestPost ?? false,    // ← 必须存在
+    guestAuthorId: initialData.guestAuthorId ?? null, // ← 必须存在
   }));
 
   const [prevInitialDataId, setPrevInitialDataId] = useState(initialData.id);
@@ -50,6 +52,8 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
       tagIds: initialData.tagIds,
       isSynced: initialData.isSynced,
       isEncrypted: initialData.isEncrypted ?? false, // 同步加密状态
+      isGuestPost: initialData.isGuestPost ?? false,    // ← 新增
+      guestAuthorId: initialData.guestAuthorId ?? null, // ← 新增
     }));
   }
 

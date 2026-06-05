@@ -35,6 +35,8 @@ export const PostUpdateSchema = createUpdateSchema(PostsTable, {
   })
   .extend({
     password: z.string().optional(),
+    isGuestPost: z.boolean().optional(),
+    guestAuthorId: z.number().nullable().optional(),
   })
   .passthrough();
 
@@ -44,6 +46,8 @@ export const PostItemSchema = PostSelectSchema.omit({
 }).extend({
   tags: z.array(TagSelectSchema).optional(),
   isEncrypted: z.boolean().optional().default(false),
+  isGuestPost: z.boolean().optional().default(false),    // ✅ 新增
+  guestAuthorId: z.number().nullable().optional(),       // ✅ 新增
 });
 
 export const PostListResponseSchema = z.object({
@@ -60,7 +64,19 @@ export const PostWithTocSchema = PostSelectSchema.extend({
       level: z.number(),
     }),
   ),
+  guestAuthor: z
+    .object({
+      id: z.number(),
+      name: z.string(),
+      slug: z.string(),
+      avatar: z.string().nullable(),
+    })
+    .nullable()
+    .optional(),
+  isGuestPost: z.boolean().optional().default(false),
+  guestAuthorId: z.number().nullable().optional(),
 }).nullable();
+
 
 export const GetPostsCursorInputSchema = z.object({
   cursor: z.number().optional(),

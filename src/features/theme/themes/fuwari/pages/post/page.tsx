@@ -11,18 +11,10 @@ import { PostMeta } from "./components/post-meta";
 import { PostSummary } from "./components/post-summary";
 import { RelatedPosts, RelatedPostsSkeleton } from "./components/related-posts";
 import TableOfContents from "./components/table-of-contents";
-import { getAdjacentPostsFn } from "@/features/posts/api/posts.public.api";
+import { getAdjacentPostsFn, getAdjacentGuestPostsFn } from "@/features/posts/api/posts.public.api";
 
-// 加密文章密码输入组件
-function EncryptedPostGate({
-  post,
-  slug,
-  onUnlocked,
-}: {
-  post: any;
-  slug: string;
-  onUnlocked: (fullPost: any) => void;
-}) {
+// 加密文章组件（原样）
+function EncryptedPostGate({ post, slug, onUnlocked }: any) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -43,7 +35,6 @@ function EncryptedPostGate({
       const result = await res.json();
 
       if (result.success && result.post) {
-        // 将日期字符串显式转为 Date 对象，防止组件调用 .getTime() 报错
         const safePost = {
           ...result.post,
           publishedAt: result.post.publishedAt ? new Date(result.post.publishedAt) : null,
@@ -93,53 +84,28 @@ function EncryptedPostGate({
   );
 }
 
-// 上一篇 / 下一篇导航
-function AdjacentPosts({ slug }: { slug: string }) {
-  const { data } = useQuery({
-    queryKey: ["adjacent-posts", slug],
-    queryFn: () => getAdjacentPostsFn({ data: { slug } }),
-    staleTime: 60 * 60 * 1000, // 1 小时缓存
-  });
-
-  const prev = data?.prev;
-  const next = data?.next;
-
+// 前后篇导航
+function AdjacentPosts({ prev, next }: { prev?: { slug: string; title: string } | null; next?: { slug: string; title: string } | null }) {
   return (
     <div className="flex justify-between gap-4 mt-4">
       {prev ? (
-        <Link
-          to="/post/$slug"
-          params={{ slug: prev.slug }}
-          className="fuwari-card-base flex-1 flex items-center gap-3 p-4 transition-all hover:shadow-lg hover:bg-(--fuwari-primary)/5"
-        >
+        <Link to="/post/$slug" params={{ slug: prev.slug }} className="fuwari-card-base flex-1 flex items-center gap-3 p-4 transition-all hover:shadow-lg hover:bg-(--fuwari-primary)/5">
           <ChevronLeft size={20} className="text-(--fuwari-primary)" />
           <div className="text-left min-w-0">
-            <p className="text-xs text-muted-foreground">
-              {m.post_prev_post?.() ?? "上一篇"}
-            </p>
+            <p className="text-xs text-muted-foreground">{m.post_prev_post?.() ?? "上一篇"}</p>
             <p className="text-sm font-medium truncate">{prev.title}</p>
           </div>
         </Link>
-      ) : (
-        <div className="flex-1" />
-      )}
+      ) : (<div className="flex-1" />)}
       {next ? (
-        <Link
-          to="/post/$slug"
-          params={{ slug: next.slug }}
-          className="fuwari-card-base flex-1 flex items-center justify-end gap-3 p-4 text-right transition-all hover:shadow-lg hover:bg-(--fuwari-primary)/5"
-        >
+        <Link to="/post/$slug" params={{ slug: next.slug }} className="fuwari-card-base flex-1 flex items-center justify-end gap-3 p-4 text-right transition-all hover:shadow-lg hover:bg-(--fuwari-primary)/5">
           <div className="text-right min-w-0">
-            <p className="text-xs text-muted-foreground">
-              {m.post_next_post?.() ?? "下一篇"}
-            </p>
+            <p className="text-xs text-muted-foreground">{m.post_next_post?.() ?? "下一篇"}</p>
             <p className="text-sm font-medium truncate">{next.title}</p>
           </div>
           <ChevronRight size={20} className="text-(--fuwari-primary)" />
         </Link>
-      ) : (
-        <div className="flex-1" />
-      )}
+      ) : (<div className="flex-1" />)}
     </div>
   );
 }
@@ -147,15 +113,11 @@ function AdjacentPosts({ slug }: { slug: string }) {
 export function PostPage({ post }: PostPageProps) {
   const { data: session, isLoading: sessionLoading } = authClient.useSession();
   const { slug } = useParams({ from: "/_public/post/$slug" });
-
   const [unlockedPost, setUnlockedPost] = useState<any>(null);
 
-  // 切换文章时重置解锁状态
-  useEffect(() => {
-    setUnlockedPost(null);
-  }, [slug]);
+  useEffect(() => { setUnlockedPost(null); }, [slug]);
 
-  // 音乐替换逻辑
+  // 音乐 iframe 替换逻辑（原样）
   useEffect(() => {
     const container = document.querySelector('.fuwari-custom-md');
     if (!container) return;
@@ -188,14 +150,10 @@ export function PostPage({ post }: PostPageProps) {
     }
   }, [post.id]);
 
-  if (sessionLoading) {
-    return <div className="p-8 text-center text-sm text-muted-foreground">加载中...</div>;
-  }
+  if (sessionLoading) return <div className="p-8 text-center text-sm text-muted-foreground">加载中...</div>;
 
   const isAdmin = session?.user?.role === "admin";
   const displayPost = unlockedPost || post;
-
-  // 为 displayPost 统一做日期安全转换，确保传递给子组件的日期是 Date 对象
   const safeDisplayPost = {
     ...displayPost,
     publishedAt: displayPost.publishedAt ? new Date(displayPost.publishedAt) : null,
@@ -203,26 +161,55 @@ export function PostPage({ post }: PostPageProps) {
     updatedAt: displayPost.updatedAt ? new Date(displayPost.updatedAt) : null,
   };
 
+  const isGuestPost = safeDisplayPost.isGuestPost;
+
+  // ✅ 动态选择相邻文章查询函数
+  const { data: adjacentData } = useQuery({
+    queryKey: ["adjacent-posts", slug, isGuestPost],
+    queryFn: () =>
+      isGuestPost
+        ? getAdjacentGuestPostsFn({ data: { slug } })
+        : getAdjacentPostsFn({ data: { slug } }),
+    staleTime: 60 * 60 * 1000,
+  });
+
   const needPassword = !isAdmin && safeDisplayPost.isEncrypted && !safeDisplayPost.contentJson?.content?.length;
+
+  // 面包屑
+  const breadcrumb = isGuestPost && safeDisplayPost.guestAuthor ? (
+    <div className="mb-4 text-sm fuwari-text-50">
+      <Link to="/guest-house" className="hover:text-(--fuwari-primary)">{m.guest_house_breadcrumb()}</Link>
+      <span className="mx-1">/</span>
+      <Link to={`/guest-house/author/${encodeURIComponent(safeDisplayPost.guestAuthor.slug)}`} className="hover:text-(--fuwari-primary)">
+        {safeDisplayPost.guestAuthor.name}
+      </Link>
+    </div>
+  ) : null;
+
+  // 寄存落款
+  const guestFooter = isGuestPost && safeDisplayPost.guestAuthor ? (
+    <div className="mt-8 pt-5 border-t border-dashed border-black/10 dark:border-white/[0.15] flex items-center justify-end gap-2 text-50">
+      <span className="font-serif text-sm opacity-70">{m.guest_house_resident?.() ?? "寄存于客邸 ·"}</span>
+      <span className="font-medium uppercase tracking-wide">{safeDisplayPost.guestAuthor.name}</span>
+    </div>
+  ) : null;
 
   if (needPassword) {
     return (
       <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
-        <EncryptedPostGate
-          post={safeDisplayPost}
-          slug={slug}
-          onUnlocked={(full) => setUnlockedPost(full)}
-        />
-        <AdjacentPosts slug={slug} />
-        <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
-          <FuwariCommentSection postId={safeDisplayPost.id} />
-        </div>
+        <EncryptedPostGate post={safeDisplayPost} slug={slug} onUnlocked={(full) => setUnlockedPost(full)} />
+        <AdjacentPosts prev={adjacentData?.prev} next={adjacentData?.next} />
+        {!isGuestPost && (
+          <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
+            <FuwariCommentSection postId={safeDisplayPost.id} />
+          </div>
+        )}
       </div>
     );
   }
 
-  // 正常文章渲染
   const wordCount = safeDisplayPost.readTimeInMinutes * 300;
+  const metaPost = { ...safeDisplayPost, isGuestPost, guestAuthor: safeDisplayPost.guestAuthor, guestAuthorSlug: safeDisplayPost.guestAuthor?.slug };
 
   return (
     <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
@@ -231,6 +218,8 @@ export function PostPage({ post }: PostPageProps) {
       </div>
 
       <div className="fuwari-card-base z-10 px-6 md:px-9 pt-6 pb-4 relative w-full fuwari-onload-animation">
+        {breadcrumb}
+
         <div className="flex flex-row flex-wrap fuwari-text-30 gap-5 mb-3 transition">
           <div className="flex flex-row items-center">
             <div className="transition h-6 w-6 rounded-md bg-black/5 dark:bg-white/10 fuwari-text-50 flex items-center justify-center mr-2">
@@ -258,11 +247,13 @@ export function PostPage({ post }: PostPageProps) {
           {safeDisplayPost.title}
         </h1>
 
-        <PostMeta post={safeDisplayPost} className="mb-5" />
+        <PostMeta post={metaPost as any} className="mb-5" />
         <PostSummary summary={safeDisplayPost.summary} />
         <div className="mb-6 prose dark:prose-invert prose-base max-w-none! fuwari-custom-md">
           <ContentRenderer content={safeDisplayPost.contentJson} />
         </div>
+
+        {guestFooter}
 
         <div className="my-8 flex items-center justify-center w-full">
           <div className="h-px w-full bg-linear-to-r from-transparent via-(--fuwari-meta-divider) to-transparent opacity-20" />
@@ -271,15 +262,19 @@ export function PostPage({ post }: PostPageProps) {
         </div>
       </div>
 
-      {/* 上一篇 / 下一篇导航 */}
-      <AdjacentPosts slug={safeDisplayPost.slug} />
+      <AdjacentPosts prev={adjacentData?.prev} next={adjacentData?.next} />
 
-      <Suspense fallback={<RelatedPostsSkeleton />}>
-        <RelatedPosts slug={safeDisplayPost.slug} />
-      </Suspense>
-      <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
-        <FuwariCommentSection postId={safeDisplayPost.id} />
-      </div>
+      {!isGuestPost && (
+        <Suspense fallback={<RelatedPostsSkeleton />}>
+          <RelatedPosts slug={safeDisplayPost.slug} />
+        </Suspense>
+      )}
+
+      {!isGuestPost && (
+        <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
+          <FuwariCommentSection postId={safeDisplayPost.id} />
+        </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,6 @@ import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import theme from "@theme";
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { ErrorPage } from "@/components/common/error-page";
 import { AUTH_KEYS, sessionQuery } from "@/features/auth/queries";
 import { authClient } from "@/lib/auth/auth.client";
 import { getLogoutAuthErrorMessage } from "@/lib/auth/auth-errors";
@@ -31,6 +30,7 @@ function UserLayout() {
   const navOptions = [
     { label: m.nav_home(), to: "/" as const, id: "home" },
     { label: m.nav_posts(), to: "/posts" as const, id: "posts" },
+    { label: m.nav_guest_house?.() ?? "客邸", to: "/guest-house" as const, id: "guest-house" },
     {
       label: m.nav_friend_links(),
       to: "/friend-links" as const,
@@ -47,15 +47,12 @@ function UserLayout() {
       });
       return;
     }
-
     queryClient.removeQueries({ queryKey: AUTH_KEYS.session });
-
     toast.success(m.auth_logout_success(), {
       description: m.auth_logout_success_desc(),
     });
   };
 
-  // Global shortcut: Cmd/Ctrl + K to navigate to search
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const isToggle = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k";

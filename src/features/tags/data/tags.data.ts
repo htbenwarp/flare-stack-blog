@@ -30,9 +30,10 @@ export async function getAllTagsWithCount(
     sortBy?: "name" | "createdAt" | "postCount";
     sortDir?: "asc" | "desc";
     publicOnly?: boolean;
+    excludeGuestPosts?: boolean;   // 新增
   } = {},
 ) {
-  const { sortBy = "name", sortDir = "asc", publicOnly = false } = options;
+  const { sortBy = "name", sortDir = "asc", publicOnly = false, excludeGuestPosts = false } = options;
 
   const query = db
     .select({
@@ -47,20 +48,20 @@ export async function getAllTagsWithCount(
     .$dynamic();
 
   if (publicOnly) {
-    // Only count published posts
+    const publicConditions = [
+      eq(PostsTable.status, "published"),
+      lte(PostsTable.publishedAt, new Date()),
+    ];
+    if (excludeGuestPosts) {
+      publicConditions.push(eq(PostsTable.isGuestPost, false));
+    }
     query
       .innerJoin(PostsTable, eq(PostTagsTable.postId, PostsTable.id))
-      .where(
-        and(
-          eq(PostsTable.status, "published"),
-          lte(PostsTable.publishedAt, new Date()),
-        ),
-      )
+      .where(and(...publicConditions))
       .having(gt(count(PostTagsTable.postId), 0));
   }
 
   const orderFn = sortDir === "asc" ? asc : desc;
-
   if (sortBy === "postCount") {
     query.orderBy(orderFn(sql`postCount`));
   } else if (sortBy === "createdAt") {

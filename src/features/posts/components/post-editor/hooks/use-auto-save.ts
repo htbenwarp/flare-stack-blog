@@ -59,6 +59,8 @@ export function useAutoSave({
     contentRef: p.contentJson,
     isEncrypted: p.isEncrypted,
     password: p.password,
+    isGuestPost: p.isGuestPost,
+    guestAuthorId: p.guestAuthorId,
   });
 
   const isDirty = (curr: ReturnType<typeof toComparable>) => {
@@ -75,7 +77,9 @@ export function useAutoSave({
       prev.tagIds !== curr.tagIds ||
       prev.contentRef !== curr.contentRef ||
       prev.isEncrypted !== curr.isEncrypted ||
-      prev.password !== curr.password
+      prev.password !== curr.password |
+      prev.isGuestPost !== curr.isGuestPost ||
+      prev.guestAuthorId !== curr.guestAuthorId
     );
   };
 

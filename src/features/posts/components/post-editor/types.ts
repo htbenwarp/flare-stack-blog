@@ -15,6 +15,8 @@ export interface PostEditorData {
   hasPublicCache: boolean;
   isEncrypted: boolean;
   password: string;
+  isGuestPost: boolean;
+  guestAuthorId: number | null;
 }
 
 export interface PostEditorProps {
@@ -38,4 +40,6 @@ export const defaultPostData: PostEditorData = {
   hasPublicCache: false,
   isEncrypted: boolean,
   password: string,
+  isGuestPost: false,
+  guestAuthorId: null,
 };

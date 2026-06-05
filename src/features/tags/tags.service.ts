@@ -52,11 +52,7 @@ export async function getTags(
  * Get public tags list (KV-only, populated by publish workflow)
  * This ensures public site only shows "published" tag associations.
  */
-export async function getPublicTags(
-  context: DbContext & {
-    executionCtx: ExecutionContext;
-  },
-) {
+export async function getPublicTags(context: DbContext & { executionCtx: ExecutionContext }) {
   return await CacheService.get(
     context,
     TAGS_CACHE_KEYS.publicList,
@@ -64,6 +60,7 @@ export async function getPublicTags(
     async () => {
       return await TagRepo.getAllTagsWithCount(context.db, {
         publicOnly: true,
+        excludeGuestPosts: true,   // 主站只统计博主文章
         sortBy: "postCount",
         sortDir: "desc",
       });

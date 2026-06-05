@@ -38,7 +38,7 @@ import * as SearchService from "@/features/search/service/search.service";
 import { err, ok } from "@/lib/errors";
 import { purgePostCDNCache } from "@/lib/invalidate";
 import { hashPassword } from "@/lib/crypto";
-import { PostsTable } from "@/lib/db/schema";
+import { PostsTable, GuestAuthorsTable } from "@/lib/db/schema";
 
 function stripPublicContentJson<T extends { publicContentJson?: unknown }>(
   post: T,
@@ -99,6 +99,7 @@ export async function findPostBySlug(
   const fetcher = async () => {
     const post = await PostRepo.findPostBySlug(context.db, data.slug, {
       publicOnly: true,
+      excludeGuestPosts: false,
     });
     if (!post) return null;
 
@@ -114,10 +115,22 @@ export async function findPostBySlug(
       );
     }
 
+    // 为客邸文章获取作者信息
+    let guestAuthor = post.guestAuthor ?? null;
+    if (post.isGuestPost && post.guestAuthorId) {
+      guestAuthor = await context.db.query.GuestAuthorsTable.findFirst({
+        where: eq(GuestAuthorsTable.id, post.guestAuthorId),
+        columns: { id: true, name: true, slug: true, avatar: true },
+      });
+    }
+
     return {
       ...stripPublicContentJson(post),
       contentJson,
       toc: generateTableOfContents(contentJson),
+      guestAuthor: post.guestAuthor,
+      isGuestPost: post.isGuestPost ?? false,
+      guestAuthorId: post.guestAuthorId ?? null,
     };
   };
 
@@ -281,6 +294,8 @@ export async function findPostBySlugAdmin(
   return {
     ...stripPublicContentJson(post),
     toc: generateTableOfContents(post.contentJson),
+    isGuestPost: post.isGuestPost ?? false,
+    guestAuthorId: post.guestAuthorId ?? null,
   };
 }
 
@@ -314,7 +329,13 @@ export async function findPostById(
     isSynced = dbHash === kvHash;
   }
 
-  return { ...stripPublicContentJson(post), isSynced, hasPublicCache };
+  return {
+    ...stripPublicContentJson(post),
+    isSynced,
+    hasPublicCache,
+    isGuestPost: post.isGuestPost ?? false,
+    guestAuthorId: post.guestAuthorId ?? null,
+  };
 }
 
 export async function updatePost(
@@ -331,6 +352,7 @@ export async function updatePost(
   delete updateData.password;
   delete updateData.passwordHash;
 
+  // 处理密码
   if (restData.isEncrypted && password) {
     const hash = await hashPassword(password);
     await context.db.run(
@@ -340,6 +362,11 @@ export async function updatePost(
     await context.db.run(
       sql`UPDATE posts SET password_hash = NULL WHERE id = ${id}`
     );
+  }
+
+  // 处理客邸字段
+  if (restData.isGuestPost === false) {
+    updateData.guestAuthorId = null;
   }
 
   const updatedPost = await PostRepo.updatePost(context.db, id, updateData);
@@ -514,6 +541,7 @@ export async function getAdjacentPosts(
     where: and(
       lt(PostsTable.publishedAt, post.publishedAt),
       eq(PostsTable.status, "published"),
+      eq(PostsTable.isGuestPost, false),
       ne(PostsTable.slug, slug),
     ),
     orderBy: desc(PostsTable.publishedAt),
@@ -522,6 +550,54 @@ export async function getAdjacentPosts(
 
   const nextPost = await context.db.query.PostsTable.findFirst({
     where: and(
+      gt(PostsTable.publishedAt, post.publishedAt),
+      eq(PostsTable.status, "published"),
+      eq(PostsTable.isGuestPost, false),
+      ne(PostsTable.slug, slug),
+    ),
+    orderBy: asc(PostsTable.publishedAt),
+    columns: { title: true, slug: true },
+  });
+
+  return { prev: prevPost ?? null, next: nextPost ?? null };
+}
+
+export async function getAdjacentGuestPosts(
+  context: DbContext,
+  slug: string,
+) {
+  // 直接查找客邸已发布文章（不使用 publicOnly，避免被 isGuestPost=false 过滤掉）
+  const post = await context.db.query.PostsTable.findFirst({
+    where: and(
+      eq(PostsTable.slug, slug),
+      eq(PostsTable.status, "published"),
+      eq(PostsTable.isGuestPost, true),
+    ),
+    columns: { id: true, publishedAt: true, guestAuthorId: true },
+  });
+
+  if (!post || !post.publishedAt || !post.guestAuthorId) {
+    return { prev: null, next: null };
+  }
+
+  const authorId = post.guestAuthorId;
+
+  const prevPost = await context.db.query.PostsTable.findFirst({
+    where: and(
+      eq(PostsTable.isGuestPost, true),
+      eq(PostsTable.guestAuthorId, authorId),
+      lt(PostsTable.publishedAt, post.publishedAt),
+      eq(PostsTable.status, "published"),
+      ne(PostsTable.slug, slug),
+    ),
+    orderBy: desc(PostsTable.publishedAt),
+    columns: { title: true, slug: true },
+  });
+
+  const nextPost = await context.db.query.PostsTable.findFirst({
+    where: and(
+      eq(PostsTable.isGuestPost, true),
+      eq(PostsTable.guestAuthorId, authorId),
       gt(PostsTable.publishedAt, post.publishedAt),
       eq(PostsTable.status, "published"),
       ne(PostsTable.slug, slug),

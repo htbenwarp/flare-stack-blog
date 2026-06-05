@@ -91,7 +91,9 @@ export function usePostActions({
       !compareTags(post.tagIds, kvSnapshot.tagIds) ||
       // ✅ 新增加密字段比较
       post.isEncrypted !== kvSnapshot.isEncrypted ||
-      post.password !== kvSnapshot.password
+      post.password !== kvSnapshot.password ||
+      post.isGuestPost !== kvSnapshot.isGuestPost ||
+      post.guestAuthorId !== kvSnapshot.guestAuthorId
     );
   }, [post, kvSnapshot, initialData.isSynced, sessionSynced]);
 

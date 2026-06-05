@@ -92,7 +92,7 @@ export function Navbar({
                 {option.label}
               </Link>
             ))}
-          </nav>
+         </nav>
 
           <div className="flex items-center gap-1">
             <Link

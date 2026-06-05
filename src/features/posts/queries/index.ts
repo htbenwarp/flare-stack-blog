@@ -133,7 +133,17 @@ export function postBySlugQuery(slug: string) {
 export function postByIdQuery(id: number) {
   return queryOptions({
     queryKey: POSTS_KEYS.detail(id),
-    queryFn: () => findPostByIdFn({ data: { id } }),
+    queryFn: async () => {
+      const post = await findPostByIdFn({ data: { id } });
+      if (!post) throw new Error("Post not found");
+      // ✅ 强制默认值，确保前端回显正常
+      return {
+        ...post,
+        isGuestPost: post.isGuestPost ?? false,
+        guestAuthorId: post.guestAuthorId ?? null,
+      };
+    },
+    staleTime: 0,
   });
 }
 

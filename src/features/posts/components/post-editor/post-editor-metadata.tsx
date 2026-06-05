@@ -7,6 +7,8 @@ import { POST_STATUSES } from "@/lib/db/schema";
 import { toLocalDateString } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import type { PostEditorData } from "./types";
+import { useQuery } from "@tanstack/react-query";
+import { guestAuthorsAdminQueryOptions } from "@/features/guest-authors/queries/admin";
 
 const STATUS_LABELS: Record<PostEditorData["status"], () => string> = {
   draft: m.editor_status_draft,
@@ -38,6 +40,9 @@ export function PostEditorMetadata({
   onGenerateSummary,
   onGenerateTags,
 }: PostEditorMetadataProps) {
+
+  const { data: authors = [] } = useQuery(guestAuthorsAdminQueryOptions());
+
   return (
     <>
       <div className="mb-12">
@@ -265,6 +270,43 @@ export function PostEditorMetadata({
               <p className="mt-1 text-[9px] font-mono text-muted-foreground">
                 留空则不修改密码
               </p>
+            </div>
+          )}
+        </div>
+        
+        <div className="col-span-1 space-y-3 md:col-span-3 border-t border-border/30 pt-8">
+          <label className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground">
+            客邸
+         </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={post.isGuestPost}
+              onChange={(e) => onPostChange({ isGuestPost: e.target.checked })}
+              className="rounded border-gray-400 bg-transparent"
+            />
+            <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+              加入客邸
+            </span>
+          </div>
+          {post.isGuestPost && (
+            <div className="mt-2">
+              <select
+                value={post.guestAuthorId ?? ""}
+                onChange={(e) =>
+                  onPostChange({
+                    guestAuthorId: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+                className="w-full max-w-xs border border-border bg-transparent px-3 py-2 text-xs font-mono text-foreground"
+              >
+                <option value="" className="text-foreground bg-background">选择作者</option>
+                {authors.map((author) => (
+                  <option key={author.id} value={author.id} className="text-foreground bg-background">
+                    {author.name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </div>

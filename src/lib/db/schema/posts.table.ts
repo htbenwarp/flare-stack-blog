@@ -8,6 +8,7 @@ import {
   text,
 } from "drizzle-orm/sqlite-core";
 import { createdAt, id, updatedAt } from "./helper";
+import { GuestAuthorsTable } from "./guest-authors.table";
 
 export const POST_STATUSES = ["draft", "published"] as const;
 
@@ -27,6 +28,8 @@ export const PostsTable = sqliteTable(
     status: text("status", { enum: POST_STATUSES }).notNull().default("draft"),
     isEncrypted: integer("is_encrypted", { mode: "boolean" }).default(false).notNull(),
     passwordHash: text("password_hash"),
+    isGuestPost: integer("is_guest_post", { mode: "boolean" }).default(false).notNull(),
+    guestAuthorId: integer("guest_author_id").references(() => GuestAuthorsTable.id, { onDelete: "set null" }),
     publishedAt: integer("published_at", { mode: "timestamp" }),
     pinnedAt: integer("pinned_at", { mode: "timestamp" }),
     createdAt,
@@ -61,8 +64,12 @@ export const PostTagsTable = sqliteTable(
 );
 
 // ==================== relations ====================
-export const postsRelations = relations(PostsTable, ({ many }) => ({
+export const postsRelations = relations(PostsTable, ({ one, many }) => ({
   postTags: many(PostTagsTable),
+  guestAuthor: one(GuestAuthorsTable, {
+    fields: [PostsTable.guestAuthorId],
+    references: [GuestAuthorsTable.id],
+  }),
 }));
 
 export const tagsRelations = relations(TagsTable, ({ many }) => ({
@@ -79,6 +86,7 @@ export const postTagsRelations = relations(PostTagsTable, ({ one }) => ({
     references: [TagsTable.id],
   }),
 }));
+
 
 // ==================== types ====================
 export type Tag = typeof TagsTable.$inferSelect;

@@ -81,3 +81,10 @@ export const getAdjacentPostsFn = createServerFn()
   .handler(async ({ data, context }) => {
     return await PostService.getAdjacentPosts(context, data.slug);
   });
+
+export const getAdjacentGuestPostsFn = createServerFn()
+  .middleware([dbMiddleware])
+  .inputValidator(z.object({ slug: z.string() }))
+  .handler(async ({ data, context }) => {
+    return await PostService.getAdjacentGuestPosts(context, data.slug);
+  });

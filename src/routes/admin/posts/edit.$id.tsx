@@ -75,6 +75,8 @@ function EditPost() {
     hasPublicCache: post.hasPublicCache,
     isEncrypted: (post as any).isEncrypted ?? false, // 从接口获取加密状态
     password: "", // 密码永远不回显
+    isGuestPost: (post as any).isGuestPost ?? false,
+    guestAuthorId: (post as any).guestAuthorId ?? null,
   };
 
   const handleSave = async (data: PostEditorData) => {
@@ -87,6 +89,7 @@ function EditPost() {
     const cleanData = {
       ...data,
       password: data.password?.trim() || undefined,
+      guestAuthorId: data.guestAuthorId ?? null,
       publishedAt,
     };
 

@@ -1,29 +1,34 @@
 import { ClientOnly, Link } from "@tanstack/react-router";
 import { Calendar, Edit, Tag } from "lucide-react";
-import type { PostItem } from "@/features/posts/schema/posts.schema";
 import { cn, formatDate } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 interface PostMetaProps {
-  post: PostItem;
+  post: any;
   className?: string;
 }
 
 export function PostMeta({ post, className }: PostMetaProps) {
   const published = post.publishedAt;
   const updated = post.updatedAt;
-  const isUpdated = Boolean(
-    published && updated && published.getTime() !== updated.getTime(),
-  );
+  const isUpdated = Boolean(published && updated && published.getTime() !== updated.getTime());
+
+  const getTagLink = (tagName: string) => {
+    if (post.isGuestPost && post.guestAuthorSlug) {
+      return {
+        to: "/guest-house/author/$slug",
+        params: { slug: post.guestAuthorSlug },
+        search: { tagName },
+      };
+    }
+    return {
+      to: "/posts",
+      search: { tagName },
+    };
+  };
 
   return (
-    <div
-      className={cn(
-        "flex flex-wrap text-black/50 dark:text-white/40 items-center gap-4 gap-x-4 gap-y-2",
-        className,
-      )}
-    >
-      {/* Publish date */}
+    <div className={cn("flex flex-wrap text-black/50 dark:text-white/40 items-center gap-4 gap-x-4 gap-y-2", className)}>
       <div className="flex items-center">
         <div className="fuwari-meta-icon">
           <Calendar strokeWidth={1.5} size={20} />
@@ -33,7 +38,6 @@ export function PostMeta({ post, className }: PostMetaProps) {
         </span>
       </div>
 
-      {/* Update date */}
       {isUpdated && (
         <div className="flex items-center">
           <div className="fuwari-meta-icon">
@@ -45,34 +49,32 @@ export function PostMeta({ post, className }: PostMetaProps) {
         </div>
       )}
 
-      {/* Categories / Tags */}
-      {/* We combine them like tags since blog-cms schema uses tags for categorization */}
       <div className="flex items-center">
         <div className="fuwari-meta-icon">
           <Tag strokeWidth={1.5} size={20} />
         </div>
         <div className="flex flex-row flex-nowrap items-center gap-x-1.5">
           {post.tags && post.tags.length > 0 ? (
-            post.tags.map((tag, i) => (
-              <span key={tag.name} className="flex items-center">
-                {i > 0 && (
-                  <span className="mx-1.5 text-(--fuwari-meta-divider) text-sm">
-                    /
-                  </span>
-                )}
-                <Link
-                  to="/posts"
-                  search={{ tagName: tag.name }}
-                  className="transition fuwari-text-50 text-sm font-medium hover:text-(--fuwari-primary) whitespace-nowrap"
-                >
-                  {tag.name}
-                </Link>
-              </span>
-            ))
+            post.tags.map((tag: any, i: number) => {
+              const link = getTagLink(tag.name);
+              return (
+                <span key={tag.name} className="flex items-center">
+                  {i > 0 && (
+                    <span className="mx-1.5 text-(--fuwari-meta-divider) text-sm">/</span>
+                  )}
+                  <Link
+                    to={link.to as any}
+                    params={link.params}
+                    search={link.search}
+                    className="transition fuwari-text-50 text-sm font-medium hover:text-(--fuwari-primary) whitespace-nowrap"
+                  >
+                    {tag.name}
+                  </Link>
+                </span>
+              );
+            })
           ) : (
-            <span className="transition fuwari-text-50 text-sm font-medium">
-              {m.post_no_tags()}
-            </span>
+            <span className="transition fuwari-text-50 text-sm font-medium">{m.post_no_tags()}</span>
           )}
         </div>
       </div>

@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Tag,
   User,
+  Users,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -83,6 +84,12 @@ export function SideBar({
       path: "/admin/tags",
       icon: Tag,
       label: m.admin_sidebar_tags(),
+      exact: false,
+    },
+    {
+      path: "/admin/guest-authors",
+      icon: Users,
+      label: m.admin_sidebar_guest_authors?.() ?? "客邸作者",
       exact: false,
     },
     {

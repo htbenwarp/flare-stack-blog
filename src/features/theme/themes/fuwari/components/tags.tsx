@@ -1,9 +1,13 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { tagsQueryOptions } from "@/features/tags/queries";
+import {
+  guestHouseTagsQueryOptions,
+  guestAuthorTagsQueryOptions,
+} from "@/features/guest-authors/queries/public";
 import { m } from "@/paraglide/messages";
 
 export function TagsSkeleton() {
@@ -20,7 +24,42 @@ export function TagsSkeleton() {
 }
 
 export function Tags() {
-  const { data: tags } = useSuspenseQuery(tagsQueryOptions);
+  // 根据当前路由判断页面类型
+  const routerState = useRouterState();
+  const pathname = routerState.location.pathname;
+  const isGuestHouse = pathname.startsWith("/guest-house");
+  const authorMatch = pathname.match(/\/guest-house\/author\/([^/]+)/);
+  const authorSlug = authorMatch ? decodeURIComponent(authorMatch[1]) : null;
+
+  // 选择对应数据源
+  const queryOptions = authorSlug
+    ? guestAuthorTagsQueryOptions(authorSlug)
+    : isGuestHouse
+    ? guestHouseTagsQueryOptions()
+    : tagsQueryOptions;   // 主站标签（需确保已排除客邸）
+
+  const { data: tags } = useSuspenseQuery(queryOptions);
+
+  // 根据页面类型生成标签链接
+  const getTagLink = (tagName: string) => {
+    if (authorSlug) {
+      return {
+        to: "/guest-house/author/$slug",
+        params: { slug: authorSlug },
+        search: { tagName },
+      };
+    }
+    if (isGuestHouse) {
+      return {
+        to: "/guest-house",
+        search: { tagName },
+      };
+    }
+    return {
+      to: "/posts",
+      search: { tagName },
+    };
+  };
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [showToggle, setShowToggle] = useState(false);
@@ -28,7 +67,6 @@ export function Tags() {
 
   useEffect(() => {
     if (containerRef.current) {
-      // Check if content height exceeds max height (10rem / 160px)
       setShowToggle(containerRef.current.scrollHeight > 160);
     }
   }, [tags]);
@@ -51,19 +89,23 @@ export function Tags() {
           isExpanded || !showToggle ? "max-h-250" : "max-h-40"
         }`}
       >
-        {tags.map((tag) => (
-          <Link
-            key={tag.id}
-            to="/posts"
-            search={{ tagName: tag.name }}
-            className="fuwari-btn-regular h-8 text-sm px-3 rounded-lg flex items-center gap-2"
-          >
-            <span>{tag.name}</span>
-            <span className="bg-black/5 dark:bg-white/10 rounded-md px-1.5 py-0.5 text-xs opacity-70">
-              {tag.postCount}
-            </span>
-          </Link>
-        ))}
+        {tags.map((tag: any) => {
+          const link = getTagLink(tag.name);
+          return (
+            <Link
+              key={tag.name}   // 客邸标签可能无 id，改用 name
+              to={link.to as any}
+              params={'params' in link ? link.params : undefined}
+              search={link.search}
+              className="fuwari-btn-regular h-8 text-sm px-3 rounded-lg flex items-center gap-2"
+            >
+              <span>{tag.name}</span>
+              <span className="bg-black/5 dark:bg-white/10 rounded-md px-1.5 py-0.5 text-xs opacity-70">
+                {tag.postCount ?? tag.count ?? 0}
+              </span>
+            </Link>
+          );
+        })}
       </div>
 
       {showToggle && (

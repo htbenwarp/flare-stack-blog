@@ -131,6 +131,10 @@ export async function getPostsCursor(
     conditions.push(baseConditions);
   }
 
+  if (publicOnly) {
+    conditions.push(eq(PostsTable.isGuestPost, false));
+  }
+
   if (cursor) {
     const reference = await db.query.PostsTable.findFirst({
       where: eq(PostsTable.id, cursor),
@@ -356,28 +360,27 @@ export async function findPostsBySlugs(db: DB, slugs: string[]) {
 export async function findPostBySlug(
   db: DB,
   slug: string,
-  options: { publicOnly?: boolean } = {},
+  options: { publicOnly?: boolean; excludeGuestPosts?: boolean } = {},
 ) {
-  const { publicOnly = false } = options;
+  const { publicOnly = false, excludeGuestPosts } = options; // 解构 excludeGuestPosts
+  const whereClause = buildPostWhereClause({
+    publicOnly,
+    excludeGuestPosts,   // 传参
+  });
 
-  const whereClause = buildPostWhereClause({ publicOnly });
   const post = await db.query.PostsTable.findFirst({
     where: and(eq(PostsTable.slug, slug), whereClause),
     with: {
-      postTags: {
-        with: {
-          tag: true,
-        },
-      },
+      postTags: { with: { tag: true } },
+      guestAuthor: true,
     },
   });
 
   if (!post) return null;
 
-  // Flatten tags
   const tags = post.postTags.map((pt) => pt.tag);
-  const { postTags, ...rest } = post;
-  return { ...rest, tags };
+  const { postTags, guestAuthor, ...rest } = post;
+  return { ...rest, tags, guestAuthor };
 }
 
 export async function updatePost(
@@ -526,6 +529,8 @@ export async function getPublicPostsByIds(db: DB, ids: Array<number>) {
       pinnedAt: PostsTable.pinnedAt,
       createdAt: PostsTable.createdAt,
       updatedAt: PostsTable.updatedAt,
+      isGuestPost: PostsTable.isGuestPost,       // 新增
+      guestAuthorId: PostsTable.guestAuthorId,   // 新增
     })
     .from(PostsTable)
     .where(and(inArray(PostsTable.id, ids), whereClause));
