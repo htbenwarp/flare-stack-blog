@@ -196,10 +196,7 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
 
     if (activeType === "GITHUB_CARD") {
       if (!githubUrl.trim()) return;
-      onSubmit("", undefined, {
-        type: "githubCard",
-        attrs: { repoUrl: githubUrl },
-      });
+      onSubmit(githubUrl.trim());
       return;
     }
   };

@@ -42,7 +42,7 @@ export const Editor = memo(function Editor({
   const formulaOpenerKeyRef = useRef(Symbol("formula-modal-opener"));
   const [modalOpen, setModalOpen] = useState<ModalType>(null);
   const [modalInitialUrl, setModalInitialUrl] = useState("");
-  const [selectedText, setSelectedText] = useState(""); // 用于脚注初始文本
+  const [selectedText, setSelectedText] = useState("");
   const [formulaModalOpen, setFormulaModalOpen] = useState(false);
   const [formulaPayload, setFormulaPayload] = useState<{
     mode: FormulaMode;
@@ -85,7 +85,6 @@ export const Editor = memo(function Editor({
 
   const openFootnoteModal = useCallback(() => {
     if (!editor) return;
-    // 获取当前选中的文本
     const text = editor.state.doc.textBetween(
       editor.state.selection.from,
       editor.state.selection.to,
@@ -180,42 +179,63 @@ export const Editor = memo(function Editor({
     [editor],
   );
 
-  const handleModalSubmit = useCallback(
-    (
-      url: string,
-      attrs?: { width?: number; height?: number },
-      nodeData?: { type: string; attrs?: Record<string, any>; content?: any[] },
-    ) => {
-      if (modalOpen === "LINK") {
-        if (url === "") {
-          editor?.chain().focus().extendMarkRange("link").unsetLink().run();
-        } else {
-          const href = normalizeLinkHref(url);
-          editor?.chain().focus().extendMarkRange("link").setLink({ href }).run();
-        }
-      } else if (modalOpen === "IMAGE") {
-        if (url) {
-          editor
-            ?.chain()
-            .focus()
-            .setImage({ src: url, ...attrs })
-            .run();
-        }
-      } else if (nodeData) {
-        // 处理扩展节点
-        if (nodeData.type === "footnoteTip") {
-          editor?.chain().focus().insertContent({
-            type: "footnoteTip",
-            attrs: nodeData.attrs,
-          }).run();
-        } else if (nodeData.type === "githubCard") {
-          editor?.chain().focus().setGithubCard(nodeData.attrs).run();
-        }
+const handleModalSubmit = useCallback(
+  (
+    url: string,
+    attrs?: { width?: number; height?: number },
+    nodeData?: { type: string; attrs?: Record<string, any>; content?: any[] },
+  ) => {
+    console.log("handleModalSubmit received:", { url, attrs, nodeData, modalOpen });
+
+    if (modalOpen === "LINK") {
+      if (url === "") {
+        editor?.chain().focus().extendMarkRange("link").unsetLink().run();
+      } else {
+        const href = normalizeLinkHref(url);
+        editor?.chain().focus().extendMarkRange("link").setLink({ href }).run();
       }
-      setModalOpen(null);
-    },
-    [editor, modalOpen],
-  );
+    } else if (modalOpen === "IMAGE") {
+      if (url) {
+        editor
+          ?.chain()
+          .focus()
+          .setImage({ src: url, ...attrs })
+          .run();
+      }
+    } else if (modalOpen === "GITHUB_CARD") {
+      // ✅ 关键修复：直接从 url 参数获取 GitHub URL，插入 githubCard 节点
+      if (url && url.trim()) {
+        editor?.chain().focus().insertContent({
+          type: "githubCard",
+          attrs: { repoUrl: url.trim() },
+        }).run();
+      }
+    } else if (nodeData) {
+      // 处理其他扩展节点（脚注、折叠块、着重号）
+      if (nodeData.type === "emphasisCjk") {
+        if (editor?.state.selection.empty && nodeData.attrs?.text) {
+          editor
+            .chain()
+            .focus()
+            .insertContent(nodeData.attrs.text)
+            .setMark("emphasisCjk")
+            .run();
+        } else {
+          editor?.chain().focus().toggleEmphasisCjk().run();
+        }
+      } else if (nodeData.type === "footnoteTip") {
+        editor?.chain().focus().insertContent({
+          type: "footnoteTip",
+          attrs: nodeData.attrs,
+        }).run();
+      } else if (nodeData.type === "detailsBlock") {
+        editor?.chain().focus().setDetailsBlock(nodeData.attrs).run();
+      }
+    }
+    setModalOpen(null);
+  },
+  [editor, modalOpen],
+);
 
   return (
     <div className={cn("relative flex flex-col group", className)}>

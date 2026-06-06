@@ -18,10 +18,25 @@ export const GithubCard = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ["a", { class: "card-github", href: HTMLAttributes.repoUrl }, ["div", { class: "gc-titlebar" }, "..."], ["div", { class: "gc-description" }, "Loading..."], ["div", { class: "gc-infobar" }, "..."]];
+    return [
+      "a",
+      { class: "card-github", href: HTMLAttributes.repoUrl },
+      ["div", { class: "gc-titlebar" }, "..."],
+      ["div", { class: "gc-description" }, "Loading..."],
+      ["div", { class: "gc-infobar" }, "..."],
+    ];
   },
 
   addNodeView() {
     return ReactNodeViewRenderer(GithubCardView);
+  },
+
+  addCommands() {
+    return {
+      setGithubCard:
+        (attrs) =>
+        ({ commands }) =>
+          commands.insertContent({ type: this.name, attrs }),
+    };
   },
 });
