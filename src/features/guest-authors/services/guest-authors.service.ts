@@ -1,6 +1,7 @@
 import { and, eq, count } from "drizzle-orm";
 import type { DB } from "@/lib/db";
 import { GuestAuthorsTable, PostsTable } from "@/lib/db/schema";
+import { err, ok } from "@/lib/errors";   
 
 type BaseContext = { db: DB };
 
