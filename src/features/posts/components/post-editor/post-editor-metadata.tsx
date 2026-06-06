@@ -242,10 +242,10 @@ export function PostEditorMetadata({
           />
         </div>
 
-        {/* ✅ 新增：加密设置区块 */}
+        {/* 加密设置区块 */}
         <div className="col-span-1 space-y-3 md:col-span-3 border-t border-border/30 pt-8">
           <label className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground">
-            加密文章
+            {m.post_encrypted_label?.() ?? "加密文章"}
           </label>
           <div className="flex items-center gap-2">
             <input
@@ -255,7 +255,7 @@ export function PostEditorMetadata({
               className="rounded border-gray-400 bg-transparent"
             />
             <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-              启用加密
+              {m.post_encrypted_enable?.() ?? "启用加密"}
             </span>
           </div>
           {post.isEncrypted && (
@@ -264,20 +264,21 @@ export function PostEditorMetadata({
                 type="password"
                 value={post.password || ""}
                 onChange={(e) => onPostChange({ password: e.target.value })}
-                placeholder="输入访问密码（留空则不修改）"
+                placeholder={m.post_password_placeholder?.() ?? "输入访问密码（留空则不修改）"}
                 className="w-full max-w-xs border border-border bg-transparent px-3 py-2 text-xs font-mono text-foreground"
               />
               <p className="mt-1 text-[9px] font-mono text-muted-foreground">
-                留空则不修改密码
+                {m.post_password_hint?.() ?? "留空则不修改密码"}
               </p>
             </div>
           )}
         </div>
         
+        {/* 客邸设置区块 */}
         <div className="col-span-1 space-y-3 md:col-span-3 border-t border-border/30 pt-8">
           <label className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground">
-            客邸
-         </label>
+            {m.editor_meta_guest_house?.() ?? "客邸"}
+          </label>
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -286,7 +287,7 @@ export function PostEditorMetadata({
               className="rounded border-gray-400 bg-transparent"
             />
             <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-              加入客邸
+              {m.editor_meta_add_to_guest_house?.() ?? "加入客邸"}
             </span>
           </div>
           {post.isGuestPost && (
@@ -300,7 +301,9 @@ export function PostEditorMetadata({
                 }
                 className="w-full max-w-xs border border-border bg-transparent px-3 py-2 text-xs font-mono text-foreground"
               >
-                <option value="" className="text-foreground bg-background">选择作者</option>
+                <option value="" className="text-foreground bg-background">
+                  {m.editor_meta_select_author?.() ?? "选择作者"}
+                </option>
                 {authors.map((author) => (
                   <option key={author.id} value={author.id} className="text-foreground bg-background">
                     {author.name}

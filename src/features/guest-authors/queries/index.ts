@@ -9,11 +9,7 @@ import {
 export const guestAuthorsListQueryOptions = () =>
   queryOptions({
     queryKey: ["guest-authors", "list"],
-    queryFn: async () => {
-      const result = await listGuestAuthorsFn();
-      if (result.error) throw new Error(result.error.reason);
-      return result.data ?? result;
-    },
+    queryFn: () => listGuestAuthorsFn(),   // 直接返回数组
   });
 
 export function useCreateGuestAuthor() {

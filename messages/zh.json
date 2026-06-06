@@ -1532,5 +1532,8 @@
   "admin_guest_authors_deleted": "作者已删除",
   "admin_sidebar_guest_authors": "客邸作者管理",
   "nav_guest_house": "客邸",
-  "guest_house_total": "当前共 {authorCount} 位作者，{postCount} 篇字句。"
+  "guest_house_total": "当前共 {authorCount} 位作者，{postCount} 篇字句。",
+  "editor_meta_guest_house": "客邸",
+  "editor_meta_add_to_guest_house": "加入客邸",
+  "editor_meta_select_author": "选择作者"
 }

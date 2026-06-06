@@ -1540,5 +1540,8 @@
   "admin_guest_authors_deleted": "Author deleted",
   "admin_sidebar_guest_authors": "Guest Authors",
   "nav_guest_house": "Guest House",
-  "guest_house_total": "Currently {authorCount} authors, {postCount} posts."
+  "guest_house_total": "Currently {authorCount} authors, {postCount} posts.",
+  "editor_meta_guest_house": "Guest House",
+  "editor_meta_add_to_guest_house": "Add to Guest House",
+  "editor_meta_select_author": "Select Author"
 }

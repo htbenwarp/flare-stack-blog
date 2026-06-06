@@ -6,7 +6,8 @@ import { dbMiddleware, adminMiddleware } from "@/lib/middlewares";
 export const listGuestAuthorsFn = createServerFn()
   .middleware([dbMiddleware, adminMiddleware])
   .handler(async ({ context }) => {
-    return GuestAuthorService.listGuestAuthors(context);
+    const data = await GuestAuthorService.listGuestAuthors(context);
+    return data;
   });
 
 export const createGuestAuthorFn = createServerFn()

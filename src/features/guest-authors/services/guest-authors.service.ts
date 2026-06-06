@@ -1,13 +1,37 @@
-import { eq } from "drizzle-orm";
+import { and, eq, count } from "drizzle-orm";
 import type { DB } from "@/lib/db";
-import { GuestAuthorsTable } from "@/lib/db/schema";
-import { err, ok } from "@/lib/errors";
+import { GuestAuthorsTable, PostsTable } from "@/lib/db/schema";
 
 type BaseContext = { db: DB };
 
 export async function listGuestAuthors(context: BaseContext) {
-  const authors = await context.db.select().from(GuestAuthorsTable).all();
-  return ok(authors);
+  const result = await context.db
+    .select({
+      id: GuestAuthorsTable.id,
+      name: GuestAuthorsTable.name,
+      slug: GuestAuthorsTable.slug,
+      bio: GuestAuthorsTable.bio,
+      avatar: GuestAuthorsTable.avatar,
+      createdAt: GuestAuthorsTable.createdAt,
+      updatedAt: GuestAuthorsTable.updatedAt,
+      postCount: count(PostsTable.id).as("postCount"),
+    })
+    .from(GuestAuthorsTable)
+    .leftJoin(
+      PostsTable,
+      and(
+        eq(PostsTable.guestAuthorId, GuestAuthorsTable.id),
+        eq(PostsTable.status, "published"),
+        eq(PostsTable.isGuestPost, true)
+      )
+    )
+    .groupBy(GuestAuthorsTable.id)
+    .all();
+
+  return result.map(({ postCount, ...rest }) => ({
+    ...rest,
+    postCount: Number(postCount),
+  }));
 }
 
 export async function createGuestAuthor(
