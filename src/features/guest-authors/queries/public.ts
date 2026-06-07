@@ -42,5 +42,5 @@ export const guestAuthorTagsQueryOptions = (authorSlug: string) =>
   queryOptions({
     queryKey: ["guest-house", "author-tags", authorSlug],
     queryFn: () => getGuestAuthorTagsFn({ data: { authorSlug } }),
-    staleTime: 60 * 60 * 1000,
+    staleTime: 0,
   });
