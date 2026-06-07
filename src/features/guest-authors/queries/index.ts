@@ -20,7 +20,6 @@ export function useCreateGuestAuthor() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guest-authors"] });
       queryClient.invalidateQueries({ queryKey: ["guest-house", "author-tags"] });
-      queryClient.invalidateQueries({ queryKey: ["posts"] });
     },
   });
 }
@@ -33,6 +32,7 @@ export function useUpdateGuestAuthor() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guest-authors"] });
       queryClient.invalidateQueries({ queryKey: ["guest-house", "author-tags"] });
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
     },
   });
 }
@@ -44,6 +44,7 @@ export function useDeleteGuestAuthor() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guest-authors"] });
       queryClient.invalidateQueries({ queryKey: ["guest-house", "author-tags"] });
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
     },
   });
 }
