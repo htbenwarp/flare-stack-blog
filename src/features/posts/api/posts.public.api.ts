@@ -8,6 +8,7 @@ import {
 } from "@/features/posts/schema/posts.schema";
 import * as PostService from "@/features/posts/services/posts.service";
 import { dbMiddleware, sessionMiddleware } from "@/lib/middlewares";
+import * as PostRepo from "@/features/posts/data/posts.data";
 
 export const getPostsCursorFn = createServerFn()
   .middleware([dbMiddleware])

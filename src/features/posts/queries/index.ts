@@ -22,6 +22,7 @@ import {
   getPostsCursorFn,
   getRelatedPostsFn,
 } from "../api/posts.public.api";
+import { getPostGuestAuthorSlugFn } from "../api/posts.public.api";
 
 export const POSTS_KEYS = {
   all: ["posts"] as const,
