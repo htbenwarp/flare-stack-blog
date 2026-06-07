@@ -20,6 +20,7 @@ export function useCreateGuestAuthor() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guest-authors"] });
       queryClient.invalidateQueries({ queryKey: ["guest-house", "author-tags"] });
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
     },
   });
 }
