@@ -30,7 +30,7 @@ export function useUpdateGuestAuthor() {
     mutationFn: (input: { id: number; name?: string; slug?: string; bio?: string; avatar?: string }) =>
       updateGuestAuthorFn({ data: input }),
     onSuccess: () => {
-      queryClient.invalidateQueries();
+      queryClient.clear();
     },
   });
 }
@@ -40,7 +40,7 @@ export function useDeleteGuestAuthor() {
   return useMutation({
     mutationFn: (id: number) => deleteGuestAuthorFn({ data: { id } }),
     onSuccess: () => {
-      queryClient.invalidateQueries();
+      queryClient.clear();
     },
   });
 }
