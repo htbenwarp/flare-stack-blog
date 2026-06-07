@@ -88,3 +88,10 @@ export const getAdjacentGuestPostsFn = createServerFn()
   .handler(async ({ data, context }) => {
     return await PostService.getAdjacentGuestPosts(context, data.slug);
   });
+
+export const getPostGuestAuthorSlugFn = createServerFn()
+  .middleware([dbMiddleware])
+  .inputValidator(z.object({ slug: z.string() }))
+  .handler(async ({ data, context }) => {
+    return await PostRepo.getPostGuestAuthorSlug(context.db, data.slug);
+  });

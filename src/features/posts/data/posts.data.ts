@@ -582,3 +582,23 @@ export async function findFullPosts(
     };
   });
 }
+
+export async function getPostGuestAuthorSlug(db: DB, slug: string) {
+  const post = await db.query.PostsTable.findFirst({
+    where: eq(PostsTable.slug, slug),
+    with: {
+      guestAuthor: {
+        columns: { slug: true },
+      },
+    },
+    columns: {
+      isGuestPost: true,
+      guestAuthorId: true,
+    },
+  });
+  if (!post) return null;
+  return {
+    isGuestPost: post.isGuestPost ?? false,
+    guestAuthorSlug: post.guestAuthor?.slug ?? null,
+  };
+}

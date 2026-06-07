@@ -8,7 +8,7 @@ import {
   guestHouseTagsQueryOptions,
   guestAuthorTagsQueryOptions,
 } from "@/features/guest-authors/queries/public";
-import { postBySlugQuery } from "@/features/posts/queries";
+import { postGuestAuthorSlugQuery } from "@/features/posts/queries"; // 新增：轻量级查询，避免缓存问题
 import { m } from "@/paraglide/messages";
 
 export function TagsSkeleton() {
@@ -31,41 +31,36 @@ export function Tags() {
   const authorMatch = pathname.match(/\/guest-house\/author\/([^/]+)/);
   const authorSlug = authorMatch ? decodeURIComponent(authorMatch[1]) : null;
 
-  // 判断是否在文章详情页，并获取 slug
+  // 获取文章 slug（仅文章详情页）
   const postMatch = routerState.matches.find(
     (m) => m.routeId === "/_public/post/$slug"
   );
   const slug = (postMatch?.params as any)?.slug;
 
-  // 查询文章数据（仅在可能为文章详情页时启用）
-  const { data: postData } = useQuery({
-    ...postBySlugQuery(slug),
+  // ✅ 使用轻量级查询获取客邸信息，staleTime: 0，确保拿到最新 author slug
+  const { data: postInfo } = useQuery({
+    ...postGuestAuthorSlugQuery(slug),
     enabled: !!slug && !isGuestHouse,
   });
 
-  // 从文章数据中提取客邸信息（直接、可靠）
-  const isGuestPost = !!(postData?.isGuestPost);
-  const guestAuthorSlug = postData?.guestAuthorSlug || postData?.guestAuthor?.slug;
+  const isGuestPost = !!(postInfo?.isGuestPost);
+  const guestAuthorSlug = postInfo?.guestAuthorSlug;
 
-  // 选择标签数据源
+  // 确定数据源
   let queryOptions;
   if (authorSlug) {
-    // 在作者页，使用该作者标签
     queryOptions = guestAuthorTagsQueryOptions(authorSlug);
   } else if (isGuestPost && guestAuthorSlug) {
-    // 客邸文章详情页，使用该作者专属标签
     queryOptions = guestAuthorTagsQueryOptions(guestAuthorSlug);
   } else if (isGuestHouse || isGuestPost) {
-    // 客邸主页，或客邸文章但无作者信息，使用全客邸标签
     queryOptions = guestHouseTagsQueryOptions();
   } else {
-    // 主站
     queryOptions = tagsQueryOptions;
   }
 
   const { data: tags } = useSuspenseQuery(queryOptions);
 
-  // 生成标签链接
+  // 标签链接生成
   const getTagLink = (tagName: string) => {
     const effectiveAuthorSlug = authorSlug || guestAuthorSlug;
     if (effectiveAuthorSlug) {
@@ -76,15 +71,9 @@ export function Tags() {
       };
     }
     if (isGuestHouse || isGuestPost) {
-      return {
-        to: "/guest-house",
-        search: { tagName },
-      };
+      return { to: "/guest-house", search: { tagName } };
     }
-    return {
-      to: "/posts",
-      search: { tagName },
-    };
+    return { to: "/posts", search: { tagName } };
   };
 
   const [isExpanded, setIsExpanded] = useState(false);
@@ -97,7 +86,22 @@ export function Tags() {
     }
   }, [tags]);
 
-  if (!tags || tags.length === 0) return null;
+  if (!tags || tags.length === 0) {
+    return (
+      <div className="fuwari-card-base pb-4 transition-all duration-300">
+        <div className="font-bold text-lg fuwari-text-90 relative ml-6 mt-4 mb-2">
+          <span
+            className="absolute -left-4 top-[5.5px] w-1 h-4 rounded-md"
+            style={{ backgroundColor: "var(--fuwari-primary)" }}
+          />
+          {m.tags_title()}
+        </div>
+        <div className="px-4 py-3 text-xs fuwari-text-50 text-center">
+          {m.tags_empty?.() ?? "暂无标签"}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fuwari-card-base pb-4 transition-all duration-300">
@@ -121,7 +125,7 @@ export function Tags() {
             <Link
               key={tag.name ?? tag.id}
               to={link.to as any}
-              params={'params' in link ? link.params : undefined}
+              params={"params" in link ? link.params : undefined}
               search={link.search}
               className="fuwari-btn-regular h-8 text-sm px-3 rounded-lg flex items-center gap-2"
             >

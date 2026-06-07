@@ -202,3 +202,11 @@ export function popularPostsQuery(limit?: number) {
     queryFn: () => getPopularPostsFn({ data: { limit } }),
   });
 }
+
+export function postGuestAuthorSlugQuery(slug: string) {
+  return queryOptions({
+    queryKey: ["posts", "guest-author-slug", slug],
+    queryFn: () => getPostGuestAuthorSlugFn({ data: { slug } }),
+    staleTime: 0, // 强制实时
+  });
+}
