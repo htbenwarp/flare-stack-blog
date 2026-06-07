@@ -9,7 +9,7 @@ import {
 export const guestAuthorsListQueryOptions = () =>
   queryOptions({
     queryKey: ["guest-authors", "list"],
-    queryFn: () => listGuestAuthorsFn(),   // 直接返回数组
+    queryFn: () => listGuestAuthorsFn(),
   });
 
 export function useCreateGuestAuthor() {
@@ -19,6 +19,7 @@ export function useCreateGuestAuthor() {
       createGuestAuthorFn({ data: input }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guest-authors"] });
+      queryClient.invalidateQueries({ queryKey: ["guest-house", "author-tags"] });
     },
   });
 }
@@ -30,6 +31,7 @@ export function useUpdateGuestAuthor() {
       updateGuestAuthorFn({ data: input }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guest-authors"] });
+      queryClient.invalidateQueries({ queryKey: ["guest-house", "author-tags"] });
     },
   });
 }
@@ -40,6 +42,7 @@ export function useDeleteGuestAuthor() {
     mutationFn: (id: number) => deleteGuestAuthorFn({ data: { id } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guest-authors"] });
+      queryClient.invalidateQueries({ queryKey: ["guest-house", "author-tags"] });
     },
   });
 }
