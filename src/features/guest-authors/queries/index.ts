@@ -30,9 +30,7 @@ export function useUpdateGuestAuthor() {
     mutationFn: (input: { id: number; name?: string; slug?: string; bio?: string; avatar?: string }) =>
       updateGuestAuthorFn({ data: input }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["guest-authors"] });
-      queryClient.invalidateQueries({ queryKey: ["guest-house", "author-tags"] });
-      queryClient.invalidateQueries({ queryKey: ["posts"] });
+      queryClient.invalidateQueries();
     },
   });
 }
@@ -42,9 +40,7 @@ export function useDeleteGuestAuthor() {
   return useMutation({
     mutationFn: (id: number) => deleteGuestAuthorFn({ data: { id } }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["guest-authors"] });
-      queryClient.invalidateQueries({ queryKey: ["guest-house", "author-tags"] });
-      queryClient.invalidateQueries({ queryKey: ["posts"] });
+      queryClient.invalidateQueries();
     },
   });
 }
