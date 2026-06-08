@@ -12,6 +12,7 @@ import { PostSummary } from "./components/post-summary";
 import { RelatedPosts, RelatedPostsSkeleton } from "./components/related-posts";
 import TableOfContents from "./components/table-of-contents";
 import { getAdjacentPostsFn, getAdjacentGuestPostsFn } from "@/features/posts/api/posts.public.api";
+import { postGuestAuthorSlugQuery } from "@/features/posts/queries";
 
 // 加密文章组件（原样）
 function EncryptedPostGate({ post, slug, onUnlocked }: any) {
@@ -160,6 +161,11 @@ export function PostPage({ post }: PostPageProps) {
   };
 
   const isGuestPost = safeDisplayPost.isGuestPost || !!safeDisplayPost.guestAuthor;
+  const { data: guestInfo } = useQuery({
+    ...postGuestAuthorSlugQuery(slug),
+    enabled: isGuestPost,
+  });
+  const currentGuestAuthorSlug = guestInfo?.guestAuthorSlug;
 
   // ✅ 动态选择相邻文章查询函数
   const { data: adjacentData } = useQuery({
@@ -174,11 +180,11 @@ export function PostPage({ post }: PostPageProps) {
   const needPassword = !isAdmin && safeDisplayPost.isEncrypted && !safeDisplayPost.contentJson?.content?.length;
 
   // 面包屑
-  const breadcrumb = isGuestPost && safeDisplayPost.guestAuthor ? (
+  const breadcrumb = isGuestPost && currentGuestAuthorSlug ? (
     <div className="mb-4 text-sm fuwari-text-50">
       <Link to="/guest-house" className="hover:text-(--fuwari-primary)">{m.guest_house_breadcrumb()}</Link>
       <span className="mx-1">/</span>
-      <Link to={`/guest-house/author/${encodeURIComponent(safeDisplayPost.guestAuthor.slug)}`} className="hover:text-(--fuwari-primary)">
+      <Link to={`/guest-house/author/${encodeURIComponent(currentGuestAuthorSlug)}`} className="hover:text-(--fuwari-primary)">
         {safeDisplayPost.guestAuthor.name}
       </Link>
     </div>
