@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, asc, desc, eq, gt, lt, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, ne, or, sql } from "drizzle-orm";
 import * as AiService from "@/features/ai/ai.service";
 import * as CacheService from "@/features/cache/cache.service";
 import { syncPostMedia } from "@/features/posts/data/post-media.data";
@@ -141,7 +141,7 @@ export async function findPostBySlug(
       contentJson,
       toc: generateTableOfContents(contentJson),
       guestAuthor,
-      guestAuthorSlug,   // ← 显式注入 slug 字符串
+      guestAuthorSlug,
       isGuestPost: post.isGuestPost ?? false,
       guestAuthorId: post.guestAuthorId ?? null,
     };
@@ -550,25 +550,39 @@ export async function getAdjacentPosts(
   });
   if (!post || !post.publishedAt) return { prev: null, next: null };
 
+  // 上一篇：更早的 publishedAt，或同一时间但更小的 id
   const prevPost = await context.db.query.PostsTable.findFirst({
     where: and(
-      lt(PostsTable.publishedAt, post.publishedAt),
       eq(PostsTable.status, "published"),
       eq(PostsTable.isGuestPost, false),
       ne(PostsTable.slug, slug),
+      or(
+        lt(PostsTable.publishedAt, post.publishedAt),
+        and(
+          eq(PostsTable.publishedAt, post.publishedAt),
+          lt(PostsTable.id, post.id),
+        ),
+      ),
     ),
-    orderBy: desc(PostsTable.publishedAt),
+    orderBy: [desc(PostsTable.publishedAt), desc(PostsTable.id)],
     columns: { title: true, slug: true },
   });
 
+  // 下一篇：更晚的 publishedAt，或同一时间但更大的 id
   const nextPost = await context.db.query.PostsTable.findFirst({
     where: and(
-      gt(PostsTable.publishedAt, post.publishedAt),
       eq(PostsTable.status, "published"),
       eq(PostsTable.isGuestPost, false),
       ne(PostsTable.slug, slug),
+      or(
+        gt(PostsTable.publishedAt, post.publishedAt),
+        and(
+          eq(PostsTable.publishedAt, post.publishedAt),
+          gt(PostsTable.id, post.id),
+        ),
+      ),
     ),
-    orderBy: asc(PostsTable.publishedAt),
+    orderBy: [asc(PostsTable.publishedAt), asc(PostsTable.id)],
     columns: { title: true, slug: true },
   });
 
@@ -579,7 +593,6 @@ export async function getAdjacentGuestPosts(
   context: DbContext,
   slug: string,
 ) {
-  // 直接查找客邸已发布文章（不使用 publicOnly，避免被 isGuestPost=false 过滤掉）
   const post = await context.db.query.PostsTable.findFirst({
     where: and(
       eq(PostsTable.slug, slug),
@@ -595,27 +608,41 @@ export async function getAdjacentGuestPosts(
 
   const authorId = post.guestAuthorId;
 
+  // 上一篇（同作者）
   const prevPost = await context.db.query.PostsTable.findFirst({
     where: and(
       eq(PostsTable.isGuestPost, true),
       eq(PostsTable.guestAuthorId, authorId),
-      lt(PostsTable.publishedAt, post.publishedAt),
       eq(PostsTable.status, "published"),
       ne(PostsTable.slug, slug),
+      or(
+        lt(PostsTable.publishedAt, post.publishedAt),
+        and(
+          eq(PostsTable.publishedAt, post.publishedAt),
+          lt(PostsTable.id, post.id),
+        ),
+      ),
     ),
-    orderBy: desc(PostsTable.publishedAt),
+    orderBy: [desc(PostsTable.publishedAt), desc(PostsTable.id)],
     columns: { title: true, slug: true },
   });
 
+  // 下一篇（同作者）
   const nextPost = await context.db.query.PostsTable.findFirst({
     where: and(
       eq(PostsTable.isGuestPost, true),
       eq(PostsTable.guestAuthorId, authorId),
-      gt(PostsTable.publishedAt, post.publishedAt),
       eq(PostsTable.status, "published"),
       ne(PostsTable.slug, slug),
+      or(
+        gt(PostsTable.publishedAt, post.publishedAt),
+        and(
+          eq(PostsTable.publishedAt, post.publishedAt),
+          gt(PostsTable.id, post.id),
+        ),
+      ),
     ),
-    orderBy: asc(PostsTable.publishedAt),
+    orderBy: [asc(PostsTable.publishedAt), asc(PostsTable.id)],
     columns: { title: true, slug: true },
   });
 
