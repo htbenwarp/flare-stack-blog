@@ -74,31 +74,10 @@ export class PostProcessWorkflow extends WorkflowEntrypoint<Env, Params> {
 
     if (shouldSkip || !initialPost) return;
 
-    // 2. Generate summary
-    const updatedPost = await step.do(
-      `generate summary for post ${postId}`,
-      {
-        retries: {
-          limit: 3,
-          delay: "5 seconds",
-          backoff: "exponential",
-        },
-      },
-      async () => {
-        const db = getDb(this.env);
-        const result = await PostService.generateSummaryByPostId({
-          context: { db, env: this.env },
-          postId,
-        });
-        if (result.error) {
-          return null;
-        }
-        return result.data;
-      },
-    );
-    if (!updatedPost) return;
+    // 不再自动生成摘要，直接使用当前文章对象
+    const currentPost = initialPost;
 
-    // 3. Persist the highlighted public snapshot used by SSR/read paths.
+    // 2. Persist the highlighted public snapshot used by SSR/read paths.
     await step.do("build public content", async () => {
       const db = getDb(this.env);
       const post = await PostRepo.findPostById(db, postId);
@@ -111,21 +90,21 @@ export class PostProcessWorkflow extends WorkflowEntrypoint<Env, Params> {
       await PostRepo.updatePublicContentSnapshot(db, postId, publicContentJson);
     });
 
-    // 4. Update search index (skip for future posts — ScheduledPublishWorkflow handles it)
+    // 3. Update search index (skip for future posts)
     const isFuturePost = !!event.payload.isFuturePost;
 
     if (!isFuturePost) {
       await step.do("update search index", async () => {
-        return await upsertPostSearchIndex(this.env, updatedPost);
+        return await upsertPostSearchIndex(this.env, currentPost);
       });
     }
 
-    // 5. Invalidate caches
+    // 4. Invalidate caches
     await step.do("invalidate caches", async () => {
-      await invalidatePostCaches(this.env, updatedPost.slug);
+      await invalidatePostCaches(this.env, currentPost.slug);
     });
 
-    // 6. Update sync hash in KV
+    // 5. Update sync hash in KV
     await step.do("update sync hash", async () => {
       const p = await fetchPost(this.env, postId);
       if (!p) return;
