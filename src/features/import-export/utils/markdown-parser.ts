@@ -5,11 +5,11 @@ import { Node } from "@tiptap/core";
 const IframeExtension = Node.create({
   name: 'iframe',
   group: 'block',
-  atom: true,           // 表示不可再分的内嵌节点
+  atom: true,
   parseHTML() {
     return [
       {
-        tag: 'iframe',   // 匹配 HTML 中的 <iframe> 标签
+        tag: 'iframe',
       },
     ];
   },
@@ -106,7 +106,14 @@ function preprocessMathInMarkdown(markdown: string): string {
 export async function markdownToJsonContent(
   markdown: string,
 ): Promise<JSONContent> {
-  const preprocessed = preprocessMathInMarkdown(markdown);
+  // 保留诗节空行：将 3 个及以上连续换行转换为 <p><br></p> 段落
+  // 这样 Tiptap 会将其解析为包含 hardBreak 的空段落，与正常编辑产生的结构一致
+  const normalizedMarkdown = markdown.replace(/\n{3,}/g, (match) => {
+    const extraBlanks = match.length - 2; // 保留必要的两个换行作为段落分隔
+    return '\n\n' + '<p><br></p>'.repeat(extraBlanks) + '\n\n';
+  });
+
+  const preprocessed = preprocessMathInMarkdown(normalizedMarkdown);
 
   const { marked } = await import("marked");
   const html = await marked(preprocessed);

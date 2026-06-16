@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { JSONContent } from "@tiptap/react";
 import type { PostEditorData, SaveStatus } from "../types";
 
 interface UseAutoSaveOptions {
@@ -17,6 +18,22 @@ interface UseAutoSaveReturn {
   markSaved: (post: PostEditorData) => void;
 }
 
+/**
+ * 规范化 JSON 内容，确保空段落至少包含一个 hardBreak
+ * 这样 Tiptap 渲染时不会忽略空行
+ */
+function normalizeContentJson(json: JSONContent): JSONContent {
+  if (json.type === "doc" && json.content) {
+    json.content = json.content.map(node => {
+      if (node.type === "paragraph" && (!node.content || node.content.length === 0)) {
+        return { ...node, content: [{ type: "hardBreak" }] };
+      }
+      return node;
+    });
+  }
+  return json;
+}
+
 export function useAutoSave({
   post,
   onSave,
@@ -31,7 +48,6 @@ export function useAutoSave({
   const isSaving = useRef(false);
   const latestPostRef = useRef(post);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Track last-saved snapshot (shallow)
   const lastSavedSnapshot = useRef<{
     title: string;
     summary: string;
@@ -40,28 +56,37 @@ export function useAutoSave({
     readTimeInMinutes: number;
     publishedAt: number | null;
     pinnedAt: number | null;
-    tagIds: string; // Serialize for easy comparison
+    tagIds: string;
     contentRef: PostEditorData["contentJson"];
+    isEncrypted: boolean;
+    password: string | undefined;
+    isGuestPost: boolean;
+    guestAuthorId: number | null;
   } | null>(null);
-  // Store onSave in ref to avoid effect re-running when onSave reference changes
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
 
-  const toComparable = (p: PostEditorData) => ({
-    title: p.title,
-    summary: p.summary,
-    slug: p.slug,
-    status: p.status,
-    readTimeInMinutes: p.readTimeInMinutes,
-    publishedAt: p.publishedAt ? p.publishedAt.valueOf() : null,
-    pinnedAt: p.pinnedAt ? p.pinnedAt.valueOf() : null,
-    tagIds: [...p.tagIds].sort().join(","),
-    contentRef: p.contentJson,
-    isEncrypted: p.isEncrypted,
-    password: p.password,
-    isGuestPost: p.isGuestPost,
-    guestAuthorId: p.guestAuthorId,
-  });
+  const toComparable = (p: PostEditorData) => {
+    // 规范化内容 JSON，确保空段落包含 hardBreak
+    const normalizedContent = p.contentJson
+      ? normalizeContentJson(p.contentJson)
+      : p.contentJson;
+    return {
+      title: p.title,
+      summary: p.summary,
+      slug: p.slug,
+      status: p.status,
+      readTimeInMinutes: p.readTimeInMinutes,
+      publishedAt: p.publishedAt ? p.publishedAt.valueOf() : null,
+      pinnedAt: p.pinnedAt ? p.pinnedAt.valueOf() : null,
+      tagIds: [...p.tagIds].sort().join(","),
+      contentRef: normalizedContent,
+      isEncrypted: p.isEncrypted,
+      password: p.password,
+      isGuestPost: p.isGuestPost,
+      guestAuthorId: p.guestAuthorId,
+    };
+  };
 
   const isDirty = (curr: ReturnType<typeof toComparable>) => {
     const prev = lastSavedSnapshot.current;
@@ -77,7 +102,7 @@ export function useAutoSave({
       prev.tagIds !== curr.tagIds ||
       prev.contentRef !== curr.contentRef ||
       prev.isEncrypted !== curr.isEncrypted ||
-      prev.password !== curr.password |
+      prev.password !== curr.password ||
       prev.isGuestPost !== curr.isGuestPost ||
       prev.guestAuthorId !== curr.guestAuthorId
     );
@@ -88,14 +113,19 @@ export function useAutoSave({
       clearTimeout(retryTimerRef.current);
       retryTimerRef.current = null;
     }
-    latestPostRef.current = savedPost;
+    // 更新 latestPostRef 时也规范化内容，保持一致性
+    latestPostRef.current = {
+      ...savedPost,
+      contentJson: savedPost.contentJson
+        ? normalizeContentJson(savedPost.contentJson)
+        : savedPost.contentJson,
+    };
     lastSavedSnapshot.current = toComparable(savedPost);
     setError(null);
     setSaveStatus("SYNCED");
     setLastSaved(new Date());
   };
 
-  // Track mount / unmount
   useEffect(() => {
     isMounted.current = true;
     return () => {
@@ -107,9 +137,14 @@ export function useAutoSave({
     };
   }, []);
 
-  // Auto-save effect - always enabled
   useEffect(() => {
-    latestPostRef.current = post;
+    latestPostRef.current = {
+      ...post,
+      // 在自动保存时也规范化内容，这样比较时使用一致的数据
+      contentJson: post.contentJson
+        ? normalizeContentJson(post.contentJson)
+        : post.contentJson,
+    };
     const current = toComparable(post);
 
     if (isFirstMount.current) {
@@ -132,13 +167,19 @@ export function useAutoSave({
       try {
         setError(null);
         const latestPost = latestPostRef.current;
-        await onSaveRef.current(latestPost);
-        const latestComparable = toComparable(latestPost);
+        // 在真正保存前，也确保内容被规范化
+        const postToSave = {
+          ...latestPost,
+          contentJson: latestPost.contentJson
+            ? normalizeContentJson(latestPost.contentJson)
+            : latestPost.contentJson,
+        };
+        await onSaveRef.current(postToSave);
+        const latestComparable = toComparable(postToSave);
         lastSavedSnapshot.current = latestComparable;
         if (!isMounted.current) return;
         setLastSaved(new Date());
 
-        // After saving, if new changes arrived during the request, schedule another save (debounced)
         const stillDirty = isDirty(toComparable(latestPostRef.current));
         if (stillDirty) {
           if (retryTimerRef.current) {
@@ -146,7 +187,6 @@ export function useAutoSave({
           }
           retryTimerRef.current = setTimeout(() => {
             if (!isMounted.current) return;
-            // respect debounce and avoid overlapping saves
             attemptSave();
           }, debounceMs);
           setSaveStatus("SAVING");

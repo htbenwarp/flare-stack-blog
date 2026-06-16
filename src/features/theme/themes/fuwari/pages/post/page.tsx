@@ -14,7 +14,6 @@ import TableOfContents from "./components/table-of-contents";
 import { getAdjacentPostsFn, getAdjacentGuestPostsFn } from "@/features/posts/api/posts.public.api";
 import { postGuestAuthorSlugQuery } from "@/features/posts/queries";
 
-// 加密文章组件（原样）
 function EncryptedPostGate({ post, slug, onUnlocked }: any) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
@@ -23,10 +22,8 @@ function EncryptedPostGate({ post, slug, onUnlocked }: any) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!password.trim()) return;
-
     setLoading(true);
     setError(false);
-
     try {
       const res = await fetch("/api/posts/verify-password", {
         method: "POST",
@@ -34,7 +31,6 @@ function EncryptedPostGate({ post, slug, onUnlocked }: any) {
         body: JSON.stringify({ slug, password: password.trim() }),
       });
       const result = await res.json();
-
       if (result.success && result.post) {
         const safePost = {
           ...result.post,
@@ -85,7 +81,6 @@ function EncryptedPostGate({ post, slug, onUnlocked }: any) {
   );
 }
 
-// 前后篇导航
 function AdjacentPosts({ prev, next }: { prev?: { slug: string; title: string } | null; next?: { slug: string; title: string } | null }) {
   return (
     <div className="flex justify-between gap-4 mt-4">
@@ -118,7 +113,7 @@ export function PostPage({ post }: PostPageProps) {
 
   useEffect(() => { setUnlockedPost(null); }, [slug]);
 
-  // 音乐 iframe 替换逻辑（原样）
+  // 音乐 iframe 替换逻辑（保留）
   useEffect(() => {
     const container = document.querySelector('.fuwari-custom-md');
     if (!container) return;
@@ -167,7 +162,6 @@ export function PostPage({ post }: PostPageProps) {
   });
   const currentGuestAuthorSlug = guestInfo?.guestAuthorSlug;
 
-  // ✅ 动态选择相邻文章查询函数
   const { data: adjacentData } = useQuery({
     queryKey: ["adjacent-posts", slug, isGuestPost],
     queryFn: () =>
@@ -179,18 +173,16 @@ export function PostPage({ post }: PostPageProps) {
 
   const needPassword = !isAdmin && safeDisplayPost.isEncrypted && !safeDisplayPost.contentJson?.content?.length;
 
-  // 面包屑
   const breadcrumb = isGuestPost && currentGuestAuthorSlug ? (
     <div className="mb-4 text-sm fuwari-text-50">
       <Link to="/guest-house" className="hover:text-(--fuwari-primary)">{m.guest_house_breadcrumb()}</Link>
       <span className="mx-1">/</span>
       <Link to={`/guest-house/author/${encodeURIComponent(currentGuestAuthorSlug)}`} className="hover:text-(--fuwari-primary)">
-        {safeDisplayPost.guestAuthor.name}
+        {safeDisplayPost.guestAuthor?.name ?? "作者"}
       </Link>
     </div>
   ) : null;
 
-  // 寄存落款
   const guestFooter = isGuestPost && safeDisplayPost.guestAuthor ? (
     <div className="mt-8 pt-5 border-t border-dashed border-black/10 dark:border-white/[0.15] flex items-center justify-end gap-2 text-50">
       <span className="font-serif text-sm opacity-70">{m.guest_house_resident?.() ?? "寄存于客邸 ·"}</span>
@@ -213,16 +205,36 @@ export function PostPage({ post }: PostPageProps) {
   }
 
   const wordCount = safeDisplayPost.readTimeInMinutes * 300;
-  const metaPost = { ...safeDisplayPost, isGuestPost, guestAuthor: safeDisplayPost.guestAuthor, guestAuthorSlug: safeDisplayPost.guestAuthor?.slug };
+  const metaPost = {
+    ...safeDisplayPost,
+    isGuestPost,
+    guestAuthor: safeDisplayPost.guestAuthor,
+    guestAuthorSlug: safeDisplayPost.guestAuthor?.slug,
+  };
 
   return (
     <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
+      {/* PC 端固定目录 */}
       <div className="hidden 2xl:block absolute top-0 h-full pl-4" style={{ right: "calc(var(--fuwari-toc-width) * -1)", width: "var(--fuwari-toc-width)" }}>
         <TableOfContents headers={safeDisplayPost.toc} />
       </div>
 
       <div className="fuwari-card-base z-10 px-6 md:px-9 pt-6 pb-4 relative w-full fuwari-onload-animation">
         {breadcrumb}
+
+        {/* 移动端可折叠目录 */}
+        {!isGuestPost && safeDisplayPost.toc?.length > 0 && (
+          <details className="mb-6 block 2xl:hidden">
+            <summary className="text-sm font-medium fuwari-text-90 cursor-pointer list-none flex items-center gap-1">
+              <span className="w-1 h-4 rounded-md bg-(--fuwari-primary)" />
+              <span>{m.table_of_contents_title?.() ?? "目录"}</span>
+              <ChevronRight className="transition-transform duration-200 [details[open]_&]:rotate-90" size={14} />
+            </summary>
+            <div className="mt-3 ml-4 border-l border-(--fuwari-primary)/20 pl-4">
+              <TableOfContents headers={safeDisplayPost.toc} variant="inline" />
+            </div>
+          </details>
+        )}
 
         <div className="flex flex-row flex-wrap fuwari-text-30 gap-5 mb-3 transition">
           <div className="flex flex-row items-center">

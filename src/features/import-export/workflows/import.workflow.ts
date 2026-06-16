@@ -14,6 +14,9 @@ import {
 } from "@/features/import-export/workflows/import-helpers";
 import { serverEnv } from "@/lib/env/server.env";
 import { m } from "@/paraglide/messages";
+import { getDb } from "@/lib/db";
+import { GuestAuthorsTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 export class ImportWorkflow extends WorkflowEntrypoint<
   Env,
@@ -29,13 +32,67 @@ export class ImportWorkflow extends WorkflowEntrypoint<
     );
 
     try {
-      // 1. Enumerate posts from ZIP
-      // NOTE: step.do() serializes return values as JSON for durability.
-      // Uint8Array does NOT survive JSON round-tripping, so we must NOT
-      // return binary data from steps. Instead, each step re-fetches the
-      // ZIP from R2 when it needs the binary content.
+      // 0. 提前获取 zip 文件列表（后续步骤会多次用到）
+      const zipFiles = await step.do("read zip", () =>
+        this.fetchZipFiles(r2Key, locale),
+      );
+
+      // 1. 导入客邸作者（如果存在 guest_authors.json）
+      const authorSlugToId = await step.do("import guest authors", async () => {
+        const db = getDb(this.env);
+        const authorJson = zipFiles["guest_authors.json"];
+        if (!authorJson) return {};
+
+        const authors: Array<{
+          name: string;
+          slug: string;
+          bio?: string;
+          avatar?: string;
+        }> = JSON.parse(new TextDecoder().decode(authorJson));
+
+        const slugToId: Record<string, number> = {};
+
+        for (const author of authors) {
+          try {
+            // 尝试查找已有作者，存在则更新，否则创建
+            const existing = await db.query.GuestAuthorsTable.findFirst({
+              where: eq(GuestAuthorsTable.slug, author.slug),
+            });
+            if (existing) {
+              await db
+                .update(GuestAuthorsTable)
+                .set({
+                  name: author.name,
+                  bio: author.bio ?? null,
+                  avatar: author.avatar ?? null,
+                })
+                .where(eq(GuestAuthorsTable.slug, author.slug));
+              slugToId[author.slug] = existing.id;
+            } else {
+              const [created] = await db
+                .insert(GuestAuthorsTable)
+                .values({
+                  name: author.name,
+                  slug: author.slug,
+                  bio: author.bio ?? null,
+                  avatar: author.avatar ?? null,
+                })
+                .returning({ id: GuestAuthorsTable.id });
+              slugToId[author.slug] = created.id;
+            }
+          } catch (error) {
+            console.error(
+              `Failed to import author ${author.slug}: ${error}`,
+            );
+            // 单个作者失败不影响整体
+          }
+        }
+
+        return slugToId;
+      });
+
+      // 2. 枚举文章
       const postEntries = await step.do("enumerate posts", async () => {
-        const zipFiles = await this.fetchZipFiles(r2Key, locale);
         if (mode === "native") {
           return enumerateNativePosts(zipFiles);
         }
@@ -63,9 +120,7 @@ export class ImportWorkflow extends WorkflowEntrypoint<
         return;
       }
 
-      // 2. Process each post
-      // Each step returns a delta (serializable). Accumulation happens outside
-      // steps so it re-executes correctly on workflow restart/replay.
+      // 3. 逐篇导入文章，传递作者映射
       const report: ImportReport = {
         succeeded: [],
         failed: [],
@@ -85,6 +140,7 @@ export class ImportWorkflow extends WorkflowEntrypoint<
             };
 
             try {
+              // 每次重新读取 zip（因为 step.do 不支持直接传递二进制）
               const zipFiles = await this.fetchZipFiles(r2Key, locale);
               const result = await importSinglePost(
                 this.env,
@@ -92,6 +148,7 @@ export class ImportWorkflow extends WorkflowEntrypoint<
                 entry,
                 mode,
                 locale,
+                authorSlugToId, // ✅ 传递作者映射
               );
               if (result.skipped) {
                 stepReport.warnings.push(
@@ -127,7 +184,6 @@ export class ImportWorkflow extends WorkflowEntrypoint<
           },
         );
 
-        // Accumulate outside step — on replay, cached return values flow here
         report.succeeded.push(...delta.succeeded);
         report.failed.push(...delta.failed);
         report.warnings.push(...delta.warnings);
@@ -144,7 +200,6 @@ export class ImportWorkflow extends WorkflowEntrypoint<
           }),
         );
 
-        // Progress update outside step — idempotent KV write, safe on replay
         await this.updateProgress(progressKey, {
           status: "processing",
           total: postEntries.length,
@@ -158,7 +213,7 @@ export class ImportWorkflow extends WorkflowEntrypoint<
         });
       }
 
-      // 3. Cleanup and finalize
+      // 4. 清理并完成
       await step.do("finalize", async () => {
         try {
           await this.env.R2.delete(r2Key);

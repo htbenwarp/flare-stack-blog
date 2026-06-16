@@ -90,6 +90,7 @@ export async function importSinglePost(
   entry: PostEntry,
   mode: "native" | "markdown",
   locale: Locale = "zh",
+  authorSlugToId?: Record<string, number>, // ✅ 新增参数
 ): Promise<{
   title: string;
   slug: string;
@@ -148,7 +149,6 @@ export async function importSinglePost(
       metadata = data;
 
       if (content.trim()) {
-        // Upload relative images and rewrite markdown paths before conversion
         const mdDir = mdPath.substring(0, mdPath.lastIndexOf("/"));
         const imageResult = await uploadMarkdownImages(
           env,
@@ -230,7 +230,7 @@ export async function importSinglePost(
     }
   }
 
-  // 7. Insert post (including encryption fields)
+  // 7. Insert post (including encryption fields and guest author)
   // 安全处理 publishedAt：无效日期或空值设为 null
   let publishedAt: Date | null = null;
   if (normalized.publishedAt) {
@@ -241,9 +241,53 @@ export async function importSinglePost(
     publishedAt = new Date(); // 默认发布时间为当前时间
   }
 
-  // 新增：提取加密字段
   const isEncrypted = normalized.isEncrypted ?? false;
   const passwordHash = normalized.passwordHash ?? null;
+
+  // ✅ 处理客邸作者关联
+  let isGuestPost = false;
+  let guestAuthorId: number | null = null;
+
+  if (normalized.isGuestPost) {
+    isGuestPost = true;
+
+    // 优先使用 guestAuthorSlug（Markdown）映射到 ID
+    if (normalized.guestAuthorSlug && authorSlugToId) {
+      const id = authorSlugToId[normalized.guestAuthorSlug];
+      if (id) {
+        guestAuthorId = id;
+      } else {
+        warnings.push(
+          m.import_export_import_warning_author_not_found?.(
+            { slug: normalized.guestAuthorSlug },
+            { locale },
+          ) ?? `Author slug '${normalized.guestAuthorSlug}' not found, marking as non-guest.`,
+        );
+        isGuestPost = false; // 找不到作者则降级为非客邸
+      }
+    }
+    // 其次尝试直接使用 guestAuthorId（原生格式）
+    else if (normalized.guestAuthorId != null) {
+      // 简单校验 ID 是否有效（可在导入的作者列表中）
+      const id = Number(normalized.guestAuthorId);
+      if (authorSlugToId && Object.values(authorSlugToId).includes(id)) {
+        guestAuthorId = id;
+      } else if (!authorSlugToId) {
+        // 如果没有作者映射，仍保留原 ID，但风险是可能指向不存在的作者
+        guestAuthorId = id;
+      } else {
+        warnings.push(
+          `Author ID ${id} not found in imported authors, marking as non-guest.`,
+        );
+        isGuestPost = false;
+      }
+    } else {
+      warnings.push(
+        `Post marked as guest but no author identifier provided, marking as non-guest.`,
+      );
+      isGuestPost = false;
+    }
+  }
 
   const post = await PostRepo.insertPost(db, {
     title,
@@ -253,9 +297,10 @@ export async function importSinglePost(
     status: normalized.status === "draft" ? "draft" : "published",
     readTimeInMinutes: normalized.readTimeInMinutes,
     publishedAt,
-    // 新增：写入加密信息
     isEncrypted,
     passwordHash,
+    isGuestPost,
+    guestAuthorId,
   });
 
   // 8. Link tags
@@ -334,12 +379,6 @@ export async function uploadImages(
 
 // --- Markdown image upload (resolves relative paths from .md location) ---
 
-/**
- * 解析相对路径：以 markdown 文件所在目录为基准
- * resolveRelativePath("posts", "./images/a.jpg") → "posts/images/a.jpg"
- * resolveRelativePath("", "images/a.jpg") → "images/a.jpg"
- * resolveRelativePath("posts/sub", "../assets/a.jpg") → "posts/assets/a.jpg"
- */
 export function resolveRelativePath(base: string, relative: string): string {
   const cleaned = relative.replace(/^\.\//, "");
   if (!base) return cleaned;
@@ -355,9 +394,6 @@ export function resolveRelativePath(base: string, relative: string): string {
   return parts.join("/");
 }
 
-/**
- * 扫描 Markdown 中的相对图片引用，上传到 R2，重写路径
- */
 async function uploadMarkdownImages(
   env: Env,
   zipFiles: Record<string, Uint8Array>,

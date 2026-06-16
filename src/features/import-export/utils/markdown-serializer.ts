@@ -20,11 +20,10 @@ export function jsonContentToMarkdown(
     .map((node) => serializeNode(node, options))
     .join("");
 
-  // 清理：去掉开头空行，收缩连续空行为最多两个换行
+  // 清理：去掉开头空行，去掉结尾多余换行，但保留中间的空行（诗节间隔）
   return (
     lines
       .replace(/^\n+/, "")
-      .replace(/\n{3,}/g, "\n\n")
       .trimEnd() + "\n"
   );
 }
@@ -35,8 +34,14 @@ function serializeNode(
   listDepth = 0,
 ): string {
   switch (node.type) {
-    case "paragraph":
-      return `\n${serializeInline(node.content, options)}\n`;
+    case "paragraph": {
+      const inline = serializeInline(node.content, options);
+      // 如果内容为空，或只有 hardBreak，视为空行，输出两个换行
+      if (!inline.trim() || inline === "\n") {
+        return "\n\n";
+      }
+      return `\n${inline}\n`;
+    }
 
     case "heading": {
       const level = node.attrs?.level ?? 1;
