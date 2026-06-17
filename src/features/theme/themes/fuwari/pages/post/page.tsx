@@ -244,7 +244,7 @@ export function PostPage({ post }: PostPageProps) {
             <div
               className={cn(
                 "overflow-hidden transition-all duration-300 ease-in-out",
-                tocOpen ? "max-h-96 mt-3" : "max-h-0"
+                tocOpen ? "max-h-[60vh] overflow-y-auto mt-3" : "max-h-0"
               )}
             >
               <div className="ml-4 border-l border-(--fuwari-primary)/20 pl-4">
