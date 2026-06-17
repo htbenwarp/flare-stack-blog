@@ -38,10 +38,10 @@ interface ExportWorkflowParams {
 const CONCURRENCY = 5;
 const BATCH_SIZE = 5;
 
-export class ExportWorkflow extends WorkflowEntrypoint<
-  Env,
-  ExportWorkflowParams
-> {
+// 临时文件存放路径前缀
+const tempPrefix = (taskId: string) => `temp/export/${taskId}`;
+
+export class ExportWorkflow extends WorkflowEntrypoint<Env, ExportWorkflowParams> {
   async run(event: WorkflowEvent<ExportWorkflowParams>, step: WorkflowStep) {
     const { taskId, postIds, status, locale: requestedLocale } = event.payload;
     const progressKey = IMPORT_EXPORT_CACHE_KEYS.exportProgress(taskId);
@@ -59,13 +59,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         });
       });
 
-      console.log(
-        JSON.stringify({
-          message: "posts fetched",
-          taskId,
-          count: posts.length,
-        }),
-      );
+      console.log(JSON.stringify({ message: "posts fetched", taskId, count: posts.length }));
 
       if (posts.length === 0) {
         await this.updateProgress(progressKey, {
@@ -108,20 +102,19 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         }));
       });
 
-      // 步骤3：分批处理文章
-      const allZipFiles: Record<string, Uint8Array | string> = {};
+      // 步骤3：分批处理文章，每批直接上传到 R2 临时目录
       const allWarnings: string[] = [];
+      let fileCount = 0;
 
       for (let batchStart = 0; batchStart < posts.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, posts.length);
         const batchPosts = posts.slice(batchStart, batchEnd);
 
-        // 移除了重试配置，保持简单调用
         const batchResult = await step.do(
           `process batch ${batchStart}-${batchEnd}`,
           async () => {
-            const zipFiles: Record<string, Uint8Array | string> = {};
             const warnings: string[] = [];
+            let batchFileCount = 0;
 
             const queue = [...batchPosts];
             const worker = async () => {
@@ -129,7 +122,16 @@ export class ExportWorkflow extends WorkflowEntrypoint<
                 const post = queue.shift()!;
                 try {
                   const res = await processPost(post, this.env, locale);
-                  Object.assign(zipFiles, res.zipFiles);
+                  // 将生成的文件直接写入 R2 临时目录
+                  for (const [filePath, data] of Object.entries(res.zipFiles)) {
+                    const tempKey = `${tempPrefix(taskId)}/${filePath}`;
+                    // 支持 Uint8Array 和 string
+                    const body = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+                    await this.env.R2.put(tempKey, body, {
+                      httpMetadata: { contentType: filePath.endsWith('.json') ? 'application/json' : 'application/octet-stream' },
+                    });
+                    batchFileCount++;
+                  }
                   warnings.push(...res.warnings);
                 } catch (err) {
                   warnings.push(
@@ -142,18 +144,15 @@ export class ExportWorkflow extends WorkflowEntrypoint<
               }
             };
 
-            const workers = Array.from(
-              { length: Math.min(CONCURRENCY, batchPosts.length) },
-              () => worker(),
-            );
+            const workers = Array.from({ length: Math.min(CONCURRENCY, batchPosts.length) }, () => worker());
             await Promise.all(workers);
 
-            return { zipFiles, warnings };
+            return { warnings, batchFileCount };
           },
         );
 
-        Object.assign(allZipFiles, batchResult.zipFiles);
         allWarnings.push(...batchResult.warnings);
+        fileCount += batchResult.batchFileCount;
 
         await this.updateProgress(progressKey, {
           status: "processing",
@@ -165,17 +164,32 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         });
       }
 
-      // 步骤4：生成 ZIP 并上传
+      // 步骤4：生成 ZIP 并上传到最终位置，同时清理临时文件
       await step.do("build and upload zip", async () => {
-        allZipFiles["guest_authors.json"] = JSON.stringify(guestAuthors, null, 2);
+        // 收集临时文件列表
+        const tempPrefixKey = tempPrefix(taskId);
+        const allTempFiles = await this.env.R2.list({ prefix: tempPrefixKey });
+        const files: Record<string, Uint8Array | string> = {};
 
+        // 下载所有临时文件（如果文件太多或太大，仍可能触及内存限制，但这是为了兼容现有 buildZip）
+        for (const obj of allTempFiles.objects) {
+          const body = await this.env.R2.get(obj.key);
+          if (body) {
+            const arrayBuffer = await body.arrayBuffer();
+            const relativePath = obj.key.slice(tempPrefixKey.length + 1); // 去掉前缀及斜杠
+            // 对于 JSON 文件，尝试转为字符串以便 buildZip 识别（但 buildZip 可能期望 Uint8Array）
+            files[relativePath] = new Uint8Array(arrayBuffer);
+          }
+        }
+
+        // 添加其他 JSON 文件
         const uniqueTagsMap = new Map<string, (typeof posts)[0]["tags"][0]>();
         for (const post of posts) {
           for (const tag of post.tags ?? []) {
             uniqueTagsMap.set(tag.name, tag);
           }
         }
-        allZipFiles["tags.json"] = JSON.stringify(
+        files["tags.json"] = JSON.stringify(
           Array.from(uniqueTagsMap.values()).map((t) => ({
             name: t.name,
             createdAt: t.createdAt?.toISOString() ?? new Date().toISOString(),
@@ -184,21 +198,26 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           2,
         );
 
+        files["guest_authors.json"] = JSON.stringify(guestAuthors, null, 2);
+
         const manifest: ExportManifest = {
           version: EXPORT_MANIFEST_VERSION,
           exportedAt: new Date().toISOString(),
           postCount: posts.length,
           generator: "blog-cms",
         };
-        allZipFiles["manifest.json"] = JSON.stringify(manifest, null, 2);
+        files["manifest.json"] = JSON.stringify(manifest, null, 2);
 
-        const zipData = buildZip(allZipFiles);
+        const zipData = buildZip(files);
         const r2Key = IMPORT_EXPORT_R2_KEYS.exportZip(taskId);
 
         await this.env.R2.put(r2Key, zipData, {
           httpMetadata: { contentType: "application/zip" },
           customMetadata: { taskId },
         });
+
+        // 清理临时文件
+        await this.deleteAllTempFiles(tempPrefixKey);
 
         await this.updateProgress(progressKey, {
           status: "completed",
@@ -211,15 +230,9 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         });
       });
 
-      console.log(
-        JSON.stringify({
-          message: "export workflow completed",
-          taskId,
-          postCount: posts.length,
-        }),
-      );
+      console.log(JSON.stringify({ message: "export workflow completed", taskId, postCount: posts.length }));
 
-      // 清理
+      // 24小时后清理最终的 ZIP
       const cleanupTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await step.sleepUntil("cleanup delay", cleanupTime);
       await step.do("cleanup export zip", async () => {
@@ -254,9 +267,19 @@ export class ExportWorkflow extends WorkflowEntrypoint<
   }
 
   private async updateProgress(key: string, progress: TaskProgress) {
-    await CacheService.set({ env: this.env }, key, JSON.stringify(progress), {
-      ttl: "24h",
-    });
+    await CacheService.set({ env: this.env }, key, JSON.stringify(progress), { ttl: "24h" });
+  }
+
+  private async deleteAllTempFiles(prefix: string) {
+    let cursor: string | undefined;
+    do {
+      const list = await this.env.R2.list({ prefix, cursor, limit: 100 });
+      const keys = list.objects.map(o => o.key);
+      if (keys.length > 0) {
+        await Promise.all(keys.map(key => this.env.R2.delete(key)));
+      }
+      cursor = list.truncated ? list.cursor : undefined;
+    } while (cursor);
   }
 }
 
@@ -302,7 +325,7 @@ async function processPost(
     zipFiles[`${prefix}/content.json`] = JSON.stringify(post.contentJson, null, 2);
   }
 
-  // 下载图片（并发，带超时）
+  // 下载图片
   if (post.contentJson) {
     const imageKeys = extractAllImageKeys(post.contentJson);
     const downloadPromises = imageKeys.map(async (key) => {
