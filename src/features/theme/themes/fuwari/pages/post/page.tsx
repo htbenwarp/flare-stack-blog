@@ -1,7 +1,7 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, FileText, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import type { PostPageProps } from "@/features/theme/contract/pages";
 import { FuwariCommentSection } from "@/features/theme/themes/fuwari/components/comments/view/comment-section";
 import { ContentRenderer } from "@/features/theme/themes/fuwari/components/content/content-renderer";
@@ -13,6 +13,7 @@ import { RelatedPosts, RelatedPostsSkeleton } from "./components/related-posts";
 import TableOfContents from "./components/table-of-contents";
 import { getAdjacentPostsFn, getAdjacentGuestPostsFn } from "@/features/posts/api/posts.public.api";
 import { postGuestAuthorSlugQuery } from "@/features/posts/queries";
+import { cn } from "@/lib/utils";
 
 function EncryptedPostGate({ post, slug, onUnlocked }: any) {
   const [password, setPassword] = useState("");
@@ -110,6 +111,7 @@ export function PostPage({ post }: PostPageProps) {
   const { data: session, isLoading: sessionLoading } = authClient.useSession();
   const { slug } = useParams({ from: "/_public/post/$slug" });
   const [unlockedPost, setUnlockedPost] = useState<any>(null);
+  const [tocOpen, setTocOpen] = useState(false);
 
   useEffect(() => { setUnlockedPost(null); }, [slug]);
 
@@ -222,18 +224,34 @@ export function PostPage({ post }: PostPageProps) {
       <div className="fuwari-card-base z-10 px-6 md:px-9 pt-6 pb-4 relative w-full fuwari-onload-animation">
         {breadcrumb}
 
-        {/* 移动端可折叠目录 */}
+        {/* 移动端可折叠目录（带动画） */}
         {!isGuestPost && safeDisplayPost.toc?.length > 0 && (
-          <details className="mb-6 block 2xl:hidden">
-            <summary className="text-sm font-medium fuwari-text-90 cursor-pointer list-none flex items-center gap-1">
+          <div className="mb-6 block 2xl:hidden">
+            <button
+              onClick={() => setTocOpen(!tocOpen)}
+              className="text-sm font-medium fuwari-text-90 cursor-pointer flex items-center gap-1 w-full text-left"
+            >
               <span className="w-1 h-4 rounded-md bg-(--fuwari-primary)" />
               <span>{m.table_of_contents_title?.() ?? "目录"}</span>
-              <ChevronRight className="transition-transform duration-200 [details[open]_&]:rotate-90" size={14} />
-            </summary>
-            <div className="mt-3 ml-4 border-l border-(--fuwari-primary)/20 pl-4">
-              <TableOfContents headers={safeDisplayPost.toc} variant="inline" />
+              <ChevronRight
+                size={14}
+                className={cn(
+                  "transition-transform duration-200",
+                  tocOpen && "rotate-90"
+                )}
+              />
+            </button>
+            <div
+              className={cn(
+                "overflow-hidden transition-all duration-300 ease-in-out",
+                tocOpen ? "max-h-96 mt-3" : "max-h-0"
+              )}
+            >
+              <div className="ml-4 border-l border-(--fuwari-primary)/20 pl-4">
+                <TableOfContents headers={safeDisplayPost.toc} variant="inline" />
+              </div>
             </div>
-          </details>
+          </div>
         )}
 
         <div className="flex flex-row flex-wrap fuwari-text-30 gap-5 mb-3 transition">
