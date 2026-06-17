@@ -38,6 +38,8 @@ interface ExportWorkflowParams {
 const CONCURRENCY = 5;
 const BATCH_SIZE = 5;
 
+const tempPrefix = (taskId: string) => `temp/export/${taskId}`;
+
 export class ExportWorkflow extends WorkflowEntrypoint<
   Env,
   ExportWorkflowParams
@@ -50,16 +52,20 @@ export class ExportWorkflow extends WorkflowEntrypoint<
     console.log(JSON.stringify({ message: "export workflow started", taskId }));
 
     try {
-      // 步骤1：获取文章列表（包含全文，可能很大）
-      const posts = await step.do("fetch posts", async () => {
+      // 步骤1：仅获取文章 ID 列表（轻量），避免序列化大对象
+      const postIdsResult = await step.do("fetch post ids", async () => {
         const db = getDb(this.env);
-        return await PostRepo.findFullPosts(db, {
+        const posts = await PostRepo.findFullPosts(db, {
           ids: postIds && postIds.length > 0 ? postIds : undefined,
           status: status ?? undefined,
         });
+        return {
+          ids: posts.map((p) => p.id),
+          totalCount: posts.length,
+        };
       });
 
-      if (posts.length === 0) {
+      if (postIdsResult.ids.length === 0) {
         await this.updateProgress(progressKey, {
           status: "completed",
           total: 0,
@@ -71,7 +77,10 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         return;
       }
 
-      // 步骤2：获取客邸作者
+      const allPostIds = postIdsResult.ids;
+      const totalPosts = postIdsResult.totalCount;
+
+      // 步骤2：获取客邸作者（小数据）
       const guestAuthors = await step.do("fetch guest authors", async () => {
         const db = getDb(this.env);
         const authors = await db.select().from(GuestAuthorsTable).all();
@@ -100,27 +109,46 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         }));
       });
 
-      // 步骤3：分批处理文章，每批返回文件内容（注意：可能超过 32 MiB）
-      const allZipFiles: Record<string, Uint8Array | string> = {};
+      // 步骤3：分批处理文章，每批在 step 内查询完整数据并上传临时文件
       const allWarnings: string[] = [];
+      const allFilePaths: string[] = [];
 
-      for (let batchStart = 0; batchStart < posts.length; batchStart += BATCH_SIZE) {
-        const batchEnd = Math.min(batchStart + BATCH_SIZE, posts.length);
-        const batchPosts = posts.slice(batchStart, batchEnd);
+      for (let batchStart = 0; batchStart < allPostIds.length; batchStart += BATCH_SIZE) {
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, allPostIds.length);
+        const batchIds = allPostIds.slice(batchStart, batchEnd);
 
         const batchResult = await step.do(
           `process batch ${batchStart}-${batchEnd}`,
           async () => {
-            const zipFiles: Record<string, Uint8Array | string> = {};
-            const warnings: string[] = [];
+            // 在该步骤内查询完整文章数据（不跨 step 返回大对象）
+            const db = getDb(this.env);
+            const posts = await PostRepo.findFullPosts(db, { ids: batchIds });
 
-            const queue = [...batchPosts];
+            const warnings: string[] = [];
+            const filePaths: string[] = [];
+
+            // 并发处理本批文章
+            const queue = [...posts];
             const worker = async () => {
               while (queue.length > 0) {
                 const post = queue.shift()!;
                 try {
                   const res = await processPost(post, this.env, locale);
-                  Object.assign(zipFiles, res.zipFiles);
+                  for (const [filePath, data] of Object.entries(res.zipFiles)) {
+                    const tempKey = `${tempPrefix(taskId)}/${filePath}`;
+                    const body =
+                      typeof data === "string"
+                        ? new TextEncoder().encode(data)
+                        : data;
+                    await this.env.R2.put(tempKey, body, {
+                      httpMetadata: {
+                        contentType: filePath.endsWith(".json")
+                          ? "application/json"
+                          : "application/octet-stream",
+                      },
+                    });
+                    filePaths.push(filePath);
+                  }
                   warnings.push(...res.warnings);
                 } catch (err) {
                   warnings.push(
@@ -134,37 +162,42 @@ export class ExportWorkflow extends WorkflowEntrypoint<
             };
 
             const workers = Array.from(
-              { length: Math.min(CONCURRENCY, batchPosts.length) },
+              { length: Math.min(CONCURRENCY, posts.length) },
               () => worker(),
             );
             await Promise.all(workers);
 
-            return { zipFiles, warnings };
+            return { warnings, filePaths };
           },
         );
 
-        Object.assign(allZipFiles, batchResult.zipFiles);
         allWarnings.push(...batchResult.warnings);
+        allFilePaths.push(...batchResult.filePaths);
 
         await this.updateProgress(progressKey, {
           status: "processing",
-          total: posts.length,
+          total: totalPosts,
           completed: batchEnd,
-          current: posts[batchEnd - 1]?.title ?? "",
+          current: `batch ${batchStart}-${batchEnd}`,
           errors: [],
           warnings: allWarnings,
         });
       }
 
-      // 步骤4：生成其他 JSON 并打包上传（文件内容可能很大）
-      await step.do("build and upload zip", async () => {
+      // 步骤4：生成 metadata 文件并上传临时
+      const manifestData = await step.do("write metadata files", async () => {
+        // 需要 tags 信息，可分批查询或从已经处理过的数据中获取？这里简单起见，再次查询全量文章（仅需要 tags 和基本信息，无 contentJson）
+        const db = getDb(this.env);
+        const posts = await PostRepo.findFullPosts(db, { ids: allPostIds });
+
         const uniqueTagsMap = new Map<string, (typeof posts)[0]["tags"][0]>();
         for (const post of posts) {
           for (const tag of post.tags ?? []) {
             uniqueTagsMap.set(tag.name, tag);
           }
         }
-        allZipFiles["tags.json"] = JSON.stringify(
+
+        const tagsJson = JSON.stringify(
           Array.from(uniqueTagsMap.values()).map((t) => ({
             name: t.name,
             createdAt: t.createdAt?.toISOString() ?? new Date().toISOString(),
@@ -173,17 +206,52 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           2,
         );
 
-        allZipFiles["guest_authors.json"] = JSON.stringify(guestAuthors, null, 2);
+        const guestAuthorsJson = JSON.stringify(guestAuthors, null, 2);
 
         const manifest: ExportManifest = {
           version: EXPORT_MANIFEST_VERSION,
           exportedAt: new Date().toISOString(),
-          postCount: posts.length,
+          postCount: totalPosts,
           generator: "blog-cms",
         };
-        allZipFiles["manifest.json"] = JSON.stringify(manifest, null, 2);
+        const manifestJson = JSON.stringify(manifest, null, 2);
 
-        const zipData = buildZip(allZipFiles);
+        const uploadMeta = async (path: string, content: string) => {
+          await this.env.R2.put(`${tempPrefix(taskId)}/${path}`, content, {
+            httpMetadata: { contentType: "application/json" },
+          });
+          allFilePaths.push(path);
+        };
+
+        await Promise.all([
+          uploadMeta("tags.json", tagsJson),
+          uploadMeta("guest_authors.json", guestAuthorsJson),
+          uploadMeta("manifest.json", manifestJson),
+        ]);
+
+        return manifest;
+      });
+
+      // 步骤5：从临时文件构建 ZIP 并上传最终位置
+      await step.do("build and upload zip", async () => {
+        const files: Record<string, Uint8Array | string> = {};
+
+        // 分批下载临时文件，避免内存峰值
+        const DOWNLOAD_BATCH = 50;
+        for (let i = 0; i < allFilePaths.length; i += DOWNLOAD_BATCH) {
+          const batchPaths = allFilePaths.slice(i, i + DOWNLOAD_BATCH);
+          const batchPromises = batchPaths.map(async (path) => {
+            const tempKey = `${tempPrefix(taskId)}/${path}`;
+            const obj = await this.env.R2.get(tempKey);
+            if (obj) {
+              const buffer = await obj.arrayBuffer();
+              files[path] = new Uint8Array(buffer);
+            }
+          });
+          await Promise.all(batchPromises);
+        }
+
+        const zipData = buildZip(files);
         const r2Key = IMPORT_EXPORT_R2_KEYS.exportZip(taskId);
 
         await this.env.R2.put(r2Key, zipData, {
@@ -191,10 +259,13 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           customMetadata: { taskId },
         });
 
+        // 清理临时文件
+        await this.deleteAllTempFiles(tempPrefix(taskId));
+
         await this.updateProgress(progressKey, {
           status: "completed",
-          total: posts.length,
-          completed: posts.length,
+          total: totalPosts,
+          completed: totalPosts,
           current: "",
           errors: [],
           warnings: allWarnings,
@@ -202,7 +273,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         });
       });
 
-      // 清理
+      // 清理最终 ZIP（24h 后）
       const cleanupTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await step.sleepUntil("cleanup delay", cleanupTime);
       await step.do("cleanup export zip", async () => {
@@ -241,6 +312,18 @@ export class ExportWorkflow extends WorkflowEntrypoint<
       ttl: "24h",
     });
   }
+
+  private async deleteAllTempFiles(prefix: string) {
+    let cursor: string | undefined;
+    do {
+      const list = await this.env.R2.list({ prefix, cursor, limit: 100 });
+      const keys = list.objects.map((o) => o.key);
+      if (keys.length > 0) {
+        await Promise.all(keys.map((key) => this.env.R2.delete(key)));
+      }
+      cursor = list.truncated ? list.cursor : undefined;
+    } while (cursor);
+  }
 }
 
 // ---------- 辅助函数 ----------
@@ -249,7 +332,10 @@ async function processPost(
   post: Awaited<ReturnType<typeof PostRepo.findFullPosts>>[0],
   env: Env,
   locale: string,
-): Promise<{ zipFiles: Record<string, Uint8Array | string>; warnings: string[] }> {
+): Promise<{
+  zipFiles: Record<string, Uint8Array | string>;
+  warnings: string[];
+}> {
   const zipFiles: Record<string, Uint8Array | string> = {};
   const warnings: string[] = [];
   const slug = post.slug;
@@ -282,10 +368,13 @@ async function processPost(
   zipFiles[`${prefix}/index.md`] = stringifyFrontmatter(frontmatter, markdown);
 
   if (post.contentJson) {
-    zipFiles[`${prefix}/content.json`] = JSON.stringify(post.contentJson, null, 2);
+    zipFiles[`${prefix}/content.json`] = JSON.stringify(
+      post.contentJson,
+      null,
+      2,
+    );
   }
 
-  // 下载图片
   if (post.contentJson) {
     const imageKeys = extractAllImageKeys(post.contentJson);
     const downloadPromises = imageKeys.map(async (key) => {
