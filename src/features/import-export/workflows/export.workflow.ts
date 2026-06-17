@@ -49,12 +49,15 @@ export class ExportWorkflow extends WorkflowEntrypoint<
     const progressKey = IMPORT_EXPORT_CACHE_KEYS.exportProgress(taskId);
     const locale = requestedLocale ?? serverEnv(this.env).LOCALE;
 
+    // 保存 this.env 以便在回调中使用
+    const env = this.env;
+
     console.log(JSON.stringify({ message: "export workflow started", taskId }));
 
     try {
-      // 步骤1：仅获取文章 ID 列表（轻量），避免序列化大对象
+      // 步骤1：仅获取文章 ID 列表（轻量）
       const postIdsResult = await step.do("fetch post ids", async () => {
-        const db = getDb(this.env);
+        const db = getDb(env);
         const posts = await PostRepo.findFullPosts(db, {
           ids: postIds && postIds.length > 0 ? postIds : undefined,
           status: status ?? undefined,
@@ -80,9 +83,9 @@ export class ExportWorkflow extends WorkflowEntrypoint<
       const allPostIds = postIdsResult.ids;
       const totalPosts = postIdsResult.totalCount;
 
-      // 步骤2：获取客邸作者（小数据）
+      // 步骤2：获取客邸作者
       const guestAuthors = await step.do("fetch guest authors", async () => {
-        const db = getDb(this.env);
+        const db = getDb(env);
         const authors = await db.select().from(GuestAuthorsTable).all();
         const authorPostMap: Record<number, string[]> = {};
         for (const author of authors) {
@@ -109,7 +112,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         }));
       });
 
-      // 步骤3：分批处理文章，每批在 step 内查询完整数据并上传临时文件
+      // 步骤3：分批处理文章，每批查询完整数据并上传临时文件
       const allWarnings: string[] = [];
       const allFilePaths: string[] = [];
 
@@ -120,27 +123,25 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         const batchResult = await step.do(
           `process batch ${batchStart}-${batchEnd}`,
           async () => {
-            // 在该步骤内查询完整文章数据（不跨 step 返回大对象）
-            const db = getDb(this.env);
+            const db = getDb(env);
             const posts = await PostRepo.findFullPosts(db, { ids: batchIds });
 
             const warnings: string[] = [];
             const filePaths: string[] = [];
 
-            // 并发处理本批文章
             const queue = [...posts];
             const worker = async () => {
               while (queue.length > 0) {
                 const post = queue.shift()!;
                 try {
-                  const res = await processPost(post, this.env, locale);
+                  const res = await processPost(post, env, locale);
                   for (const [filePath, data] of Object.entries(res.zipFiles)) {
                     const tempKey = `${tempPrefix(taskId)}/${filePath}`;
                     const body =
                       typeof data === "string"
                         ? new TextEncoder().encode(data)
                         : data;
-                    await this.env.R2.put(tempKey, body, {
+                    await env.R2.put(tempKey, body, {
                       httpMetadata: {
                         contentType: filePath.endsWith(".json")
                           ? "application/json"
@@ -184,11 +185,11 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         });
       }
 
-      // 步骤4：生成 metadata 文件并上传临时
+      // 步骤4：生成 metadata 文件并上传临时（使用轻量查询，不加载 contentJson）
       const manifestData = await step.do("write metadata files", async () => {
-        // 需要 tags 信息，可分批查询或从已经处理过的数据中获取？这里简单起见，再次查询全量文章（仅需要 tags 和基本信息，无 contentJson）
-        const db = getDb(this.env);
-        const posts = await PostRepo.findFullPosts(db, { ids: allPostIds });
+        const db = getDb(env);
+        // 使用仅返回列表项的查询，避免内存膨胀
+        const posts = await PostRepo.getPublicPostsByIds(db, allPostIds);
 
         const uniqueTagsMap = new Map<string, (typeof posts)[0]["tags"][0]>();
         for (const post of posts) {
@@ -217,7 +218,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         const manifestJson = JSON.stringify(manifest, null, 2);
 
         const uploadMeta = async (path: string, content: string) => {
-          await this.env.R2.put(`${tempPrefix(taskId)}/${path}`, content, {
+          await env.R2.put(`${tempPrefix(taskId)}/${path}`, content, {
             httpMetadata: { contentType: "application/json" },
           });
           allFilePaths.push(path);
@@ -232,7 +233,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         return manifest;
       });
 
-      // 步骤5：从临时文件构建 ZIP 并上传最终位置
+      // 步骤5：构建最终 ZIP 并上传
       await step.do("build and upload zip", async () => {
         const files: Record<string, Uint8Array | string> = {};
 
@@ -242,7 +243,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           const batchPaths = allFilePaths.slice(i, i + DOWNLOAD_BATCH);
           const batchPromises = batchPaths.map(async (path) => {
             const tempKey = `${tempPrefix(taskId)}/${path}`;
-            const obj = await this.env.R2.get(tempKey);
+            const obj = await env.R2.get(tempKey);
             if (obj) {
               const buffer = await obj.arrayBuffer();
               files[path] = new Uint8Array(buffer);
@@ -254,7 +255,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         const zipData = buildZip(files);
         const r2Key = IMPORT_EXPORT_R2_KEYS.exportZip(taskId);
 
-        await this.env.R2.put(r2Key, zipData, {
+        await env.R2.put(r2Key, zipData, {
           httpMetadata: { contentType: "application/zip" },
           customMetadata: { taskId },
         });
@@ -273,13 +274,13 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         });
       });
 
-      // 清理最终 ZIP（24h 后）
+      // 24小时后清理最终 ZIP
       const cleanupTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await step.sleepUntil("cleanup delay", cleanupTime);
       await step.do("cleanup export zip", async () => {
         const r2Key = IMPORT_EXPORT_R2_KEYS.exportZip(taskId);
         try {
-          await this.env.R2.delete(r2Key);
+          await env.R2.delete(r2Key);
         } catch {
           // ignore
         }
