@@ -18,7 +18,7 @@ import {
 } from "@/features/import-export/utils/markdown-serializer";
 import { buildZip } from "@/features/import-export/utils/zip";
 import { getFromR2 } from "@/features/media/data/media.storage";
-import * as PostRepo from "@/features/posts/data/posts.data";
+import * as PostRepo from "@/features/posts/data/posts.data"; // 保留导入，但实际可能不再需要 findFullPosts 在这个文件里直接使用？
 import { extractAllImageKeys } from "@/features/posts/utils/content";
 import { getDb } from "@/lib/db";
 import { serverEnv } from "@/lib/env/server.env";
@@ -35,7 +35,7 @@ interface ExportWorkflowParams {
   locale?: string;
 }
 
-const CONCURRENCY = 5;
+const CONCURRENCY = 3;
 const BATCH_SIZE = 5;
 
 const tempPrefix = (taskId: string) => `temp/export/${taskId}`;
@@ -48,20 +48,33 @@ export class ExportWorkflow extends WorkflowEntrypoint<
     const { taskId, postIds, status, locale: requestedLocale } = event.payload;
     const progressKey = IMPORT_EXPORT_CACHE_KEYS.exportProgress(taskId);
     const locale = requestedLocale ?? serverEnv(this.env).LOCALE;
+    const env = this.env;
 
     console.log(JSON.stringify({ message: "export workflow started", taskId }));
 
+    const allTagsSet = new Set<string>();
+    const allWarnings: string[] = [];
+    const allFilePaths: string[] = [];
+
     try {
-      // 步骤1：仅获取文章 ID 列表（轻量），避免序列化大对象
+      // 步骤1：仅获取文章 ID
       const postIdsResult = await step.do("fetch post ids", async () => {
-        const db = getDb(this.env);
-        const posts = await PostRepo.findFullPosts(db, {
-          ids: postIds && postIds.length > 0 ? postIds : undefined,
-          status: status ?? undefined,
-        });
+        const db = getDb(env);
+        let query = db.select({ id: PostsTable.id }).from(PostsTable);
+        const conditions = [];
+        if (postIds && postIds.length > 0) {
+          conditions.push(inArray(PostsTable.id, postIds));
+        }
+        if (status) {
+          conditions.push(eq(PostsTable.status, status));
+        }
+        if (conditions.length > 0) {
+          query = query.where(and(...conditions));
+        }
+        const rows = await query.all();
         return {
-          ids: posts.map((p) => p.id),
-          totalCount: posts.length,
+          ids: rows.map((r) => r.id),
+          totalCount: rows.length,
         };
       });
 
@@ -80,9 +93,9 @@ export class ExportWorkflow extends WorkflowEntrypoint<
       const allPostIds = postIdsResult.ids;
       const totalPosts = postIdsResult.totalCount;
 
-      // 步骤2：获取客邸作者（小数据）
+      // 步骤2：获取客邸作者
       const guestAuthors = await step.do("fetch guest authors", async () => {
-        const db = getDb(this.env);
+        const db = getDb(env);
         const authors = await db.select().from(GuestAuthorsTable).all();
         const authorPostMap: Record<number, string[]> = {};
         for (const author of authors) {
@@ -109,10 +122,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         }));
       });
 
-      // 步骤3：分批处理文章，每批在 step 内查询完整数据并上传临时文件
-      const allWarnings: string[] = [];
-      const allFilePaths: string[] = [];
-
+      // 步骤3：分批处理文章，收集标签
       for (let batchStart = 0; batchStart < allPostIds.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, allPostIds.length);
         const batchIds = allPostIds.slice(batchStart, batchEnd);
@@ -120,27 +130,37 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         const batchResult = await step.do(
           `process batch ${batchStart}-${batchEnd}`,
           async () => {
-            // 在该步骤内查询完整文章数据（不跨 step 返回大对象）
-            const db = getDb(this.env);
-            const posts = await PostRepo.findFullPosts(db, { ids: batchIds });
+            const db = getDb(env);
+            // 查询本批文章的完整数据
+            const posts = await db.query.PostsTable.findMany({
+              where: inArray(PostsTable.id, batchIds),
+              with: { postTags: { with: { tag: true } } },
+            });
 
             const warnings: string[] = [];
             const filePaths: string[] = [];
+            const batchTags = new Set<string>();
 
-            // 并发处理本批文章
             const queue = [...posts];
             const worker = async () => {
               while (queue.length > 0) {
                 const post = queue.shift()!;
                 try {
-                  const res = await processPost(post, this.env, locale);
+                  const tags = post.postTags.map((pt) => pt.tag);
+                  const postWithTags = { ...post, tags };
+
+                  for (const tag of tags) {
+                    batchTags.add(tag.name);
+                  }
+
+                  const res = await processPost(postWithTags, env, locale);
                   for (const [filePath, data] of Object.entries(res.zipFiles)) {
                     const tempKey = `${tempPrefix(taskId)}/${filePath}`;
                     const body =
                       typeof data === "string"
                         ? new TextEncoder().encode(data)
                         : data;
-                    await this.env.R2.put(tempKey, body, {
+                    await env.R2.put(tempKey, body, {
                       httpMetadata: {
                         contentType: filePath.endsWith(".json")
                           ? "application/json"
@@ -167,12 +187,19 @@ export class ExportWorkflow extends WorkflowEntrypoint<
             );
             await Promise.all(workers);
 
-            return { warnings, filePaths };
+            return {
+              warnings,
+              filePaths,
+              batchTags: Array.from(batchTags),
+            };
           },
         );
 
         allWarnings.push(...batchResult.warnings);
         allFilePaths.push(...batchResult.filePaths);
+        for (const tagName of batchResult.batchTags) {
+          allTagsSet.add(tagName);
+        }
 
         await this.updateProgress(progressKey, {
           status: "processing",
@@ -184,23 +211,13 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         });
       }
 
-      // 步骤4：生成 metadata 文件并上传临时
-      const manifestData = await step.do("write metadata files", async () => {
-        // 需要 tags 信息，可分批查询或从已经处理过的数据中获取？这里简单起见，再次查询全量文章（仅需要 tags 和基本信息，无 contentJson）
-        const db = getDb(this.env);
-        const posts = await PostRepo.findFullPosts(db, { ids: allPostIds });
-
-        const uniqueTagsMap = new Map<string, (typeof posts)[0]["tags"][0]>();
-        for (const post of posts) {
-          for (const tag of post.tags ?? []) {
-            uniqueTagsMap.set(tag.name, tag);
-          }
-        }
-
+      // 步骤4：生成 metadata 文件（不再查询数据库）
+      await step.do("write metadata files", async () => {
+        // 直接从累积的标签集合生成 tags.json
         const tagsJson = JSON.stringify(
-          Array.from(uniqueTagsMap.values()).map((t) => ({
-            name: t.name,
-            createdAt: t.createdAt?.toISOString() ?? new Date().toISOString(),
+          Array.from(allTagsSet).map((name) => ({
+            name,
+            createdAt: new Date().toISOString(),
           })),
           null,
           2,
@@ -217,7 +234,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         const manifestJson = JSON.stringify(manifest, null, 2);
 
         const uploadMeta = async (path: string, content: string) => {
-          await this.env.R2.put(`${tempPrefix(taskId)}/${path}`, content, {
+          await env.R2.put(`${tempPrefix(taskId)}/${path}`, content, {
             httpMetadata: { contentType: "application/json" },
           });
           allFilePaths.push(path);
@@ -228,21 +245,19 @@ export class ExportWorkflow extends WorkflowEntrypoint<
           uploadMeta("guest_authors.json", guestAuthorsJson),
           uploadMeta("manifest.json", manifestJson),
         ]);
-
-        return manifest;
       });
 
-      // 步骤5：从临时文件构建 ZIP 并上传最终位置
+      // 步骤5：构建最终 ZIP 并上传
       await step.do("build and upload zip", async () => {
         const files: Record<string, Uint8Array | string> = {};
 
         // 分批下载临时文件，避免内存峰值
-        const DOWNLOAD_BATCH = 50;
+        const DOWNLOAD_BATCH = 30;
         for (let i = 0; i < allFilePaths.length; i += DOWNLOAD_BATCH) {
           const batchPaths = allFilePaths.slice(i, i + DOWNLOAD_BATCH);
           const batchPromises = batchPaths.map(async (path) => {
             const tempKey = `${tempPrefix(taskId)}/${path}`;
-            const obj = await this.env.R2.get(tempKey);
+            const obj = await env.R2.get(tempKey);
             if (obj) {
               const buffer = await obj.arrayBuffer();
               files[path] = new Uint8Array(buffer);
@@ -254,7 +269,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         const zipData = buildZip(files);
         const r2Key = IMPORT_EXPORT_R2_KEYS.exportZip(taskId);
 
-        await this.env.R2.put(r2Key, zipData, {
+        await env.R2.put(r2Key, zipData, {
           httpMetadata: { contentType: "application/zip" },
           customMetadata: { taskId },
         });
@@ -273,13 +288,13 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         });
       });
 
-      // 清理最终 ZIP（24h 后）
+      // 24小时后清理最终 ZIP
       const cleanupTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await step.sleepUntil("cleanup delay", cleanupTime);
       await step.do("cleanup export zip", async () => {
         const r2Key = IMPORT_EXPORT_R2_KEYS.exportZip(taskId);
         try {
-          await this.env.R2.delete(r2Key);
+          await env.R2.delete(r2Key);
         } catch {
           // ignore
         }
@@ -297,12 +312,13 @@ export class ExportWorkflow extends WorkflowEntrypoint<
         total: 0,
         completed: 0,
         current: "",
-        errors: [],
-        warnings: [
-          error instanceof Error
-            ? error.message
-            : m.import_export_common_unknown_error({}, { locale }),
+        errors: [
+          {
+            post: "workflow",
+            reason: error instanceof Error ? error.message : String(error),
+          },
         ],
+        warnings: [],
       });
     }
   }
@@ -329,7 +345,7 @@ export class ExportWorkflow extends WorkflowEntrypoint<
 // ---------- 辅助函数 ----------
 
 async function processPost(
-  post: Awaited<ReturnType<typeof PostRepo.findFullPosts>>[0],
+  post: any,
   env: Env,
   locale: string,
 ): Promise<{
