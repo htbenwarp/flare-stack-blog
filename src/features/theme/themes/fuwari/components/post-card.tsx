@@ -1,4 +1,3 @@
-// themes/fuwari/components/post-card.tsx
 import { ClientOnly, Link } from "@tanstack/react-router";
 import {
   Calendar,
@@ -23,7 +22,6 @@ interface PostCardProps {
   popular?: boolean;
   views?: number;
   isLoadingViews?: boolean;
-  // 不再需要外部传入 likeCount，组件内部自行获取
 }
 
 export function PostCard({
@@ -35,11 +33,14 @@ export function PostCard({
 }: PostCardProps) {
   const tagNames = (post.tags ?? []).map((t) => t.name);
 
-  // 内部获取点赞数（与详情页使用相同的查询函数）
+  // 编码 slug，确保中英文路径一致
+  const encodedSlug = encodeURIComponent(post.slug);
+  const likePath = `/post/${encodedSlug}`;
+
   const { data: likeData, isPending: isLoadingLikeCount } = useQuery({
-    queryKey: ["likeCount", `/post/${post.slug}`],
-    queryFn: () => getLikeCountFn({ data: { path: `/post/${post.slug}` } }),
-    staleTime: 0, // 即时更新：每次挂载都重新请求，确保点赞后立即显示最新数据
+    queryKey: ["likeCount", likePath],
+    queryFn: () => getLikeCountFn({ data: { path: likePath } }),
+    staleTime: 0,
   });
 
   const likeCount = likeData?.count ?? 0;
@@ -188,17 +189,19 @@ export function PostCard({
             )
           )}
 
-          {/* 点赞数 – 组件内部获取，确保即时显示 */}
+          {/* 点赞数 – 仅当 > 0 时显示 */}
           {isLoadingLikeCount ? (
             <span className="inline-flex items-center gap-1.5">
               <Heart size={14} />
               <Skeleton className="h-3.5 w-8 rounded bg-black/10 dark:bg-white/10" />
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5">
-              <Heart size={14} />
-              {likeCount.toLocaleString()}
-            </span>
+            likeCount > 0 && (
+              <span className="inline-flex items-center gap-1.5">
+                <Heart size={14} />
+                {likeCount.toLocaleString()}
+              </span>
+            )
           )}
         </div>
       </div>
