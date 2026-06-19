@@ -1,12 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { useQueries } from "@tanstack/react-query";
 import { useViewCounts } from "@/features/pageview/queries";
 import type { PostItem } from "@/features/posts/schema/posts.schema";
 import type { HomePageProps } from "@/features/theme/contract/pages";
 import { m } from "@/paraglide/messages";
 import { PostCard } from "../../components/post-card";
-import { useQuery } from "@tanstack/react-query";
-import { getLikeCountsByPathsFn } from "@/features/likes/api/likes.public.api";
+import { getLikeCountFn } from "@/features/likes/api/likes.public.api";
 
 interface MergedPost {
   post: PostItem;
@@ -51,27 +51,32 @@ export function HomePage({ posts, pinnedPosts, popularPosts }: HomePageProps) {
   const { data: viewCounts, isPending: isPendingViewCounts } =
     useViewCounts(allSlugs);
 
-  // 批量获取点赞数
+  // 并行获取每个路径的点赞数（与详情页使用同一函数，确保稳定性）
   const paths = useMemo(
     () => allSlugs.map((slug) => `/post/${slug}`),
     [allSlugs],
   );
-  const { data: likeCounts, isPending: isPendingLikeCounts } = useQuery({
-    queryKey: ["likeCounts", paths],
-    queryFn: () => getLikeCountsByPathsFn({ data: { paths } }),
-    staleTime: 60 * 1000, // 1分钟内不重复请求
+
+  const likeQueries = useQueries({
+    queries: paths.map((path) => ({
+      queryKey: ["likeCount", path],
+      queryFn: () => getLikeCountFn({ data: { path } }),
+      staleTime: 60 * 1000,
+    })),
   });
 
   const likeCountMap = useMemo(() => {
     const map: Record<string, number> = {};
-    if (likeCounts) {
-      for (const item of likeCounts) {
-        // 路径是 /post/slug，需要提取 slug 作为 key 或直接使用 path
-        map[item.path] = item.count;
+    for (const query of likeQueries) {
+      if (query.data) {
+        const path = query.queryKey[1] as string;
+        map[path] = query.data.count;
       }
     }
     return map;
-  }, [likeCounts]);
+  }, [likeQueries]);
+
+  const isPendingLikeCounts = likeQueries.some((q) => q.isPending);
 
   return (
     <div className="flex flex-col gap-4">
