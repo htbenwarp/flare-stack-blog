@@ -5,6 +5,7 @@ import {
   Clock,
   Eye,
   Flame,
+  Heart,
   Pin,
   Tag,
 } from "lucide-react";
@@ -19,6 +20,8 @@ interface PostCardProps {
   popular?: boolean;
   views?: number;
   isLoadingViews?: boolean;
+  likeCount?: number;
+  isLoadingLikeCount?: boolean;
 }
 
 export function PostCard({
@@ -27,6 +30,8 @@ export function PostCard({
   popular,
   views,
   isLoadingViews,
+  likeCount,
+  isLoadingLikeCount,
 }: PostCardProps) {
   const tagNames = (post.tags ?? []).map((t) => t.name);
 
@@ -154,7 +159,7 @@ export function PostCard({
           {post.summary ?? ""}
         </div>
 
-        {/* Read time and Views */}
+        {/* Read time, Views, and Likes */}
         <div className="text-sm fuwari-text-50 flex items-center gap-4 [&_svg]:shrink-0">
           <span className="inline-flex items-center gap-1.5">
             <Clock size={14} />
@@ -170,6 +175,20 @@ export function PostCard({
               <span className="inline-flex items-center gap-1.5">
                 <Eye size={15} />
                 {views.toLocaleString()}
+              </span>
+            )
+          )}
+          {/* 点赞数 */}
+          {isLoadingLikeCount ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Heart size={14} />
+              <Skeleton className="h-3.5 w-8 rounded bg-black/10 dark:bg-white/10" />
+            </span>
+          ) : (
+            likeCount !== undefined && (
+              <span className="inline-flex items-center gap-1.5">
+                <Heart size={14} />
+                {likeCount.toLocaleString()}
               </span>
             )
           )}

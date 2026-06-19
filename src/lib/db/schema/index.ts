@@ -7,3 +7,4 @@ export * from "./page-views.table";
 export * from "./post-revisions.table";
 export * from "./posts.table";
 export * from "./guest-authors.table";
+export * from "./page-likes.table";

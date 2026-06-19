@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 export default function TableOfContents({
   headers,
-  variant = "fixed", // "fixed" | "inline"
+  variant = "fixed",
 }: {
   headers: Array<TableOfContentsItem>;
   variant?: "fixed" | "inline";
@@ -66,10 +66,14 @@ export default function TableOfContents({
       let sectionBottom: number;
       if (i < headers.length - 1) {
         const nextHeading = document.getElementById(headers[i + 1].id);
-        sectionBottom = nextHeading ? nextHeading.getBoundingClientRect().top : window.innerHeight;
+        sectionBottom = nextHeading
+          ? nextHeading.getBoundingClientRect().top
+          : window.innerHeight;
       } else {
         const content = heading.closest(".fuwari-custom-md");
-        sectionBottom = content ? content.getBoundingClientRect().bottom : document.documentElement.scrollHeight - window.scrollY;
+        sectionBottom = content
+          ? content.getBoundingClientRect().bottom
+          : document.documentElement.scrollHeight - window.scrollY;
       }
       const isInViewport =
         (sectionTop >= -1 && sectionTop < window.innerHeight) ||
@@ -91,7 +95,11 @@ export default function TableOfContents({
     if (minIdx <= maxIdx) {
       for (let j = minIdx; j <= maxIdx; j++) newActiveIndices.push(j);
     }
-    setActiveIndices((prev) => (JSON.stringify(prev) === JSON.stringify(newActiveIndices) ? prev : newActiveIndices));
+    setActiveIndices((prev) =>
+      JSON.stringify(prev) === JSON.stringify(newActiveIndices)
+        ? prev
+        : newActiveIndices,
+    );
   }, [headers]);
 
   useEffect(() => {
@@ -112,25 +120,40 @@ export default function TableOfContents({
   }, [headers, computeActiveHeadings]);
 
   useEffect(() => {
-    if (variant !== "fixed" || activeIndices.length === 0 || !linksContainerRef.current) {
+    if (
+      variant !== "fixed" ||
+      activeIndices.length === 0 ||
+      !linksContainerRef.current
+    ) {
       setIndicatorStyle((prev) => ({ ...prev, opacity: 0 }));
       return;
     }
     const firstIdx = activeIndices[0];
     const lastIdx = activeIndices[activeIndices.length - 1];
     if (!headers[firstIdx] || !headers[lastIdx]) return;
-    const firstLink = linksContainerRef.current.querySelector<HTMLElement>(`a[href="#${headers[firstIdx].id}"]`);
-    const lastLink = linksContainerRef.current.querySelector<HTMLElement>(`a[href="#${headers[lastIdx].id}"]`);
+    const firstLink =
+      linksContainerRef.current.querySelector<HTMLElement>(
+        `a[href="#${headers[firstIdx].id}"]`,
+      );
+    const lastLink =
+      linksContainerRef.current.querySelector<HTMLElement>(
+        `a[href="#${headers[lastIdx].id}"]`,
+      );
     if (firstLink && lastLink) {
       const top = firstLink.offsetTop;
-      const height = lastLink.offsetHeight + lastLink.offsetTop - firstLink.offsetTop;
+      const height =
+        lastLink.offsetHeight + lastLink.offsetTop - firstLink.offsetTop;
       setIndicatorStyle({ top, height, opacity: 1 });
       if (tocRootRef.current) {
         const tocHeight = tocRootRef.current.clientHeight;
-        const scrollTarget = height < 0.9 * tocHeight
-          ? top - 32
-          : lastLink.offsetTop + lastLink.offsetHeight - tocHeight * 0.8;
-        tocRootRef.current.scrollTo({ top: scrollTarget, behavior: "smooth" });
+        const scrollTarget =
+          height < 0.9 * tocHeight
+            ? top - 32
+            : lastLink.offsetTop + lastLink.offsetHeight - tocHeight * 0.8;
+        tocRootRef.current.scrollTo({
+          top: scrollTarget,
+          behavior: "smooth",
+        });
       }
     }
   }, [activeIndices, headers, variant]);
@@ -147,23 +170,33 @@ export default function TableOfContents({
         variant === "inline" && "relative",
         variant === "fixed" && isVisible && isReady
           ? "opacity-100 translate-y-0"
-          : variant === "fixed" && "opacity-0 translate-y-4 pointer-events-none",
-        "transition-all duration-500"
+          : variant === "fixed" &&
+              "opacity-0 translate-y-4 pointer-events-none",
+        "transition-all duration-500",
       )}
     >
       <div
         ref={tocRootRef}
         className={cn(
-          variant === "fixed" && "relative toc-root overflow-y-scroll overflow-x-hidden fuwari-toc-scrollbar h-[calc(100vh-20rem)]",
-          variant === "inline" && ""
+          variant === "fixed" &&
+            "relative toc-root overflow-y-scroll overflow-x-hidden fuwari-toc-scrollbar h-[calc(100vh-20rem)]",
+          variant === "inline" && "",
         )}
-        style={variant === "fixed" ? {
-          scrollBehavior: "smooth",
-          maskImage: "linear-gradient(to bottom, transparent 0%, black 2rem, black calc(100% - 2rem), transparent 100%)",
-        } : undefined}
+        style={
+          variant === "fixed"
+            ? {
+                scrollBehavior: "smooth",
+                maskImage:
+                  "linear-gradient(to bottom, transparent 0%, black 2rem, black calc(100% - 2rem), transparent 100%)",
+              }
+            : undefined
+        }
       >
         {variant === "fixed" && <div className="h-8 w-full" />}
-        <div ref={linksContainerRef} className="group relative flex flex-col w-full">
+        <div
+          ref={linksContainerRef}
+          className="group relative flex flex-col w-full"
+        >
           {headers
             .filter((heading) => heading.level < minDepth + maxLevel)
             .map((heading) => {
@@ -179,7 +212,10 @@ export default function TableOfContents({
                     e.preventDefault();
                     const element = document.getElementById(heading.id);
                     if (element) {
-                      const top = element.getBoundingClientRect().top + window.scrollY - 80;
+                      const top =
+                        element.getBoundingClientRect().top +
+                        window.scrollY -
+                        80;
                       window.scrollTo({ top, behavior: "smooth" });
                       navigate({ hash: heading.id, replace: true });
                     }
@@ -193,7 +229,8 @@ export default function TableOfContents({
                     className={cn(
                       "transition w-5 h-5 shrink-0 rounded-lg text-xs flex items-center justify-center font-bold",
                       {
-                        "bg-[oklch(0.89_0.050_var(--fuwari-hue))] dark:bg-(--fuwari-btn-regular-bg) text-(--fuwari-btn-content)": isH1,
+                        "bg-[oklch(0.89_0.050_var(--fuwari-hue))] dark:bg-(--fuwari-btn-regular-bg) text-(--fuwari-btn-content)":
+                          isH1,
                         "ml-4": isH2,
                         "ml-8": isH3,
                       },
@@ -219,11 +256,13 @@ export default function TableOfContents({
               );
             })}
 
+          {/* ✅ 激活指示器 — 添加了 transition-colors 消除主题切换闪杠 */}
           {variant === "fixed" && headers.length > 0 && (
             <div
               className={cn(
                 "absolute left-0 right-0 rounded-xl transition-all duration-300 ease-out -z-10 border-2 border-dashed pointer-events-none",
                 "bg-(--fuwari-toc-btn-hover) border-(--fuwari-toc-btn-hover) group-hover:bg-transparent group-hover:border-(--fuwari-toc-btn-active)",
+                "transition-colors duration-200", // ← 关键：平滑主题切换
               )}
               style={{
                 top: `${indicatorStyle.top}px`,

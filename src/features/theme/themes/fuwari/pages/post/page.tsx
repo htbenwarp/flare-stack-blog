@@ -1,7 +1,7 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, FileText, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect } from "react";
 import type { PostPageProps } from "@/features/theme/contract/pages";
 import { FuwariCommentSection } from "@/features/theme/themes/fuwari/components/comments/view/comment-section";
 import { ContentRenderer } from "@/features/theme/themes/fuwari/components/content/content-renderer";
@@ -14,7 +14,10 @@ import TableOfContents from "./components/table-of-contents";
 import { getAdjacentPostsFn, getAdjacentGuestPostsFn } from "@/features/posts/api/posts.public.api";
 import { postGuestAuthorSlugQuery } from "@/features/posts/queries";
 import { cn } from "@/lib/utils";
+import { ReadingProgress } from "@/features/theme/themes/fuwari/components/reading-progress";
+import { LikeButton } from "@/features/theme/themes/fuwari/components/like-button";
 
+// 加密文章组件
 function EncryptedPostGate({ post, slug, onUnlocked }: any) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
@@ -82,7 +85,37 @@ function EncryptedPostGate({ post, slug, onUnlocked }: any) {
   );
 }
 
-function AdjacentPosts({ prev, next }: { prev?: { slug: string; title: string } | null; next?: { slug: string; title: string } | null }) {
+// 相邻文章导航（带加载骨架）
+function AdjacentPosts({
+  prev,
+  next,
+  isLoading,
+}: {
+  prev?: { slug: string; title: string } | null;
+  next?: { slug: string; title: string } | null;
+  isLoading?: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex justify-between gap-4 mt-4">
+        <div className="fuwari-card-base flex-1 flex items-center gap-3 p-4 animate-pulse">
+          <div className="h-5 w-5 rounded bg-black/10 dark:bg-white/10" />
+          <div className="space-y-2 flex-1">
+            <div className="h-3 w-12 rounded bg-black/10 dark:bg-white/10" />
+            <div className="h-4 w-3/4 rounded bg-black/10 dark:bg-white/10" />
+          </div>
+        </div>
+        <div className="fuwari-card-base flex-1 flex items-center justify-end gap-3 p-4 animate-pulse">
+          <div className="space-y-2 flex-1 text-right">
+            <div className="h-3 w-12 rounded bg-black/10 dark:bg-white/10 ml-auto" />
+            <div className="h-4 w-3/4 rounded bg-black/10 dark:bg-white/10 ml-auto" />
+          </div>
+          <div className="h-5 w-5 rounded bg-black/10 dark:bg-white/10" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex justify-between gap-4 mt-4">
       {prev ? (
@@ -164,7 +197,7 @@ export function PostPage({ post }: PostPageProps) {
   });
   const currentGuestAuthorSlug = guestInfo?.guestAuthorSlug;
 
-  const { data: adjacentData } = useQuery({
+  const { data: adjacentData, isLoading: adjacentLoading } = useQuery({
     queryKey: ["adjacent-posts", slug, isGuestPost],
     queryFn: () =>
       isGuestPost
@@ -194,15 +227,18 @@ export function PostPage({ post }: PostPageProps) {
 
   if (needPassword) {
     return (
-      <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
-        <EncryptedPostGate post={safeDisplayPost} slug={slug} onUnlocked={(full) => setUnlockedPost(full)} />
-        <AdjacentPosts prev={adjacentData?.prev} next={adjacentData?.next} />
-        {!isGuestPost && (
-          <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
-            <FuwariCommentSection postId={safeDisplayPost.id} />
-          </div>
-        )}
-      </div>
+      <>
+        <ReadingProgress />
+        <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
+          <EncryptedPostGate post={safeDisplayPost} slug={slug} onUnlocked={(full) => setUnlockedPost(full)} />
+          <AdjacentPosts prev={adjacentData?.prev} next={adjacentData?.next} isLoading={adjacentLoading} />
+          {!isGuestPost && (
+            <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
+              <FuwariCommentSection postId={safeDisplayPost.id} />
+            </div>
+          )}
+        </div>
+      </>
     );
   }
 
@@ -215,100 +251,110 @@ export function PostPage({ post }: PostPageProps) {
   };
 
   return (
-    <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
-      {/* PC 端固定目录 */}
-      <div className="hidden 2xl:block absolute top-0 h-full pl-4" style={{ right: "calc(var(--fuwari-toc-width) * -1)", width: "var(--fuwari-toc-width)" }}>
-        <TableOfContents headers={safeDisplayPost.toc} />
-      </div>
-
-      <div className="fuwari-card-base z-10 px-6 md:px-9 pt-6 pb-4 relative w-full fuwari-onload-animation">
-        {breadcrumb}
-
-        {/* 移动端可折叠目录（带动画） */}
+    <>
+      <ReadingProgress />
+      <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
+        {/* PC 端固定目录 */}
         {!isGuestPost && safeDisplayPost.toc?.length > 0 && (
-          <div className="mb-6 block 2xl:hidden">
-            <button
-              onClick={() => setTocOpen(!tocOpen)}
-              className="text-sm font-medium fuwari-text-90 cursor-pointer flex items-center gap-1 w-full text-left"
-            >
-              <span className="w-1 h-4 rounded-md bg-(--fuwari-primary)" />
-              <span>{m.table_of_contents_title?.() ?? "目录"}</span>
-              <ChevronRight
-                size={14}
-                className={cn(
-                  "transition-transform duration-200",
-                  tocOpen && "rotate-90"
-                )}
-              />
-            </button>
-            <div
-              className={cn(
-                "overflow-hidden transition-all duration-300 ease-in-out",
-                tocOpen ? "max-h-[60vh] overflow-y-auto mt-3" : "max-h-0"
-              )}
-            >
-              <div className="ml-4 border-l border-(--fuwari-primary)/20 pl-4">
-                <TableOfContents headers={safeDisplayPost.toc} variant="inline" />
-              </div>
-            </div>
+          <div className="hidden 2xl:block absolute top-0 h-full pl-4" style={{ right: "calc(var(--fuwari-toc-width) * -1)", width: "var(--fuwari-toc-width)" }}>
+            <TableOfContents headers={safeDisplayPost.toc} />
           </div>
         )}
 
-        <div className="flex flex-row flex-wrap fuwari-text-30 gap-5 mb-3 transition">
-          <div className="flex flex-row items-center">
-            <div className="transition h-6 w-6 rounded-md bg-black/5 dark:bg-white/10 fuwari-text-50 flex items-center justify-center mr-2">
-              <FileText strokeWidth={1.5} size={16} />
-            </div>
-            <div className="text-sm">{m.post_word_count({ count: wordCount })}</div>
-          </div>
-          <div className="flex flex-row items-center">
-            <div className="transition h-6 w-6 rounded-md bg-black/5 dark:bg-white/10 fuwari-text-50 flex items-center justify-center mr-2">
-              <Clock strokeWidth={1.5} size={16} />
-            </div>
-            <div className="text-sm">{m.read_time({ count: safeDisplayPost.readTimeInMinutes })}</div>
-          </div>
-          {isAdmin && (
-            <Link to="/admin/posts/edit/$id" params={{ id: String(safeDisplayPost.id) }} className="flex flex-row items-center fuwari-text-30 hover:fuwari-text-90 transition animate-in fade-in duration-500">
-              <div className="transition h-6 w-6 rounded-md bg-black/5 dark:bg-white/10 fuwari-text-50 flex items-center justify-center mr-2">
-                <Pencil strokeWidth={1.5} size={16} />
+        {/* 文章主卡片 */}
+        <div className="fuwari-card-base z-10 px-6 md:px-9 pt-6 pb-10 relative w-full fuwari-onload-animation overflow-hidden">
+          {breadcrumb}
+
+          {/* 移动端可折叠目录 */}
+          {!isGuestPost && safeDisplayPost.toc?.length > 0 && (
+            <div className="mb-6 2xl:hidden">
+              <button
+                onClick={() => setTocOpen(!tocOpen)}
+                className="text-sm font-medium fuwari-text-90 cursor-pointer flex items-center gap-1 w-full text-left"
+              >
+                <span className="w-1 h-4 rounded-md bg-(--fuwari-primary) transition-colors duration-200" />
+                <span>{m.table_of_contents_title?.() ?? "目录"}</span>
+                <ChevronRight
+                  size={14}
+                  className={cn(
+                    "transition-transform duration-200",
+                    tocOpen && "rotate-90"
+                  )}
+                />
+              </button>
+              <div
+                className={cn(
+                  "overflow-hidden transition-all duration-300 ease-in-out",
+                  tocOpen ? "max-h-[60vh] overflow-y-auto mt-3" : "max-h-0"
+                )}
+              >
+                <div className="ml-4 border-l border-(--fuwari-primary)/20 pl-4">
+                  <TableOfContents headers={safeDisplayPost.toc} variant="inline" />
+                </div>
               </div>
-              <div className="text-sm">{m.post_edit()}</div>
-            </Link>
+            </div>
           )}
+
+          <div className="flex flex-row flex-wrap fuwari-text-30 gap-5 mb-3 transition">
+            <div className="flex flex-row items-center">
+              <div className="transition h-6 w-6 rounded-md bg-black/5 dark:bg-white/10 fuwari-text-50 flex items-center justify-center mr-2">
+                <FileText strokeWidth={1.5} size={16} />
+              </div>
+              <div className="text-sm">{m.post_word_count({ count: wordCount })}</div>
+            </div>
+            <div className="flex flex-row items-center">
+              <div className="transition h-6 w-6 rounded-md bg-black/5 dark:bg-white/10 fuwari-text-50 flex items-center justify-center mr-2">
+                <Clock strokeWidth={1.5} size={16} />
+              </div>
+              <div className="text-sm">{m.read_time({ count: safeDisplayPost.readTimeInMinutes })}</div>
+            </div>
+            {isAdmin && (
+              <Link to="/admin/posts/edit/$id" params={{ id: String(safeDisplayPost.id) }} className="flex flex-row items-center fuwari-text-30 hover:fuwari-text-90 transition animate-in fade-in duration-500">
+                <div className="transition h-6 w-6 rounded-md bg-black/5 dark:bg-white/10 fuwari-text-50 flex items-center justify-center mr-2">
+                  <Pencil strokeWidth={1.5} size={16} />
+                </div>
+                <div className="text-sm">{m.post_edit()}</div>
+              </Link>
+            )}
+          </div>
+
+          <h1 className="transition w-full block font-bold mb-3 text-3xl md:text-[2.25rem]/[2.75rem] fuwari-text-90" style={{ viewTransitionName: `post-title-${safeDisplayPost.slug}` }}>
+            {safeDisplayPost.title}
+          </h1>
+
+          <PostMeta post={metaPost as any} className="mb-5" />
+          <PostSummary summary={safeDisplayPost.summary} />
+          <div className="mb-6 prose dark:prose-invert prose-base max-w-none! fuwari-custom-md">
+            <ContentRenderer content={safeDisplayPost.contentJson} />
+          </div>
+
+          {guestFooter}
+
+          {/* END 分隔线 + 点赞按钮（内置于卡片中） */}
+          <div className="my-8 flex items-center justify-center w-full">
+            <div className="h-px w-full bg-linear-to-r from-transparent via-(--fuwari-meta-divider) to-transparent opacity-20" />
+            <span className="mx-4 text-sm font-mono tracking-widest text-(--fuwari-meta-divider) opacity-50 whitespace-nowrap">END</span>
+            <div className="h-px w-full bg-linear-to-r from-(--fuwari-meta-divider) via-transparent to-transparent opacity-20" />
+          </div>
+
+          {/* 点赞按钮内置于卡片底部 */}
+          <LikeButton />
         </div>
 
-        <h1 className="transition w-full block font-bold mb-3 text-3xl md:text-[2.25rem]/[2.75rem] fuwari-text-90 md:before:w-1 before:h-5 before:rounded-md before:bg-(--fuwari-primary) before:absolute before:top-3 before:-left-4.5" style={{ viewTransitionName: `post-title-${safeDisplayPost.slug}` }}>
-          {safeDisplayPost.title}
-        </h1>
+        <AdjacentPosts prev={adjacentData?.prev} next={adjacentData?.next} isLoading={adjacentLoading} />
 
-        <PostMeta post={metaPost as any} className="mb-5" />
-        <PostSummary summary={safeDisplayPost.summary} />
-        <div className="mb-6 prose dark:prose-invert prose-base max-w-none! fuwari-custom-md">
-          <ContentRenderer content={safeDisplayPost.contentJson} />
-        </div>
+        {!isGuestPost && (
+          <Suspense fallback={<RelatedPostsSkeleton />}>
+            <RelatedPosts slug={safeDisplayPost.slug} />
+          </Suspense>
+        )}
 
-        {guestFooter}
-
-        <div className="my-8 flex items-center justify-center w-full">
-          <div className="h-px w-full bg-linear-to-r from-transparent via-(--fuwari-meta-divider) to-transparent opacity-20" />
-          <span className="mx-4 text-sm font-mono tracking-widest text-(--fuwari-meta-divider) opacity-50 whitespace-nowrap">END</span>
-          <div className="h-px w-full bg-linear-to-r from-(--fuwari-meta-divider) via-transparent to-transparent opacity-20" />
-        </div>
+        {!isGuestPost && (
+          <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
+            <FuwariCommentSection postId={safeDisplayPost.id} />
+          </div>
+        )}
       </div>
-
-      <AdjacentPosts prev={adjacentData?.prev} next={adjacentData?.next} />
-
-      {!isGuestPost && (
-        <Suspense fallback={<RelatedPostsSkeleton />}>
-          <RelatedPosts slug={safeDisplayPost.slug} />
-        </Suspense>
-      )}
-
-      {!isGuestPost && (
-        <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
-          <FuwariCommentSection postId={safeDisplayPost.id} />
-        </div>
-      )}
-    </div>
+    </>
   );
 }

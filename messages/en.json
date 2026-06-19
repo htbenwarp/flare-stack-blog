@@ -1543,5 +1543,7 @@
   "guest_house_total": "Currently {authorCount} authors, {postCount} posts.",
   "editor_meta_guest_house": "Guest House",
   "editor_meta_add_to_guest_house": "Add to Guest House",
-  "editor_meta_select_author": "Select Author"
+  "editor_meta_select_author": "Select Author",
+  "like_button_label": "Like",
+  "like_error": "Request failed, retry"
 }

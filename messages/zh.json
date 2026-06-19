@@ -1535,5 +1535,7 @@
   "guest_house_total": "当前共 {authorCount} 位作者，{postCount} 篇字句。",
   "editor_meta_guest_house": "客邸",
   "editor_meta_add_to_guest_house": "加入客邸",
-  "editor_meta_select_author": "选择作者"
+  "editor_meta_select_author": "选择作者",
+  "like_button_label": "点赞",
+  "like_error": "请求失败，请重试"
 }
