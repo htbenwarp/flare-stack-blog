@@ -1,3 +1,4 @@
+// themes/fuwari/components/post-card.tsx
 import { ClientOnly, Link } from "@tanstack/react-router";
 import {
   Calendar,
@@ -13,6 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { PostItem } from "@/features/posts/schema/posts.schema";
 import { formatDate } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { useQuery } from "@tanstack/react-query";
+import { getLikeCountFn } from "@/features/likes/api/likes.public.api";
 
 interface PostCardProps {
   post: PostItem;
@@ -20,8 +23,7 @@ interface PostCardProps {
   popular?: boolean;
   views?: number;
   isLoadingViews?: boolean;
-  likeCount?: number;
-  isLoadingLikeCount?: boolean;
+  // 不再需要外部传入 likeCount，组件内部自行获取
 }
 
 export function PostCard({
@@ -30,10 +32,17 @@ export function PostCard({
   popular,
   views,
   isLoadingViews,
-  likeCount,
-  isLoadingLikeCount,
 }: PostCardProps) {
   const tagNames = (post.tags ?? []).map((t) => t.name);
+
+  // 内部获取点赞数（与详情页使用相同的查询函数）
+  const { data: likeData, isPending: isLoadingLikeCount } = useQuery({
+    queryKey: ["likeCount", `/post/${post.slug}`],
+    queryFn: () => getLikeCountFn({ data: { path: `/post/${post.slug}` } }),
+    staleTime: 0, // 即时更新：每次挂载都重新请求，确保点赞后立即显示最新数据
+  });
+
+  const likeCount = likeData?.count ?? 0;
 
   return (
     <div
@@ -178,19 +187,18 @@ export function PostCard({
               </span>
             )
           )}
-          {/* 点赞数 */}
+
+          {/* 点赞数 – 组件内部获取，确保即时显示 */}
           {isLoadingLikeCount ? (
             <span className="inline-flex items-center gap-1.5">
               <Heart size={14} />
               <Skeleton className="h-3.5 w-8 rounded bg-black/10 dark:bg-white/10" />
             </span>
           ) : (
-            likeCount !== undefined && (
-              <span className="inline-flex items-center gap-1.5">
-                <Heart size={14} />
-                {likeCount.toLocaleString()}
-              </span>
-            )
+            <span className="inline-flex items-center gap-1.5">
+              <Heart size={14} />
+              {likeCount.toLocaleString()}
+            </span>
           )}
         </div>
       </div>
