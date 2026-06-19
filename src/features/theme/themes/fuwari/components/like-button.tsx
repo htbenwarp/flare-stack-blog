@@ -17,6 +17,7 @@ export function LikeButton() {
   const [loading, setLoading] = useState(true);
   const [animating, setAnimating] = useState(false);
   const [error, setError] = useState(false);
+  const [requesting, setRequesting] = useState(false); // 防止连点
 
   const particlesRef = useRef<Particle[]>([]);
   const rafRef = useRef<number>(0);
@@ -33,7 +34,6 @@ export function LikeButton() {
     particlesRef.current = [];
     loopRunningRef.current = false;
     frameCountRef.current = 0;
-    // 清空 canvas
     const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext("2d");
@@ -44,7 +44,9 @@ export function LikeButton() {
   // 获取主题色
   const getHeartColor = useCallback((): string => {
     const root = document.documentElement;
-    const color = getComputedStyle(root).getPropertyValue("--fuwari-primary").trim();
+    const color = getComputedStyle(root)
+      .getPropertyValue("--fuwari-primary")
+      .trim();
     return color || "rgb(180,100,160)";
   }, []);
 
@@ -54,11 +56,9 @@ export function LikeButton() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
     const w = cwRef.current;
     const H = CANVAS_HEIGHT;
     ctx.clearRect(0, 0, w, H);
-
     const heartColor = getHeartColor();
     for (const p of particlesRef.current) {
       const sc = p.r / 12;
@@ -179,7 +179,6 @@ export function LikeButton() {
 
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
     heartPathRef.current = new Path2D(
       "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
     );
@@ -203,7 +202,7 @@ export function LikeButton() {
       attributeFilter: ["class"],
     });
 
-    // 重新获取点赞数
+    // 获取初始点赞数
     getLikeCountFn({ data: { path } })
       .then((res) => {
         const c = res.count ?? 0;
@@ -223,10 +222,11 @@ export function LikeButton() {
       observer.disconnect();
       resetParticles();
     };
-  }, [path]); // 现在依赖 path，切换文章时自动重置
+  }, [path]);
 
   const handleLike = async () => {
-    if (liked || loading || error) return;
+    if (liked || loading || error || requesting) return;
+    setRequesting(true);
     setAnimating(true);
     setTimeout(() => setAnimating(false), 500);
     spawnParticle();
@@ -236,6 +236,7 @@ export function LikeButton() {
         setLiked(true);
         localStorage.setItem(`liked:${path}`, "1");
         setCount(res.count);
+        setRequesting(false);
         return;
       }
       setCount(res.count);
@@ -244,6 +245,8 @@ export function LikeButton() {
     } catch {
       setError(true);
       setTimeout(() => setError(false), 2000);
+    } finally {
+      setRequesting(false);
     }
   };
 
@@ -261,7 +264,7 @@ export function LikeButton() {
           ${error ? "border-red-500" : ""}
           bg-(--fuwari-card-bg)/50 backdrop-blur-sm text-sm`}
         onClick={handleLike}
-        disabled={liked || loading}
+        disabled={liked || loading || requesting}
         aria-label={m.like_button_label()}
       >
         <svg
