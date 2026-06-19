@@ -51,12 +51,13 @@ export function HomePage({ posts, pinnedPosts, popularPosts }: HomePageProps) {
   const { data: viewCounts, isPending: isPendingViewCounts } =
     useViewCounts(allSlugs);
 
-  // 并行获取每个路径的点赞数（与详情页使用同一函数，确保稳定性）
+  // 为每篇文章构建路径
   const paths = useMemo(
     () => allSlugs.map((slug) => `/post/${slug}`),
     [allSlugs],
   );
 
+  // 并行获取每个路径的点赞数（与详情页同一函数）
   const likeQueries = useQueries({
     queries: paths.map((path) => ({
       queryKey: ["likeCount", path],
@@ -65,16 +66,19 @@ export function HomePage({ posts, pinnedPosts, popularPosts }: HomePageProps) {
     })),
   });
 
+  // 安全地建立映射，不再依赖 query.queryKey
   const likeCountMap = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const query of likeQueries) {
+    likeQueries.forEach((query, index) => {
       if (query.data) {
-        const path = query.queryKey[1] as string;
-        map[path] = query.data.count;
+        const path = paths[index];
+        if (path) {
+          map[path] = query.data.count;
+        }
       }
-    }
+    });
     return map;
-  }, [likeQueries]);
+  }, [likeQueries, paths]);
 
   const isPendingLikeCounts = likeQueries.some((q) => q.isPending);
 
