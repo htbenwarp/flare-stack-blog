@@ -16,6 +16,24 @@ export function ProfilePage({
   const labelClassName =
     "block text-sm font-medium fuwari-text-75 mb-1.5 transition-colors";
 
+  // 角色文本与样式
+  const roleLabel =
+    user.role === "admin"
+      ? m.profile_role_admin?.() ?? "博主"
+      : user.role === "manager"
+        ? m.profile_role_manager?.() ?? "管理员"
+        : m.profile_role_reader?.() ?? "读者";
+
+  const roleBadgeClass =
+    user.role === "admin"
+      ? "bg-(--fuwari-primary) text-white"
+      : user.role === "manager"
+        ? "bg-yellow-500 text-white"
+        : "bg-(--fuwari-btn-regular-bg) text-(--fuwari-btn-content)";
+
+  // 是否可访问管理后台
+  const canAccessAdmin = user.role === "admin" || user.role === "manager";
+
   return (
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto pb-12">
       {/* Header Profile Section */}
@@ -46,10 +64,13 @@ export function ProfilePage({
         <div className="flex items-center gap-2 text-(--fuwari-btn-content) text-sm font-medium transition-colors">
           <span>{user.email}</span>
           <span className="w-1 h-1 rounded-full bg-(--fuwari-meta-divider)" />
-          <span className="uppercase tracking-wider text-xs px-2 py-0.5 rounded-md bg-(--fuwari-btn-regular-bg)">
-            {user.role === "admin"
-              ? m.profile_role_admin()
-              : m.profile_role_reader()}
+          <span
+            className={cn(
+              "uppercase tracking-wider text-xs px-2 py-0.5 rounded-md",
+              roleBadgeClass,
+            )}
+          >
+            {roleLabel}
           </span>
         </div>
       </div>
@@ -245,7 +266,7 @@ export function ProfilePage({
               {m.profile_actions()}
             </h3>
 
-            {user.role === "admin" && (
+            {canAccessAdmin && (
               <Link
                 to="/admin"
                 className="w-full fuwari-btn-regular py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm active:scale-95 transition-all"

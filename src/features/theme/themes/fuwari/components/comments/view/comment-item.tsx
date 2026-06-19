@@ -31,8 +31,9 @@ export const FuwariCommentItem = memo(
     const { data: session } = authClient.useSession();
 
     const isAuthor = session?.user.id === comment.userId;
-    const isAdmin = session?.user.role === "admin";
+    const isAdmin = session?.user.role === "admin" || session?.user.role === "manager"; // 管理员和博主都能删除
     const isBlogger = comment.user?.role === "admin";
+    const isManager = comment.user?.role === "manager"; // 新增
 
     const renderedContent = useMemo(() => {
       if (comment.status === "deleted") {
@@ -92,9 +93,16 @@ export const FuwariCommentItem = memo(
                   ? m.comments_item_deleted_author()
                   : comment.user?.name || m.comments_item_anonymous()}
               </span>
+              {/* 博主标签 */}
               {isBlogger && comment.status !== "deleted" && (
                 <span className="text-[10px] font-medium text-(--fuwari-primary) border border-(--fuwari-primary)/30 px-1.5 py-0.5 rounded-md leading-none">
                   {m.comments_item_blogger()}
+                </span>
+              )}
+              {/* 管理员标签 */}
+              {isManager && comment.status !== "deleted" && (
+                <span className="text-[10px] font-medium text-yellow-600 border border-yellow-500/30 px-1.5 py-0.5 rounded-md leading-none">
+                  {m.comments_item_manager()}
                 </span>
               )}
 

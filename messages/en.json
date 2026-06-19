@@ -1545,5 +1545,6 @@
   "editor_meta_add_to_guest_house": "Add to Guest House",
   "editor_meta_select_author": "Select Author",
   "like_button_label": "Like",
-  "like_error": "Request failed, retry"
+  "like_error": "Request failed, retry",
+  "comments_item_manager": "Manager"
 }

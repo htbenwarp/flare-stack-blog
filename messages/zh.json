@@ -1537,5 +1537,6 @@
   "editor_meta_add_to_guest_house": "加入客邸",
   "editor_meta_select_author": "选择作者",
   "like_button_label": "点赞",
-  "like_error": "请求失败，请重试"
+  "like_error": "请求失败，请重试",
+  "comments_item_manager": "管理员"
 }
