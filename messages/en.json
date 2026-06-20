@@ -309,7 +309,7 @@
   "request_error_unauthenticated_title": "Authentication Required",
   "request_error_unauthenticated_desc": "Please sign in to continue.",
   "request_error_permission_denied_title": "Permission Denied",
-  "request_error_permission_denied_desc": "This action is only available to administrators.",
+  "request_error_permission_denied_desc": "This action is only available to the owner.",
   "request_error_rate_limited_title": "Too Many Requests",
   "request_error_rate_limited_desc": [
     {

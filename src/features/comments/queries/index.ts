@@ -29,21 +29,28 @@ export function rootCommentsByPostIdQuery(postId: number, userId?: string) {
     queryFn: () => getRootCommentsByPostIdFn({ data: { postId } }),
   });
 }
-
 export function rootCommentsByPostIdInfiniteQuery(
   postId: number,
   userId?: string,
 ) {
   return infiniteQueryOptions({
     queryKey: [...COMMENTS_KEYS.roots(postId), "infinite", { userId }],
-    queryFn: ({ pageParam = 0 }) =>
-      getRootCommentsByPostIdFn({
+    queryFn: async ({ pageParam = 0 }) => {
+      const result = await getRootCommentsByPostIdFn({
         data: { postId, offset: pageParam, limit: 20 },
-      }),
+      });
+      // 确保返回对象结构正确
+      return {
+        items: result?.items ?? [],
+        total: result?.total ?? 0,
+      };
+    },
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
+      // 安全处理：如果 lastPage 无效，直接停止分页
+      if (!lastPage || !Array.isArray(lastPage.items)) return undefined;
       const totalLoaded = allPages.reduce(
-        (sum, page) => sum + page.items.length,
+        (sum, page) => sum + (page?.items?.length ?? 0),
         0,
       );
       return totalLoaded < lastPage.total ? totalLoaded : undefined;
@@ -58,14 +65,20 @@ export function repliesByRootIdInfiniteQuery(
 ) {
   return infiniteQueryOptions({
     queryKey: [...COMMENTS_KEYS.replies(postId, rootId), { userId }],
-    queryFn: ({ pageParam = 0 }) =>
-      getRepliesByRootIdFn({
+    queryFn: async ({ pageParam = 0 }) => {
+      const result = await getRepliesByRootIdFn({
         data: { postId, rootId, offset: pageParam, limit: 20 },
-      }),
+      });
+      return {
+        items: result?.items ?? [],
+        total: result?.total ?? 0,
+      };
+    },
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage || !Array.isArray(lastPage.items)) return undefined;
       const totalLoaded = allPages.reduce(
-        (sum, page) => sum + page.items.length,
+        (sum, page) => sum + (page?.items?.length ?? 0),
         0,
       );
       return totalLoaded < lastPage.total ? totalLoaded : undefined;

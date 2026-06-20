@@ -302,7 +302,7 @@
   "request_error_unauthenticated_title": "未登录",
   "request_error_unauthenticated_desc": "请先登录。",
   "request_error_permission_denied_title": "权限不足",
-  "request_error_permission_denied_desc": "当前操作仅管理员可执行。",
+  "request_error_permission_denied_desc": "当前操作仅博主可执行。",
   "request_error_rate_limited_title": "请求过于频繁",
   "request_error_rate_limited_desc": [
     {

@@ -93,16 +93,20 @@ export const adminMiddleware = createMiddleware({ type: "function" })
   .middleware([authMiddleware])
   .server(async ({ context, next }) => {
     const session = context.session;
+    if (session.user.role !== "admin" && session.user.role !== "manager") {
+      throw createPermissionError();
+    }
+    return next({ context: { session } });
+  });
 
+export const strictAdminMiddleware = createMiddleware({ type: "function" })
+  .middleware([authMiddleware])
+  .server(async ({ context, next }) => {
+    const session = context.session;
     if (session.user.role !== "admin") {
       throw createPermissionError();
     }
-
-    return next({
-      context: {
-        session,
-      },
-    });
+    return next({ context: { session } });
   });
 
 /* ======================= Rate Limiting ====================== */

@@ -57,7 +57,8 @@ export function MobileMenu({
               </Link>
             ))}
 
-            {user?.role === "admin" && (
+            {/* 管理员和博主均可看到管理后台入口 */}
+            {(user?.role === "admin" || user?.role === "manager") && (
               <Link
                 to="/admin"
                 onClick={onClose}

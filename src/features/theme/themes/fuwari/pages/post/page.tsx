@@ -181,7 +181,7 @@ export function PostPage({ post }: PostPageProps) {
     }
   }, [post.id]);
 
-  const isAdmin = session?.user?.role === "admin";
+  const isAdmin = session?.user?.role === "admin" || session?.user?.role === "manager";
   const displayPost = unlockedPost || post;
   const safeDisplayPost = {
     ...displayPost,
@@ -233,7 +233,7 @@ export function PostPage({ post }: PostPageProps) {
           <EncryptedPostGate post={safeDisplayPost} slug={slug} onUnlocked={(full) => setUnlockedPost(full)} />
           <AdjacentPosts prev={adjacentData?.prev} next={adjacentData?.next} isLoading={adjacentLoading} />
           {!isGuestPost && (
-            <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
+            <div id="comment-section" className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
               <FuwariCommentSection postId={safeDisplayPost.id} />
             </div>
           )}
@@ -350,7 +350,7 @@ export function PostPage({ post }: PostPageProps) {
         )}
 
         {!isGuestPost && (
-          <div className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
+          <div id="comment-section" className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
             <FuwariCommentSection postId={safeDisplayPost.id} />
           </div>
         )}

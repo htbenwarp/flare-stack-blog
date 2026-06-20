@@ -67,6 +67,14 @@ export function SideBar({
     navigate({ to: "/login" });
   };
 
+  // 角色文本（用于底部标签）
+  const roleLabel =
+    user?.role === "admin"
+      ? m.admin_sidebar_role_admin?.() ?? "博主"
+      : user?.role === "manager"
+        ? m.admin_sidebar_role_manager?.() ?? "管理员"
+        : m.admin_sidebar_role_user?.() ?? "用户";
+
   const navItems = [
     {
       path: "/admin",
@@ -206,9 +214,7 @@ export function SideBar({
                   {user?.name || m.admin_sidebar_admin_fallback()}
                 </span>
                 <span className="text-[8px] text-muted-foreground font-mono">
-                  {user?.role === "admin"
-                    ? m.admin_sidebar_role_admin()
-                    : m.admin_sidebar_role_user()}
+                  {roleLabel}
                 </span>
               </div>
             </div>

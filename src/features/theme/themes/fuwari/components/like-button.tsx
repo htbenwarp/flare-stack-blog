@@ -17,7 +17,7 @@ export function LikeButton() {
   const [loading, setLoading] = useState(true);
   const [animating, setAnimating] = useState(false);
   const [error, setError] = useState(false);
-  const [requesting, setRequesting] = useState(false); // 防止连点
+  const [requesting, setRequesting] = useState(false);
 
   const particlesRef = useRef<Particle[]>([]);
   const rafRef = useRef<number>(0);
@@ -28,7 +28,7 @@ export function LikeButton() {
 
   const path = typeof window !== "undefined" ? window.location.pathname : "";
 
-  // 重置所有粒子相关状态
+  // 重置粒子
   const resetParticles = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
     particlesRef.current = [];
@@ -50,7 +50,7 @@ export function LikeButton() {
     return color || "rgb(180,100,160)";
   }, []);
 
-  // 绘制一帧（不含物理更新）
+  // 绘制静态帧
   const drawFrame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -74,6 +74,7 @@ export function LikeButton() {
     }
   }, [getHeartColor]);
 
+  // 生成粒子
   const spawnParticle = useCallback(() => {
     const p: Particle = {
       x: cwRef.current / 2 + (Math.random() - 0.5) * cwRef.current * 0.4,
@@ -92,6 +93,7 @@ export function LikeButton() {
     }
   }, []);
 
+  // 动画循环
   const animate = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -169,7 +171,7 @@ export function LikeButton() {
     else loopRunningRef.current = false;
   }, [getHeartColor]);
 
-  // 核心：path 变化时重置一切
+  // 初始化与动态宽度适配
   useEffect(() => {
     resetParticles();
     setCount(0);
@@ -184,16 +186,24 @@ export function LikeButton() {
     );
 
     const updateSize = () => {
-      const w = canvas.getBoundingClientRect().width || 280;
-      canvas.width = w;
+      const parent = canvasRef.current?.parentElement;
+      const w = parent?.getBoundingClientRect().width || 280;
+      const clampedW = Math.min(w, 600);
+
+      // ✅ 关键修复：同步设置内部像素尺寸和 CSS 显示尺寸，避免拉伸
+      canvas.width = clampedW;
       canvas.height = CANVAS_HEIGHT;
-      cwRef.current = w;
+      canvas.style.width = `${clampedW}px`;
+      canvas.style.height = `${CANVAS_HEIGHT}px`;
+
+      cwRef.current = clampedW;
       drawFrame();
     };
+
     updateSize();
     window.addEventListener("resize", updateSize);
 
-    // 监听主题变化
+    // 主题切换监听
     const observer = new MutationObserver(() => {
       setTimeout(() => drawFrame(), 50);
     });
@@ -202,7 +212,7 @@ export function LikeButton() {
       attributeFilter: ["class"],
     });
 
-    // 获取初始点赞数
+    // 获取点赞数
     getLikeCountFn({ data: { path } })
       .then((res) => {
         const c = res.count ?? 0;
@@ -254,7 +264,8 @@ export function LikeButton() {
     <div className="relative flex flex-col items-center justify-center py-2">
       <canvas
         ref={canvasRef}
-        className="absolute top-0 left-0 w-full h-20 pointer-events-none"
+        className="absolute top-0 left-0 pointer-events-none"
+        // 移除 w-full h-20，完全由 JS 控制尺寸
       />
       <button
         className={`relative z-10 inline-flex items-center gap-2 px-4 py-2 border transition-colors duration-200 select-none
