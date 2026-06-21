@@ -124,7 +124,6 @@ export function PublicLayout({
           >
             <Footer navOptions={navOptions} />
           </div>
-          <BackToTop />
         </div>
       </div>
 

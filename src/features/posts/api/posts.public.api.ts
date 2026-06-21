@@ -23,8 +23,20 @@ export const findPostBySlugFn = createServerFn()
   .handler(async ({ data, context }) => {
     const { slug } = data;
 
-    const isAdmin = context.session?.user?.role === "admin";
-    const post = await PostService.findPostBySlug(context, { slug });
+    const isAdmin =
+      context.session?.user?.role === "admin" ||
+      context.session?.user?.role === "manager";
+
+    // 管理员：直接从数据层获取原始文章，完全避免服务层的加密占位逻辑
+    const rawPost = isAdmin
+      ? await PostRepo.findPostBySlug(context.db, slug, {
+          publicOnly: true,
+          excludeGuestPosts: false,
+        })
+      : null;
+
+    // 普通用户或管理员未获取到数据时，走服务层（安全兜底）
+    const post = rawPost || await PostService.findPostBySlug(context, { slug });
     if (!post) throw new Error("Post not found");
 
     // 管理员或非加密文章 → 返回完整内容
@@ -33,9 +45,8 @@ export const findPostBySlugFn = createServerFn()
       return safePost;
     }
 
-    // 加密文章 → 返回占位信息（不包含正文，不依赖 token）
-    // 前端将通过 /api/posts/verify-password 接口获取完整内容
-    const encryptedPost = {
+    // 加密占位（仅普通用户会走到这里）
+    return {
       id: post.id,
       title: post.title,
       summary: post.summary ?? "",
@@ -51,9 +62,11 @@ export const findPostBySlugFn = createServerFn()
       publicContentJson: null,
       toc: [] as { id: string; text: string; level: number }[],
       tags: post.tags ?? [],
+      guestAuthor: post.guestAuthor ?? null,
+      guestAuthorSlug: post.guestAuthor?.slug ?? null,
+      isGuestPost: post.isGuestPost ?? false,
+      guestAuthorId: post.guestAuthorId ?? null,
     };
-
-    return encryptedPost;
   });
 
 export const getRelatedPostsFn = createServerFn()

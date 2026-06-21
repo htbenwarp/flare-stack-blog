@@ -12,12 +12,12 @@ import { PostSummary } from "./components/post-summary";
 import { RelatedPosts, RelatedPostsSkeleton } from "./components/related-posts";
 import TableOfContents from "./components/table-of-contents";
 import { getAdjacentPostsFn, getAdjacentGuestPostsFn } from "@/features/posts/api/posts.public.api";
+import { findPostBySlugFn } from "@/features/posts/api/posts.public.api"; // 直接导入用于管理员解锁
 import { postGuestAuthorSlugQuery } from "@/features/posts/queries";
 import { cn } from "@/lib/utils";
-import { ReadingProgress } from "@/features/theme/themes/fuwari/components/reading-progress";
 import { LikeButton } from "@/features/theme/themes/fuwari/components/like-button";
+import { BackToTop } from "@/features/theme/themes/fuwari/components/control/back-to-top";
 
-// 加密文章组件
 function EncryptedPostGate({ post, slug, onUnlocked }: any) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
@@ -85,7 +85,6 @@ function EncryptedPostGate({ post, slug, onUnlocked }: any) {
   );
 }
 
-// 相邻文章导航（带加载骨架）
 function AdjacentPosts({
   prev,
   next,
@@ -141,7 +140,7 @@ function AdjacentPosts({
 }
 
 export function PostPage({ post }: PostPageProps) {
-  const { data: session, isLoading: sessionLoading } = authClient.useSession();
+  const { data: session } = authClient.useSession();
   const { slug } = useParams({ from: "/_public/post/$slug" });
   const [unlockedPost, setUnlockedPost] = useState<any>(null);
   const [tocOpen, setTocOpen] = useState(false);
@@ -182,6 +181,18 @@ export function PostPage({ post }: PostPageProps) {
   }, [post.id]);
 
   const isAdmin = session?.user?.role === "admin" || session?.user?.role === "manager";
+
+  // ✅ 管理员自动解锁：如果当前文章加密但正文为空（占位），且为管理员，则主动获取完整文章
+  useEffect(() => {
+    if (isAdmin && post.isEncrypted && !post.contentJson?.content?.length) {
+      findPostBySlugFn({ data: { slug } }).then((fullPost) => {
+        if (fullPost && fullPost.contentJson?.content?.length) {
+          setUnlockedPost(fullPost);
+        }
+      }).catch(() => {});
+    }
+  }, [isAdmin, post.isEncrypted, slug]);
+
   const displayPost = unlockedPost || post;
   const safeDisplayPost = {
     ...displayPost,
@@ -228,10 +239,12 @@ export function PostPage({ post }: PostPageProps) {
   if (needPassword) {
     return (
       <>
-        <ReadingProgress />
+        <BackToTop isGuestPost={isGuestPost} />
         <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
           <EncryptedPostGate post={safeDisplayPost} slug={slug} onUnlocked={(full) => setUnlockedPost(full)} />
-          <AdjacentPosts prev={adjacentData?.prev} next={adjacentData?.next} isLoading={adjacentLoading} />
+          <div id="adjacent-posts">
+            <AdjacentPosts prev={adjacentData?.prev} next={adjacentData?.next} isLoading={adjacentLoading} />
+          </div>
           {!isGuestPost && (
             <div id="comment-section" className="fuwari-card-base p-6 fuwari-onload-animation" style={{ animationDelay: "450ms" }}>
               <FuwariCommentSection postId={safeDisplayPost.id} />
@@ -252,42 +265,25 @@ export function PostPage({ post }: PostPageProps) {
 
   return (
     <>
-      <ReadingProgress />
+      <BackToTop isGuestPost={isGuestPost} />
       <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
-        {/* PC 端固定目录 */}
         {!isGuestPost && safeDisplayPost.toc?.length > 0 && (
           <div className="hidden 2xl:block absolute top-0 h-full pl-4" style={{ right: "calc(var(--fuwari-toc-width) * -1)", width: "var(--fuwari-toc-width)" }}>
             <TableOfContents headers={safeDisplayPost.toc} />
           </div>
         )}
 
-        {/* 文章主卡片 */}
         <div className="fuwari-card-base z-10 px-6 md:px-9 pt-6 pb-10 relative w-full fuwari-onload-animation overflow-hidden">
           {breadcrumb}
 
-          {/* 移动端可折叠目录 */}
           {!isGuestPost && safeDisplayPost.toc?.length > 0 && (
             <div className="mb-6 2xl:hidden">
-              <button
-                onClick={() => setTocOpen(!tocOpen)}
-                className="text-sm font-medium fuwari-text-90 cursor-pointer flex items-center gap-1 w-full text-left"
-              >
+              <button onClick={() => setTocOpen(!tocOpen)} className="text-sm font-medium fuwari-text-90 cursor-pointer flex items-center gap-1 w-full text-left">
                 <span className="w-1 h-4 rounded-md bg-(--fuwari-primary) transition-colors duration-200" />
                 <span>{m.table_of_contents_title?.() ?? "目录"}</span>
-                <ChevronRight
-                  size={14}
-                  className={cn(
-                    "transition-transform duration-200",
-                    tocOpen && "rotate-90"
-                  )}
-                />
+                <ChevronRight size={14} className={cn("transition-transform duration-200", tocOpen && "rotate-90")} />
               </button>
-              <div
-                className={cn(
-                  "overflow-hidden transition-all duration-300 ease-in-out",
-                  tocOpen ? "max-h-[60vh] overflow-y-auto mt-3" : "max-h-0"
-                )}
-              >
+              <div className={cn("overflow-hidden transition-all duration-300 ease-in-out", tocOpen ? "max-h-[60vh] overflow-y-auto mt-3" : "max-h-0")}>
                 <div className="ml-4 border-l border-(--fuwari-primary)/20 pl-4">
                   <TableOfContents headers={safeDisplayPost.toc} variant="inline" />
                 </div>
@@ -330,18 +326,18 @@ export function PostPage({ post }: PostPageProps) {
 
           {guestFooter}
 
-          {/* END 分隔线 + 点赞按钮（内置于卡片中） */}
           <div className="my-8 flex items-center justify-center w-full">
             <div className="h-px w-full bg-linear-to-r from-transparent via-(--fuwari-meta-divider) to-transparent opacity-20" />
             <span className="mx-4 text-sm font-mono tracking-widest text-(--fuwari-meta-divider) opacity-50 whitespace-nowrap">END</span>
             <div className="h-px w-full bg-linear-to-r from-(--fuwari-meta-divider) via-transparent to-transparent opacity-20" />
           </div>
 
-          {/* 点赞按钮内置于卡片底部 */}
           <LikeButton />
         </div>
 
-        <AdjacentPosts prev={adjacentData?.prev} next={adjacentData?.next} isLoading={adjacentLoading} />
+        <div id="adjacent-posts">
+          <AdjacentPosts prev={adjacentData?.prev} next={adjacentData?.next} isLoading={adjacentLoading} />
+        </div>
 
         {!isGuestPost && (
           <Suspense fallback={<RelatedPostsSkeleton />}>
