@@ -99,49 +99,22 @@ export async function findPostBySlug(
   const fetcher = async () => {
     const post = await PostRepo.findPostBySlug(context.db, data.slug, {
       publicOnly: true,
-      excludeGuestPosts: false,   // 必须为 false，否则客邸文章查不到
+      excludeGuestPosts: false,
     });
     if (!post) return null;
 
-    let contentJson = post.publicContentJson ?? post.contentJson;
-    if (!post.publicContentJson && contentJson) {
-      contentJson = await highlightCodeBlocks(contentJson);
-      context.executionCtx.waitUntil(
-        PostRepo.updatePublicContentSnapshot(
-          context.db,
-          post.id,
-          contentJson,
-        ).then(() => undefined),
-      );
-    }
+    // 直接使用发布时预先生成的公共内容（已包含代码高亮）
+    const contentJson = post.publicContentJson ?? post.contentJson;
 
-    let guestAuthor = post.guestAuthor ?? null;
-    let guestAuthorSlug = guestAuthor?.slug ?? null;
-
-    // 如果关联查询没有返回作者，手动查询
-    if (!guestAuthor && post.isGuestPost && post.guestAuthorId) {
-      guestAuthor = await context.db.query.GuestAuthorsTable.findFirst({
-        where: eq(GuestAuthorsTable.id, post.guestAuthorId),
-        columns: { id: true, name: true, slug: true, avatar: true },
-      });
-      guestAuthorSlug = guestAuthor?.slug ?? null;
-    }
-
-    // 双重保险：单独查询 slug
-    if (!guestAuthorSlug && post.isGuestPost && post.guestAuthorId) {
-      const slugRow = await context.db.query.GuestAuthorsTable.findFirst({
-        where: eq(GuestAuthorsTable.id, post.guestAuthorId),
-        columns: { slug: true },
-      });
-      guestAuthorSlug = slugRow?.slug ?? null;
-    }
+    // 关联查询已包含作者信息，无需额外查询
+    const guestAuthor = post.guestAuthor ?? null;
 
     return {
       ...stripPublicContentJson(post),
       contentJson,
       toc: generateTableOfContents(contentJson),
       guestAuthor,
-      guestAuthorSlug,
+      guestAuthorSlug: guestAuthor?.slug ?? null,
       isGuestPost: post.isGuestPost ?? false,
       guestAuthorId: post.guestAuthorId ?? null,
     };
