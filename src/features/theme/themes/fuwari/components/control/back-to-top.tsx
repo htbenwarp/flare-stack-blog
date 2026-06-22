@@ -11,22 +11,15 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
   const pathname = useRouterState().location.pathname;
   const isPostPage = pathname.startsWith("/post/");
 
-  // 移动端半透明交互
   const [mobileActive, setMobileActive] = useState(false);
   const mobileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 进度路径元素引用
   const progressPathRef = useRef<SVGPathElement>(null);
-  // 存储路径总长度，避免重复计算
   const pathLengthRef = useRef(208);
-  // requestAnimationFrame 的 ID，用于节流
   const rafIdRef = useRef<number | null>(null);
-
-  // 圆角矩形路径（边框位于按钮外侧）
   const roundedRectPath =
     "M 18 4 L 42 4 Q 56 4 56 18 L 56 42 Q 56 56 42 56 L 18 56 Q 4 56 4 42 L 4 18 Q 4 4 18 4 Z";
-
-  // 动态获取路径长度并设置 dasharray（仅挂载时执行一次）
+  
   useEffect(() => {
     const path = progressPathRef.current;
     if (path) {
@@ -38,7 +31,6 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
     }
   }, []);
 
-  // 移动端触摸激活
   const handleTouchStart = useCallback(() => {
     setMobileActive(true);
     if (mobileTimerRef.current) clearTimeout(mobileTimerRef.current);
@@ -53,7 +45,6 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
     };
   }, []);
 
-  // 进度计算并直接操作 DOM（不触发组件重新渲染）
   const updateProgress = useCallback(() => {
     const path = progressPathRef.current;
     if (!path) return;
@@ -106,7 +97,6 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
     path.setAttribute("stroke-dashoffset", (length * (1 - pct / 100)).toString());
   }, [isPostPage]);
 
-  // 滚动监听（使用 rAF 节流，进一步减少主线程压力）
   useEffect(() => {
     const onScroll = () => {
       setVisible(window.scrollY > 300);
@@ -119,7 +109,7 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
 
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", updateProgress);
-    onScroll(); // 初始调用
+    onScroll(); 
 
     return () => {
       window.removeEventListener("scroll", onScroll);
@@ -142,7 +132,7 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
 
   return (
     <div
-      className={`fixed right-6 bottom-22 z-40 flex flex-col gap-3 items-center pointer-events-none transition-opacity duration-300 ${
+      className={`fixed right-6 bottom-23 z-40 flex flex-col gap-3 items-center pointer-events-none transition-opacity duration-300 ${
         mobileActive ? "opacity-100" : "max-lg:opacity-35"
       }`}
       onTouchStart={handleTouchStart}
@@ -177,7 +167,6 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
             strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
-            // 不在此处设置 dasharray / dashoffset，完全由 JS 控制
           />
         </svg>
         <button
