@@ -1,4 +1,3 @@
-// themes/fuwari/components/control/back-to-top.tsx
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Rocket, MessageCircle } from "lucide-react";
 import { useRouterState } from "@tanstack/react-router";
@@ -8,7 +7,6 @@ interface BackToTopProps {
 }
 
 export function BackToTop({ isGuestPost = false }: BackToTopProps) {
-  const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
   const pathname = useRouterState().location.pathname;
   const isPostPage = pathname.startsWith("/post/");
@@ -17,20 +15,26 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
   const [mobileActive, setMobileActive] = useState(false);
   const mobileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 进度路径元素引用，用于动态计算长度
+  // 进度路径元素引用
   const progressPathRef = useRef<SVGPathElement>(null);
-  const [pathLength, setPathLength] = useState(208);
+  // 存储路径总长度，避免重复计算
+  const pathLengthRef = useRef(208);
+  // requestAnimationFrame 的 ID，用于节流
+  const rafIdRef = useRef<number | null>(null);
 
   // 圆角矩形路径（边框位于按钮外侧）
   const roundedRectPath =
     "M 18 4 L 42 4 Q 56 4 56 18 L 56 42 Q 56 56 42 56 L 18 56 Q 4 56 4 42 L 4 18 Q 4 4 18 4 Z";
 
-  // 动态获取路径长度
+  // 动态获取路径长度并设置 dasharray（仅挂载时执行一次）
   useEffect(() => {
     const path = progressPathRef.current;
     if (path) {
       const length = path.getTotalLength();
-      if (length > 0) setPathLength(length);
+      if (length > 0) {
+        pathLengthRef.current = length;
+        path.setAttribute("stroke-dasharray", length.toString());
+      }
     }
   }, []);
 
@@ -49,69 +53,80 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
     };
   }, []);
 
-  // 进度计算：文章页以相邻文章导航为内容终点
-  const computeProgress = useCallback(() => {
+  // 进度计算并直接操作 DOM（不触发组件重新渲染）
+  const updateProgress = useCallback(() => {
+    const path = progressPathRef.current;
+    if (!path) return;
+
+    let pct = 0;
+
     if (!isPostPage) {
       const scrollTop = window.scrollY;
       const docHeight = document.documentElement.scrollHeight;
       const winHeight = window.innerHeight;
       const max = docHeight - winHeight;
-      setProgress(max > 0 ? Math.min(100, (scrollTop / max) * 100) : 0);
-      return;
-    }
-
-    const article = document.querySelector(".fuwari-custom-md");
-    if (!article) {
-      setProgress(0);
-      return;
-    }
-
-    const rect = article.getBoundingClientRect();
-    const articleTop = rect.top + window.scrollY;
-    const articleHeight = rect.height;
-
-    // 优先以相邻文章导航作为内容结束点（下一篇导航之前）
-    const adjacent = document.getElementById("adjacent-posts");
-    let contentEnd = articleTop + articleHeight;
-    if (adjacent) {
-      const adjacentRect = adjacent.getBoundingClientRect();
-      contentEnd = adjacentRect.top + window.scrollY;
-    }
-
-    const contentHeight = contentEnd - articleTop;
-    const scrollTop = window.scrollY;
-    const windowHeight = window.innerHeight;
-
-    if (contentHeight <= 0) {
-      setProgress(0);
-      return;
-    }
-
-    if (scrollTop + windowHeight >= contentEnd) {
-      setProgress(100);
-    } else if (scrollTop <= articleTop) {
-      setProgress(0);
+      pct = max > 0 ? Math.min(100, (scrollTop / max) * 100) : 0;
     } else {
-      const scrolled = scrollTop - articleTop;
-      const scrollable = contentHeight - windowHeight;
-      const pct = scrollable > 0 ? (scrolled / scrollable) * 100 : 0;
-      setProgress(Math.min(100, Math.max(0, pct)));
+      const article = document.querySelector(".fuwari-custom-md");
+      if (!article) {
+        pct = 0;
+      } else {
+        const rect = article.getBoundingClientRect();
+        const articleTop = rect.top + window.scrollY;
+        const articleHeight = rect.height;
+
+        // 以相邻文章导航作为内容结束点
+        const adjacent = document.getElementById("adjacent-posts");
+        let contentEnd = articleTop + articleHeight;
+        if (adjacent) {
+          const adjacentRect = adjacent.getBoundingClientRect();
+          contentEnd = adjacentRect.top + window.scrollY;
+        }
+
+        const contentHeight = contentEnd - articleTop;
+        const scrollTop = window.scrollY;
+        const windowHeight = window.innerHeight;
+
+        if (contentHeight <= 0) {
+          pct = 0;
+        } else if (scrollTop + windowHeight >= contentEnd) {
+          pct = 100;
+        } else if (scrollTop <= articleTop) {
+          pct = 0;
+        } else {
+          const scrolled = scrollTop - articleTop;
+          const scrollable = contentHeight - windowHeight;
+          pct = scrollable > 0 ? (scrolled / scrollable) * 100 : 0;
+          pct = Math.min(100, Math.max(0, pct));
+        }
+      }
     }
+
+    const length = pathLengthRef.current;
+    path.setAttribute("stroke-dashoffset", (length * (1 - pct / 100)).toString());
   }, [isPostPage]);
 
+  // 滚动监听（使用 rAF 节流，进一步减少主线程压力）
   useEffect(() => {
     const onScroll = () => {
       setVisible(window.scrollY > 300);
-      computeProgress();
+
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+      rafIdRef.current = requestAnimationFrame(updateProgress);
     };
+
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", computeProgress);
-    onScroll();
+    window.addEventListener("resize", updateProgress);
+    onScroll(); // 初始调用
+
     return () => {
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", computeProgress);
+      window.removeEventListener("resize", updateProgress);
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
     };
-  }, [computeProgress]);
+  }, [updateProgress]);
 
   const scrollTo = (selector?: string) => {
     if (selector) {
@@ -162,9 +177,7 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
             strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeDasharray={pathLength}
-            strokeDashoffset={pathLength * (1 - progress / 100)}
-            className="transition-[stroke-dashoffset] duration-100 ease-out"
+            // 不在此处设置 dasharray / dashoffset，完全由 JS 控制
           />
         </svg>
         <button
