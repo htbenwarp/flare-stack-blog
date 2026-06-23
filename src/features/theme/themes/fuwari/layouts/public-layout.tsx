@@ -33,6 +33,7 @@ export function PublicLayout({
   const [showMusicPanel, setShowMusicPanel] = useState(false);
   const location = useLocation();
   const isHomePage = location.pathname === "/";
+  const isPostPage = location.pathname.startsWith("/post/");
   const bannerHeightVh = isHomePage ? BANNER_HEIGHT_HOME : BANNER_HEIGHT_PAGE;
 
   const [isDark, setIsDark] = useState(false);
@@ -48,10 +49,8 @@ export function PublicLayout({
 
   const fuwari = siteConfig?.theme?.fuwari;
   const lightBg = fuwari?.homeBg ?? "";
-  // 修复：使用 || 连接，避免 ?? 和 || 混合优先级问题
   const darkBg = fuwari?.darkHomeBg || fuwari?.homeBg || "";
 
-  // 预加载当前未显示的另一张背景图
   useEffect(() => {
     if (isDark) {
       preloadImage(lightBg);
@@ -94,7 +93,7 @@ export function PublicLayout({
         </div>
       </div>
 
-      {/* Banner - 使用两张重叠图片，根据主题切换可见性 */}
+      {/* Banner */}
       <div
         className="absolute left-0 right-0 top-0 z-10 overflow-hidden transition-[height] duration-300 ease-in-out"
         style={{ height: `${bannerHeightVh}vh` }}
@@ -125,6 +124,8 @@ export function PublicLayout({
           >
             <Footer navOptions={navOptions} />
           </div>
+          {/* 非文章页显示通用 BackToTop，文章页由 page.tsx 自行提供带客邸过滤的版本 */}
+          {!isPostPage && <BackToTop />}
         </div>
       </div>
 
