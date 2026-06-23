@@ -5,7 +5,7 @@ import { useRouterState } from "@tanstack/react-router";
 
 interface BackToTopProps {
   isGuestPost?: boolean;
-  showCommentButton?: boolean; // 是否显示评论区按钮
+  showCommentButton?: boolean;
 }
 
 export function BackToTop({
@@ -25,7 +25,6 @@ export function BackToTop({
   const roundedRectPath =
     "M 18 4 L 42 4 Q 56 4 56 18 L 56 42 Q 56 56 42 56 L 18 56 Q 4 56 4 42 L 4 18 Q 4 4 18 4 Z";
 
-  // 动态获取路径长度
   useEffect(() => {
     const path = progressPathRef.current;
     if (path) {
@@ -37,7 +36,6 @@ export function BackToTop({
     }
   }, []);
 
-  // 移动端触摸激活
   const handleTouchStart = useCallback(() => {
     setMobileActive(true);
     if (mobileTimerRef.current) clearTimeout(mobileTimerRef.current);
@@ -52,7 +50,6 @@ export function BackToTop({
     };
   }, []);
 
-  // 进度更新（直接操作 DOM）
   const updateProgress = useCallback(() => {
     const path = progressPathRef.current;
     if (!path) return;
@@ -107,7 +104,6 @@ export function BackToTop({
     );
   }, [isPostPage]);
 
-  // 滚动监听
   useEffect(() => {
     const onScroll = () => {
       setVisible(window.scrollY > 300);
