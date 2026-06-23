@@ -118,6 +118,7 @@ export function PublicLayout({
           <main className="order-1 lg:order-2 flex flex-col gap-4 min-w-0">
             {children}
           </main>
+          <BackToTop />
           <div
             className="order-3 lg:col-start-2 fuwari-onload-animation mt-auto"
             style={{ animationDelay: "250ms" }}

@@ -5,23 +5,23 @@ import { useRouterState } from "@tanstack/react-router";
 
 interface BackToTopProps {
   isGuestPost?: boolean;
+  showCommentButton?: boolean; // 是否显示评论区按钮
 }
 
-export function BackToTop({ isGuestPost = false }: BackToTopProps) {
-  const [progress, setProgress] = useState(0);
+export function BackToTop({
+  isGuestPost = false,
+  showCommentButton = false,
+}: BackToTopProps) {
   const [visible, setVisible] = useState(false);
   const pathname = useRouterState().location.pathname;
   const isPostPage = pathname.startsWith("/post/");
 
-  // 移动端半透明交互
   const [mobileActive, setMobileActive] = useState(false);
   const mobileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 进度路径元素引用，用于动态计算长度
   const progressPathRef = useRef<SVGPathElement>(null);
-  const [pathLength, setPathLength] = useState(208);
-
-  // 圆角矩形路径（边框位于按钮外侧）
+  const pathLengthRef = useRef(208);
+  const rafIdRef = useRef<number | null>(null);
   const roundedRectPath =
     "M 18 4 L 42 4 Q 56 4 56 18 L 56 42 Q 56 56 42 56 L 18 56 Q 4 56 4 42 L 4 18 Q 4 4 18 4 Z";
 
@@ -30,7 +30,10 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
     const path = progressPathRef.current;
     if (path) {
       const length = path.getTotalLength();
-      if (length > 0) setPathLength(length);
+      if (length > 0) {
+        pathLengthRef.current = length;
+        path.setAttribute("stroke-dasharray", length.toString());
+      }
     }
   }, []);
 
@@ -49,69 +52,82 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
     };
   }, []);
 
-  // 进度计算：文章页以相邻文章导航为内容终点
-  const computeProgress = useCallback(() => {
+  // 进度更新（直接操作 DOM）
+  const updateProgress = useCallback(() => {
+    const path = progressPathRef.current;
+    if (!path) return;
+
+    let pct = 0;
+
     if (!isPostPage) {
       const scrollTop = window.scrollY;
       const docHeight = document.documentElement.scrollHeight;
       const winHeight = window.innerHeight;
       const max = docHeight - winHeight;
-      setProgress(max > 0 ? Math.min(100, (scrollTop / max) * 100) : 0);
-      return;
-    }
-
-    const article = document.querySelector(".fuwari-custom-md");
-    if (!article) {
-      setProgress(0);
-      return;
-    }
-
-    const rect = article.getBoundingClientRect();
-    const articleTop = rect.top + window.scrollY;
-    const articleHeight = rect.height;
-
-    // 优先以相邻文章导航作为内容结束点（下一篇导航之前）
-    const adjacent = document.getElementById("adjacent-posts");
-    let contentEnd = articleTop + articleHeight;
-    if (adjacent) {
-      const adjacentRect = adjacent.getBoundingClientRect();
-      contentEnd = adjacentRect.top + window.scrollY;
-    }
-
-    const contentHeight = contentEnd - articleTop;
-    const scrollTop = window.scrollY;
-    const windowHeight = window.innerHeight;
-
-    if (contentHeight <= 0) {
-      setProgress(0);
-      return;
-    }
-
-    if (scrollTop + windowHeight >= contentEnd) {
-      setProgress(100);
-    } else if (scrollTop <= articleTop) {
-      setProgress(0);
+      pct = max > 0 ? Math.min(100, (scrollTop / max) * 100) : 0;
     } else {
-      const scrolled = scrollTop - articleTop;
-      const scrollable = contentHeight - windowHeight;
-      const pct = scrollable > 0 ? (scrolled / scrollable) * 100 : 0;
-      setProgress(Math.min(100, Math.max(0, pct)));
+      const article = document.querySelector(".fuwari-custom-md");
+      if (!article) {
+        pct = 0;
+      } else {
+        const rect = article.getBoundingClientRect();
+        const articleTop = rect.top + window.scrollY;
+        const articleHeight = rect.height;
+
+        const adjacent = document.getElementById("adjacent-posts");
+        let contentEnd = articleTop + articleHeight;
+        if (adjacent) {
+          const adjacentRect = adjacent.getBoundingClientRect();
+          contentEnd = adjacentRect.top + window.scrollY;
+        }
+
+        const contentHeight = contentEnd - articleTop;
+        const scrollTop = window.scrollY;
+        const windowHeight = window.innerHeight;
+
+        if (contentHeight <= 0) {
+          pct = 0;
+        } else if (scrollTop + windowHeight >= contentEnd) {
+          pct = 100;
+        } else if (scrollTop <= articleTop) {
+          pct = 0;
+        } else {
+          const scrolled = scrollTop - articleTop;
+          const scrollable = contentHeight - windowHeight;
+          pct = scrollable > 0 ? (scrolled / scrollable) * 100 : 0;
+          pct = Math.min(100, Math.max(0, pct));
+        }
+      }
     }
+
+    const length = pathLengthRef.current;
+    path.setAttribute(
+      "stroke-dashoffset",
+      (length * (1 - pct / 100)).toString(),
+    );
   }, [isPostPage]);
 
+  // 滚动监听
   useEffect(() => {
     const onScroll = () => {
       setVisible(window.scrollY > 300);
-      computeProgress();
+
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+      rafIdRef.current = requestAnimationFrame(updateProgress);
     };
+
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", computeProgress);
+    window.addEventListener("resize", updateProgress);
     onScroll();
+
     return () => {
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", computeProgress);
+      window.removeEventListener("resize", updateProgress);
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
     };
-  }, [computeProgress]);
+  }, [updateProgress]);
 
   const scrollTo = (selector?: string) => {
     if (selector) {
@@ -127,7 +143,7 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
 
   return (
     <div
-      className={`fixed right-6 bottom-22 z-40 flex flex-col gap-3 items-center pointer-events-none transition-opacity duration-300 ${
+      className={`fixed right-6 bottom-23 z-40 flex flex-col gap-3 items-center pointer-events-none transition-opacity duration-300 ${
         mobileActive ? "opacity-100" : "max-lg:opacity-35"
       }`}
       onTouchStart={handleTouchStart}
@@ -162,9 +178,6 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
             strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeDasharray={pathLength}
-            strokeDashoffset={pathLength * (1 - progress / 100)}
-            className="transition-[stroke-dashoffset] duration-100 ease-out"
           />
         </svg>
         <button
@@ -175,8 +188,8 @@ export function BackToTop({ isGuestPost = false }: BackToTopProps) {
         </button>
       </div>
 
-      {/* 跳转评论区按钮（仅文章页且非客邸文章，无描边） */}
-      {isPostPage && !isGuestPost && (
+      {/* 跳转评论区按钮（需显式开启 + 文章页 + 非客邸） */}
+      {isPostPage && showCommentButton && !isGuestPost && (
         <div
           className={`flex items-center justify-center w-14 h-14 pointer-events-auto transition-all duration-300 active:scale-90 ${
             visible ? "opacity-100 scale-100" : "opacity-0 scale-90"

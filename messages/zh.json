@@ -1538,5 +1538,7 @@
   "editor_meta_select_author": "选择作者",
   "like_button_label": "点赞",
   "like_error": "请求失败，请重试",
-  "comments_item_manager": "管理员"
+  "comments_item_manager": "管理员",
+  "nav_guestbook": "留言板",
+  "guestbook_not_found": "留言板未初始化，请联系博主创建 slug 为 guestbook 的文章。"
 }

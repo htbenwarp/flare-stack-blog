@@ -1,5 +1,5 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { Home, Menu, Search, UserIcon } from "lucide-react";
+import { Home, Menu, Search, UserIcon, FileText, Users, Link2, MessageSquare, Image } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +18,15 @@ interface NavbarProps {
 const NAVBAR_HEIGHT_REM = 4.5;
 const MAIN_OVERLAP_REM = 3.5;
 
+// 根据导航项的 id 映射到图标（可按需扩展）
+const iconMap: Record<string, React.ElementType> = {
+  "posts": FileText,
+  "guest-house": Users,
+  "friend-links": Link2,
+  "guestbook": MessageSquare,   // 留言板（预留）
+  "gallery": Image,             // 画廊（预留）
+};
+
 export function Navbar({
   onMenuClick,
   user,
@@ -30,7 +39,6 @@ export function Navbar({
 
   useEffect(() => {
     const handleScroll = () => {
-      // Calculate threshold based on banner height and layout
       const bannerHeightPx = window.innerHeight * (bannerHeightVh / 100);
       const navbarHeightPx = NAVBAR_HEIGHT_REM * 16;
       const mainOverlapPx = MAIN_OVERLAP_REM * 16;
@@ -44,11 +52,13 @@ export function Navbar({
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
-    // Initial check
     handleScroll();
 
     return () => window.removeEventListener("scroll", handleScroll);
   }, [bannerHeightVh]);
+
+  // 过滤掉首页，因为它已经在左侧单独渲染
+  const filteredOptions = navOptions.filter(option => option.id !== "home");
 
   return (
     <div
@@ -65,6 +75,7 @@ export function Navbar({
         style={{ animationDelay: "0ms" }}
       >
         <div className="fuwari-card-base overflow-visible! rounded-t-none! mx-auto flex items-center justify-between px-4 h-18 max-w-(--fuwari-page-width)">
+          {/* 主页图标（始终显示） */}
           <Link
             to="/"
             className="fuwari-expand-animation rounded-lg h-13 px-5 font-bold active:scale-95 flex items-center"
@@ -79,20 +90,28 @@ export function Navbar({
             </span>
           </Link>
 
+          {/* 桌面端图标导航（悬停展开文字） */}
           <nav className="hidden md:flex items-center gap-1">
-            {navOptions.map((option) => (
-              <Link
-                key={option.id}
-                to={option.to}
-                className="fuwari-expand-animation rounded-lg h-11 font-bold px-5 active:scale-95 flex items-center fuwari-text-75 hover:text-(--fuwari-primary)"
-                activeProps={{
-                  className: "!text-[var(--fuwari-primary)]",
-                }}
-              >
-                {option.label}
-              </Link>
-            ))}
-         </nav>
+            {filteredOptions.map((option) => {
+              const Icon = iconMap[option.id] || FileText; // 默认图标
+              return (
+                <Link
+                  key={option.id}
+                  to={option.to}
+                  className="group fuwari-expand-animation rounded-lg h-11 px-3 font-bold active:scale-95 flex items-center overflow-hidden fuwari-text-75 hover:text-(--fuwari-primary)"
+                  activeProps={{
+                    className:
+                      "!text-[var(--fuwari-primary)] group fuwari-expand-animation rounded-lg h-11 px-3 font-bold active:scale-95 flex items-center overflow-hidden",
+                  }}
+                >
+                  <Icon size={20} strokeWidth={1.5} className="shrink-0" />
+                  <span className="whitespace-nowrap max-w-0 opacity-0 overflow-hidden transition-all duration-300 ease-out ml-1 group-hover:max-w-32 group-hover:opacity-100 group-hover:ml-2 group-[.active]:max-w-32 group-[.active]:opacity-100 group-[.active]:ml-2">
+                    {option.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
 
           <div className="flex items-center gap-1">
             <Link

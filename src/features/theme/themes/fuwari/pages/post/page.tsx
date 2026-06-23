@@ -239,7 +239,7 @@ export function PostPage({ post }: PostPageProps) {
   if (needPassword) {
     return (
       <>
-        <BackToTop isGuestPost={isGuestPost} />
+        <BackToTop showCommentButton isGuestPost={isGuestPost} />
         <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
           <EncryptedPostGate post={safeDisplayPost} slug={slug} onUnlocked={(full) => setUnlockedPost(full)} />
           <div id="adjacent-posts">
@@ -265,7 +265,7 @@ export function PostPage({ post }: PostPageProps) {
 
   return (
     <>
-      <BackToTop isGuestPost={isGuestPost} />
+      <BackToTop showCommentButton isGuestPost={isGuestPost} />
       <div className="relative flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:bg-transparent gap-4 mb-4 w-full">
         {!isGuestPost && safeDisplayPost.toc?.length > 0 && (
           <div className="hidden 2xl:block absolute top-0 h-full pl-4" style={{ right: "calc(var(--fuwari-toc-width) * -1)", width: "var(--fuwari-toc-width)" }}>

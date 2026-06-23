@@ -1546,5 +1546,7 @@
   "editor_meta_select_author": "Select Author",
   "like_button_label": "Like",
   "like_error": "Request failed, retry",
-  "comments_item_manager": "Manager"
+  "comments_item_manager": "Manager",
+  "nav_guestbook": "Guest Book",
+  "guestbook_not_found": "The guestbook is not initialized, please contact the blogger to create a post with the slug 'guestbook'."
 }

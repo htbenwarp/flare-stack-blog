@@ -9,6 +9,8 @@ import {
 import * as PostService from "@/features/posts/services/posts.service";
 import { dbMiddleware, sessionMiddleware } from "@/lib/middlewares";
 import * as PostRepo from "@/features/posts/data/posts.data";
+import { eq, and } from "drizzle-orm";
+import { PostsTable } from "@/lib/db/schema";
 
 export const getPostsCursorFn = createServerFn()
   .middleware([dbMiddleware])
@@ -108,4 +110,58 @@ export const getPostGuestAuthorSlugFn = createServerFn()
   .inputValidator(z.object({ slug: z.string() }))
   .handler(async ({ data, context }) => {
     return await PostRepo.getPostGuestAuthorSlug(context.db, data.slug);
+  });
+
+export const getPublicPostBySlugFn = createServerFn()
+  .middleware([dbMiddleware]) // 无需 sessionMiddleware
+  .inputValidator(z.object({ slug: z.string() }))
+  .handler(async ({ data, context }) => {
+    const post = await PostRepo.findPostBySlug(context.db, data.slug, {
+      publicOnly: true,
+      excludeGuestPosts: false,
+    });
+    if (!post) return null;
+
+    // 加密文章返回占位信息，防止正文泄露
+    if (post.isEncrypted) {
+      return {
+        id: post.id,
+        title: post.title,
+        slug: post.slug,
+        contentJson: { type: "doc", content: [] },
+        isEncrypted: true,
+        // 补充必要字段，防止前端崩溃
+        publishedAt: post.publishedAt,
+        updatedAt: post.updatedAt,
+        tags: post.tags ?? [],
+        guestAuthor: post.guestAuthor ?? null,
+        guestAuthorSlug: post.guestAuthor?.slug ?? null,
+        isGuestPost: post.isGuestPost ?? false,
+        guestAuthorId: post.guestAuthorId ?? null,
+      };
+    }
+
+    // 非加密文章返回完整内容（移除 passwordHash）
+    const { passwordHash, ...safePost } = post;
+    return safePost;
+  });
+
+
+export const getGuestbookPostFn = createServerFn()
+  .middleware([dbMiddleware])
+  .handler(async ({ context }) => {
+    // 直接查询，不使用 publicOnly，避免被 ne(slug, 'guestbook') 排除
+    const post = await context.db.query.PostsTable.findFirst({
+      where: and(
+        eq(PostsTable.slug, "guestbook"),
+        eq(PostsTable.status, "published"),
+      ),
+    });
+
+    if (!post) return null;
+    return {
+      id: post.id,
+      title: post.title,
+      contentJson: post.contentJson,
+    };
   });

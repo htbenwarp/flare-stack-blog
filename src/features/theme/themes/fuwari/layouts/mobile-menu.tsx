@@ -1,8 +1,29 @@
 import { Link } from "@tanstack/react-router";
-import { LogOut, Settings, User as UserIcon } from "lucide-react";
+import {
+  LogOut,
+  Settings,
+  User as UserIcon,
+  Home,
+  FileText,
+  Users,
+  Link2,
+  MessageSquare,
+  Image,
+} from "lucide-react";
 import type { NavOption, UserInfo } from "@/features/theme/contract/layouts";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+
+// 导航项 id → 图标映射表
+const iconMap: Record<string, React.ElementType> = {
+  home: Home,
+  posts: FileText,
+  "guest-house": Users,
+  "friend-links": Link2,
+  guestbook: MessageSquare, // 预留留言板
+  gallery: Image, // 预留画廊
+};
+const defaultIcon = Home; // 未匹配时使用的默认图标
 
 interface MobileMenuProps {
   navOptions: Array<NavOption>;
@@ -42,20 +63,24 @@ export function MobileMenu({
         <div className="fuwari-card-base p-2 flex flex-col gap-1 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
           {/* Navigation Items */}
           <nav className="flex flex-col">
-            {navOptions.map((item) => (
-              <Link
-                key={item.id}
-                to={item.to}
-                onClick={onClose}
-                className="flex items-center w-full px-4 py-2.5 text-sm font-medium rounded-lg transition-colors fuwari-text-75 hover:bg-(--fuwari-btn-regular-bg) hover:text-(--fuwari-primary) active:scale-[0.98]"
-                activeProps={{
-                  className:
-                    "!bg-[var(--fuwari-btn-regular-bg)] !text-[var(--fuwari-primary)]",
-                }}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {navOptions.map((item) => {
+              const Icon = iconMap[item.id] || defaultIcon;
+              return (
+                <Link
+                  key={item.id}
+                  to={item.to}
+                  onClick={onClose}
+                  className="flex items-center w-full px-4 py-2.5 text-sm font-medium rounded-lg transition-colors fuwari-text-75 hover:bg-(--fuwari-btn-regular-bg) hover:text-(--fuwari-primary) active:scale-[0.98]"
+                  activeProps={{
+                    className:
+                      "!bg-[var(--fuwari-btn-regular-bg)] !text-[var(--fuwari-primary)]",
+                  }}
+                >
+                  <Icon className="w-4 h-4 mr-3" />
+                  {item.label}
+                </Link>
+              );
+            })}
 
             {/* 管理员和博主均可看到管理后台入口 */}
             {(user?.role === "admin" || user?.role === "manager") && (

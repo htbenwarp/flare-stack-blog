@@ -35,6 +35,7 @@ import { Route as AdminMediaIndexRouteImport } from './routes/admin/media/index'
 import { Route as AdminGuestAuthorsIndexRouteImport } from './routes/admin/guest-authors/index'
 import { Route as AdminFriendLinksIndexRouteImport } from './routes/admin/friend-links/index'
 import { Route as AdminCommentsIndexRouteImport } from './routes/admin/comments/index'
+import { Route as PublicGuestbookIndexRouteImport } from './routes/_public/guestbook/index'
 import { Route as PublicGuestHouseIndexRouteImport } from './routes/_public/guest-house/index'
 import { Route as PublicPostSlugRouteImport } from './routes/_public/post/$slug'
 import { Route as AdminPostsEditIdRouteImport } from './routes/admin/posts/edit.$id'
@@ -167,6 +168,11 @@ const AdminCommentsIndexRoute = AdminCommentsIndexRouteImport.update({
   path: '/comments/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const PublicGuestbookIndexRoute = PublicGuestbookIndexRouteImport.update({
+  id: '/guestbook/',
+  path: '/guestbook/',
+  getParentRoute: () => PublicRouteRoute,
+} as any)
 const PublicGuestHouseIndexRoute = PublicGuestHouseIndexRouteImport.update({
   id: '/guest-house/',
   path: '/guest-house/',
@@ -208,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/post/$slug': typeof PublicPostSlugRoute
   '/guest-house/': typeof PublicGuestHouseIndexRoute
+  '/guestbook/': typeof PublicGuestbookIndexRoute
   '/admin/comments/': typeof AdminCommentsIndexRoute
   '/admin/friend-links/': typeof AdminFriendLinksIndexRoute
   '/admin/guest-authors/': typeof AdminGuestAuthorsIndexRoute
@@ -235,6 +242,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/post/$slug': typeof PublicPostSlugRoute
   '/guest-house': typeof PublicGuestHouseIndexRoute
+  '/guestbook': typeof PublicGuestbookIndexRoute
   '/admin/comments': typeof AdminCommentsIndexRoute
   '/admin/friend-links': typeof AdminFriendLinksIndexRoute
   '/admin/guest-authors': typeof AdminGuestAuthorsIndexRoute
@@ -268,6 +276,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/_public/post/$slug': typeof PublicPostSlugRoute
   '/_public/guest-house/': typeof PublicGuestHouseIndexRoute
+  '/_public/guestbook/': typeof PublicGuestbookIndexRoute
   '/admin/comments/': typeof AdminCommentsIndexRoute
   '/admin/friend-links/': typeof AdminFriendLinksIndexRoute
   '/admin/guest-authors/': typeof AdminGuestAuthorsIndexRoute
@@ -299,6 +308,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/post/$slug'
     | '/guest-house/'
+    | '/guestbook/'
     | '/admin/comments/'
     | '/admin/friend-links/'
     | '/admin/guest-authors/'
@@ -326,6 +336,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/post/$slug'
     | '/guest-house'
+    | '/guestbook'
     | '/admin/comments'
     | '/admin/friend-links'
     | '/admin/guest-authors'
@@ -358,6 +369,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/_public/post/$slug'
     | '/_public/guest-house/'
+    | '/_public/guestbook/'
     | '/admin/comments/'
     | '/admin/friend-links/'
     | '/admin/guest-authors/'
@@ -561,6 +573,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCommentsIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/_public/guestbook/': {
+      id: '/_public/guestbook/'
+      path: '/guestbook'
+      fullPath: '/guestbook/'
+      preLoaderRoute: typeof PublicGuestbookIndexRouteImport
+      parentRoute: typeof PublicRouteRoute
+    }
     '/_public/guest-house/': {
       id: '/_public/guest-house/'
       path: '/guest-house'
@@ -620,6 +639,7 @@ interface PublicRouteRouteChildren {
   PublicIndexRoute: typeof PublicIndexRoute
   PublicPostSlugRoute: typeof PublicPostSlugRoute
   PublicGuestHouseIndexRoute: typeof PublicGuestHouseIndexRoute
+  PublicGuestbookIndexRoute: typeof PublicGuestbookIndexRoute
   PublicGuestHouseAuthorSlugRoute: typeof PublicGuestHouseAuthorSlugRoute
 }
 
@@ -631,6 +651,7 @@ const PublicRouteRouteChildren: PublicRouteRouteChildren = {
   PublicIndexRoute: PublicIndexRoute,
   PublicPostSlugRoute: PublicPostSlugRoute,
   PublicGuestHouseIndexRoute: PublicGuestHouseIndexRoute,
+  PublicGuestbookIndexRoute: PublicGuestbookIndexRoute,
   PublicGuestHouseAuthorSlugRoute: PublicGuestHouseAuthorSlugRoute,
 }
 
