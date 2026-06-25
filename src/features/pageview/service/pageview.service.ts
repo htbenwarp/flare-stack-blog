@@ -50,7 +50,6 @@ export async function getPopularPosts(
       const slugs = topPages.map((p) => p.slug);
       const posts = await PostRepo.findPostsBySlugs(context.db, slugs);
 
-      // 保持热门度顺序
       const bySlug = new Map(posts.map((p) => [p.slug, p]));
       return slugs.flatMap((slug) => {
         const post = bySlug.get(slug);
@@ -85,37 +84,55 @@ export async function getViewCounts(
 export async function getSiteStats(
   context: DbContext & { env: Env; executionCtx?: ExecutionContext },
 ) {
-  // 缓存整个统计结果，1 小时有效，避免每次访问都全表扫描 page_views
-  const version = await CacheService.getVersion(context, "pageview:stats");
-  const cacheKey = ["site", "stats", version];
+  const cacheKey = "site:stats:v1";
 
-  return CacheService.get(
-    context,
-    cacheKey,
-    // 用简单的 schema 校验返回结构
-    {
-      totalPageviews: 0,
-      articleCount: 0,
-      totalChars: 0,
-      startDate: blogConfig.startDate,
-    } as any,
-    async () => {
-      const [totalPv, contentList] = await Promise.all([
-        getTotalPageviews(context.db),
-        getPublishedContentList(context.db),
-      ]);
-
-      const totalChars = contentList.reduce((sum, doc) => {
-        return sum + extractText(doc).length;
-      }, 0);
-
-      return {
-        totalPageviews: totalPv,
-        articleCount: contentList.length,
-        totalChars,
-        startDate: blogConfig.startDate,
+  // 1. 尝试从 KV 读取缓存
+  try {
+    const cached = await context.env.KV.get(cacheKey, "json");
+    if (cached) {
+      return cached as {
+        totalPageviews: number;
+        articleCount: number;
+        totalChars: number;
+        startDate: string;
       };
-    },
-    { ttl: "1h" },
-  );
+    }
+  } catch (err) {
+    console.error('KV read failed:', err);
+  }
+
+  // 2. 缓存未命中，查询 D1
+  const [totalPv, contentList] = await Promise.all([
+    getTotalPageviews(context.db),
+    getPublishedContentList(context.db),
+  ]);
+
+  // 计算所有文章纯文本的总字数
+  const totalChars = contentList.reduce((sum, doc) => {
+    return sum + extractText(doc).length;
+  }, 0);
+
+  const stats = {
+    totalPageviews: totalPv,
+    articleCount: contentList.length,
+    totalChars,
+    startDate: blogConfig.startDate,
+  };
+
+  // 3. 写入 KV（1 小时过期）
+  const ttl = 3600;
+  const writePromise = context.env.KV.put(cacheKey, JSON.stringify(stats), {
+    expirationTtl: ttl,
+  }).catch((err) => {
+    console.error('KV write failed:', err);
+  });
+
+  // 后台写入，不阻塞响应
+  if (context.executionCtx) {
+    context.executionCtx.waitUntil(writePromise);
+  } else {
+    await writePromise;
+  }
+
+  return stats;
 }
