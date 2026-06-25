@@ -82,20 +82,40 @@ export async function getViewCounts(
 // ---------------------------------------------------------------
 // 站点统计信息（全站 PV、文章数、纯文本总字数）
 // ---------------------------------------------------------------
-export async function getSiteStats(context: DbContext) {
-  const [totalPv, contentList] = await Promise.all([
-    getTotalPageviews(context.db),
-    getPublishedContentList(context.db),
-  ]);
+export async function getSiteStats(
+  context: DbContext & { env: Env; executionCtx?: ExecutionContext },
+) {
+  // 缓存整个统计结果，1 小时有效，避免每次访问都全表扫描 page_views
+  const version = await CacheService.getVersion(context, "pageview:stats");
+  const cacheKey = ["site", "stats", version];
 
-  const totalChars = contentList.reduce((sum, doc) => {
-    return sum + extractText(doc).length;
-  }, 0);
+  return CacheService.get(
+    context,
+    cacheKey,
+    // 用简单的 schema 校验返回结构
+    {
+      totalPageviews: 0,
+      articleCount: 0,
+      totalChars: 0,
+      startDate: blogConfig.startDate,
+    } as any,
+    async () => {
+      const [totalPv, contentList] = await Promise.all([
+        getTotalPageviews(context.db),
+        getPublishedContentList(context.db),
+      ]);
 
-  return {
-    totalPageviews: totalPv,
-    articleCount: contentList.length,
-    totalChars,
-    startDate: blogConfig.startDate,
-  };
+      const totalChars = contentList.reduce((sum, doc) => {
+        return sum + extractText(doc).length;
+      }, 0);
+
+      return {
+        totalPageviews: totalPv,
+        articleCount: contentList.length,
+        totalChars,
+        startDate: blogConfig.startDate,
+      };
+    },
+    { ttl: "1h" },
+  );
 }
