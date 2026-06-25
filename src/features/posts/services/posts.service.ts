@@ -103,10 +103,7 @@ export async function findPostBySlug(
     });
     if (!post) return null;
 
-    // 直接使用发布时预先生成的公共内容（已包含代码高亮）
     const contentJson = post.publicContentJson ?? post.contentJson;
-
-    // 关联查询已包含作者信息，无需额外查询
     const guestAuthor = post.guestAuthor ?? null;
 
     return {
@@ -154,7 +151,6 @@ export async function getRelatedPosts(
   }
 
   const posts = await PostRepo.getPublicPostsByIds(context.db, cachedIds);
-
   const orderedPosts = cachedIds
     .map((id) => posts.find((p) => p.id === id))
     .filter((p): p is NonNullable<typeof p> => !!p);
@@ -170,68 +166,49 @@ export async function generateSummaryByPostId({
   postId: number;
 }) {
   const post = await PostRepo.findPostById(context.db, postId);
-
-  if (!post) {
-    return err({ reason: "POST_NOT_FOUND" });
-  }
+  if (!post) return err({ reason: "POST_NOT_FOUND" });
 
   if (post.summary && post.summary.trim().length > 0) return ok(post);
 
   const plainText = convertToPlainText(post.contentJson);
-  if (plainText.length < 100) {
-    return ok(post);
-  }
+  if (plainText.length < 100) return ok(post);
 
   const { summary } = await AiService.summarizeText(context, plainText);
-
   const updatedPost = await PostRepo.updatePost(context.db, post.id, {
     summary,
   });
 
-  if (!updatedPost) {
-    return err({ reason: "POST_NOT_FOUND" });
-  }
-
+  if (!updatedPost) return err({ reason: "POST_NOT_FOUND" });
   return ok(stripPublicContentJson(updatedPost));
 }
 
 // ============ Admin Service Methods ============
 
-export async function generateSlug(
-  context: DbContext,
-  data: GenerateSlugInput,
-) {
+export async function generateSlug(context: DbContext, data: GenerateSlugInput) {
   const baseSlug = slugify(data.title);
   const exactMatch = await PostRepo.slugExists(context.db, baseSlug, {
     excludeId: data.excludeId,
   });
-  if (!exactMatch) {
-    return { slug: baseSlug };
-  }
+  if (!exactMatch) return { slug: baseSlug };
 
   const similarSlugs = await PostRepo.findSimilarSlugs(context.db, baseSlug, {
     excludeId: data.excludeId,
   });
 
   const regex = new RegExp(`^${baseSlug}-(\\d+)$`);
-
   let maxSuffix = 0;
   for (const slug of similarSlugs) {
     const match = slug.match(regex);
     if (match) {
       const number = parseInt(match[1], 10);
-      if (number > maxSuffix) {
-        maxSuffix = number;
-      }
+      if (number > maxSuffix) maxSuffix = number;
     }
   }
-
   return { slug: `${baseSlug}-${maxSuffix + 1}` };
 }
 
 export async function createEmptyPost(context: DbContext) {
   const { slug } = await generateSlug(context, { title: "" });
-
   const post = await PostRepo.insertPost(context.db, {
     title: "",
     slug,
@@ -240,9 +217,8 @@ export async function createEmptyPost(context: DbContext) {
     readTimeInMinutes: 1,
     contentJson: null,
     isEncrypted: false,
-    passwordHash: null, 
+    passwordHash: null,
   });
-
   return { id: post.id };
 }
 
@@ -258,10 +234,7 @@ export async function getPosts(context: DbContext, data: GetPostsInput) {
   });
 }
 
-export async function getPostsCount(
-  context: DbContext,
-  data: GetPostsCountInput,
-) {
+export async function getPostsCount(context: DbContext, data: GetPostsCountInput) {
   return await PostRepo.getPostsCount(context.db, {
     status: data.status,
     publicOnly: data.publicOnly,
@@ -285,10 +258,7 @@ export async function findPostBySlugAdmin(
   };
 }
 
-export async function findPostById(
-  context: DbContext,
-  data: FindPostByIdInput,
-) {
+export async function findPostById(context: DbContext, data: FindPostByIdInput) {
   const post = await PostRepo.findPostById(context.db, data.id);
   if (!post) return null;
 
@@ -338,27 +308,23 @@ export async function updatePost(
   delete updateData.password;
   delete updateData.passwordHash;
 
-  // 处理密码
   if (restData.isEncrypted && password) {
     const hash = await hashPassword(password);
     await context.db.run(
-      sql`UPDATE posts SET password_hash = ${hash} WHERE id = ${id}`
+      sql`UPDATE posts SET password_hash = ${hash} WHERE id = ${id}`,
     );
   } else if (restData.isEncrypted === false) {
     await context.db.run(
-      sql`UPDATE posts SET password_hash = NULL WHERE id = ${id}`
+      sql`UPDATE posts SET password_hash = NULL WHERE id = ${id}`,
     );
   }
 
-  // 处理客邸字段
   if (restData.isGuestPost === false) {
     updateData.guestAuthorId = null;
   }
 
   const updatedPost = await PostRepo.updatePost(context.db, id, updateData);
-  if (!updatedPost) {
-    return err({ reason: "POST_NOT_FOUND" });
-  }
+  if (!updatedPost) return err({ reason: "POST_NOT_FOUND" });
 
   if (data.contentJson !== undefined) {
     context.executionCtx.waitUntil(
@@ -381,9 +347,7 @@ export async function deletePost(
   data: DeletePostInput,
 ) {
   const post = await PostRepo.findPostById(context.db, data.id);
-  if (!post) {
-    return err({ reason: "POST_NOT_FOUND" });
-  }
+  if (!post) return err({ reason: "POST_NOT_FOUND" });
 
   await PostRepo.deletePost(context.db, data.id);
 
@@ -402,7 +366,6 @@ export async function deletePost(
     tasks.push(
       CacheService.deleteKey(context, POSTS_CACHE_KEYS.syncHash(data.id)),
     );
-
     context.executionCtx.waitUntil(Promise.all(tasks));
   } else {
     context.executionCtx.waitUntil(
@@ -514,20 +477,17 @@ export async function startPostProcessWorkflow(
 
 // ============ Adjacent Posts Navigation ============
 
-export async function getAdjacentPosts(
-  context: DbContext,
-  slug: string,
-) {
+export async function getAdjacentPosts(context: DbContext, slug: string) {
   const post = await PostRepo.findPostBySlug(context.db, slug, {
     publicOnly: true,
   });
   if (!post || !post.publishedAt) return { prev: null, next: null };
 
-  // 上一篇：更早的 publishedAt，或同一时间但更小的 id
   const prevPost = await context.db.query.PostsTable.findFirst({
     where: and(
       eq(PostsTable.status, "published"),
       eq(PostsTable.isGuestPost, false),
+      ne(PostsTable.slug, "guestbook"), // 排除留言板
       ne(PostsTable.slug, slug),
       or(
         lt(PostsTable.publishedAt, post.publishedAt),
@@ -541,11 +501,11 @@ export async function getAdjacentPosts(
     columns: { title: true, slug: true },
   });
 
-  // 下一篇：更晚的 publishedAt，或同一时间但更大的 id
   const nextPost = await context.db.query.PostsTable.findFirst({
     where: and(
       eq(PostsTable.status, "published"),
       eq(PostsTable.isGuestPost, false),
+      ne(PostsTable.slug, "guestbook"), // 排除留言板
       ne(PostsTable.slug, slug),
       or(
         gt(PostsTable.publishedAt, post.publishedAt),
@@ -562,10 +522,7 @@ export async function getAdjacentPosts(
   return { prev: prevPost ?? null, next: nextPost ?? null };
 }
 
-export async function getAdjacentGuestPosts(
-  context: DbContext,
-  slug: string,
-) {
+export async function getAdjacentGuestPosts(context: DbContext, slug: string) {
   const post = await context.db.query.PostsTable.findFirst({
     where: and(
       eq(PostsTable.slug, slug),
@@ -581,12 +538,12 @@ export async function getAdjacentGuestPosts(
 
   const authorId = post.guestAuthorId;
 
-  // 上一篇（同作者）
   const prevPost = await context.db.query.PostsTable.findFirst({
     where: and(
       eq(PostsTable.isGuestPost, true),
       eq(PostsTable.guestAuthorId, authorId),
       eq(PostsTable.status, "published"),
+      ne(PostsTable.slug, "guestbook"), // 排除留言板
       ne(PostsTable.slug, slug),
       or(
         lt(PostsTable.publishedAt, post.publishedAt),
@@ -600,12 +557,12 @@ export async function getAdjacentGuestPosts(
     columns: { title: true, slug: true },
   });
 
-  // 下一篇（同作者）
   const nextPost = await context.db.query.PostsTable.findFirst({
     where: and(
       eq(PostsTable.isGuestPost, true),
       eq(PostsTable.guestAuthorId, authorId),
       eq(PostsTable.status, "published"),
+      ne(PostsTable.slug, "guestbook"), // 排除留言板
       ne(PostsTable.slug, slug),
       or(
         gt(PostsTable.publishedAt, post.publishedAt),

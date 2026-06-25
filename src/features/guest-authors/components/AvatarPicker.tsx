@@ -39,7 +39,7 @@ export function AvatarPicker({ value, onChange }: AvatarPickerProps) {
           size="sm"
           onClick={() => setShowPicker(!showPicker)}
         >
-          选择头像
+          选择资产
         </Button>
         <input
           type="text"

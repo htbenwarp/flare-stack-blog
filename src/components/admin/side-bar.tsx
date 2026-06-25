@@ -11,6 +11,7 @@ import {
   User,
   Users,
   X,
+  Images,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -98,6 +99,12 @@ export function SideBar({
       path: "/admin/guest-authors",
       icon: Users,
       label: m.admin_sidebar_guest_authors?.() ?? "客邸作者",
+      exact: false,
+    },
+    {
+      path: "/admin/gallery",
+      icon: Images,
+      label: m.admin_sidebar_gallery?.() ?? "画廊",
       exact: false,
     },
     {

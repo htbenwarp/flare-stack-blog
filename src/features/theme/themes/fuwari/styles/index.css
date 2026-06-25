@@ -313,3 +313,26 @@
 .dark ::-webkit-scrollbar-thumb:active {
   background-color: rgba(255, 255, 255, 0.6);
 }
+
+/* ===== 画廊灯箱自定义标题 ===== */
+.pswp__caption-custom {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  max-width: 80%;
+  text-align: center;
+  display: none; /* 默认隐藏，JS 动态显示 */
+  z-index: 10;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none; /* 避免遮挡按钮 */
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
