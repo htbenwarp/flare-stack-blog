@@ -1,3 +1,4 @@
+// themes/fuwari/pages/gallery/index.tsx
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Shuffle } from "lucide-react";
@@ -75,6 +76,7 @@ export function GalleryPage() {
     }
   }, [filteredItems, loadedCount]);
 
+  // 洗牌：立即打乱当前过滤结果，不重置加载数量
   const shuffle = useCallback(() => {
     const target = [...filteredItems];
     for (let i = target.length - 1; i > 0; i--) {
@@ -89,7 +91,8 @@ export function GalleryPage() {
     } else {
       setDisplayItems(target);
     }
-    setLoadedCount(0);
+    // 保持当前加载数量不变，避免闪烁
+    setLoadedCount((prev) => (prev === 0 ? BATCH : prev));
   }, [filteredItems, displayItems, activeTag]);
 
   const masonryRef = useRef<HTMLDivElement>(null);
@@ -113,7 +116,6 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // 灯箱初始化... (保持不变)
   useEffect(() => {
     let lb: any;
     let cancelled = false;
