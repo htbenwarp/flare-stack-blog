@@ -19,7 +19,7 @@ export function GuestbookPage() {
   return (
     <div className="flex flex-col gap-6 max-w-(--fuwari-page-width) mx-auto">
       {/* 介绍卡片 */}
-      <div className="fuwari-card-base p-6 md:p-10 space-y-4">
+      <div className="fuwari-card-base p-10 md:p-10 space-y-4">
         <h1 className="text-3xl font-bold fuwari-text-90">{post.title}</h1>
         <div className="prose dark:prose-invert max-w-none!">
           <ContentRenderer content={post.contentJson} />
