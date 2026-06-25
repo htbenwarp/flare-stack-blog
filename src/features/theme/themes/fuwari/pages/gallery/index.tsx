@@ -1,4 +1,3 @@
-// themes/fuwari/pages/gallery/index.tsx
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Shuffle } from "lucide-react";
@@ -94,7 +93,9 @@ export function GalleryPage() {
   }, [filteredItems, displayItems, activeTag]);
 
   const masonryRef = useRef<HTMLDivElement>(null);
-  const [colCount, setColCount] = useState(3);
+  const [colCount, setColCount] = useState(() =>
+    typeof window !== "undefined" && window.innerWidth >= 1024 ? 3 : 2
+  );
   const [colWidth, setColWidth] = useState(200);
 
   const updateLayout = useCallback(() => {
@@ -112,6 +113,7 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
+  // 灯箱初始化... (保持不变)
   useEffect(() => {
     let lb: any;
     let cancelled = false;
@@ -128,12 +130,10 @@ export function GalleryPage() {
         wheelToZoom: true,
       });
 
-      // 手动标题 & 移动端导航按钮强制可见
       lb.on("afterInit", () => {
         const pswp = lb.pswp;
         if (!pswp?.element) return;
 
-        // 标题容器
         let captionEl = pswp.element.querySelector(".pswp__custom-caption") as HTMLElement;
         if (!captionEl) {
           captionEl = document.createElement("div");
@@ -170,14 +170,12 @@ export function GalleryPage() {
         pswp.on("change", updateCaption);
         updateCaption();
 
-        // 强制移动端导航箭头可见
         const arrowLeft = pswp.element.querySelector(".pswp__button--arrow--left") as HTMLElement;
         const arrowRight = pswp.element.querySelector(".pswp__button--arrow--right") as HTMLElement;
         if (arrowLeft) arrowLeft.style.display = "";
         if (arrowRight) arrowRight.style.display = "";
       });
 
-      // 关闭时清理标题容器
       lb.on("close", () => {
         const captionEl = document.querySelector(".pswp__custom-caption");
         if (captionEl) captionEl.remove();
@@ -209,12 +207,11 @@ export function GalleryPage() {
   const columns: GalleryItem[][] = Array.from({ length: colCount }, () => []);
   const heights = new Array(colCount).fill(0);
 
-  // 根据实际宽高比计算像素高度
   const calcItemHeight = (item: GalleryItem) => {
     if (item.imgWidth && item.imgHeight) {
       return colWidth * (item.imgHeight / item.imgWidth);
     }
-    return (colWidth * 3) / 4; // 默认 4:3
+    return (colWidth * 3) / 4;
   };
 
   visibleItems.forEach((item) => {
@@ -226,7 +223,6 @@ export function GalleryPage() {
 
   const hasMore = loadedCount < filteredItems.length;
 
-  // 加载更多按钮（使用主题色的淡色背景，hover 和 active 有反馈）
   const LoadMoreBtn = () => (
     <button
       onClick={loadMore}
@@ -255,7 +251,6 @@ export function GalleryPage() {
 
   return (
     <div className="flex flex-col gap-4 max-w-(--fuwari-page-width) mx-auto">
-      {/* 介绍卡片 */}
       <div className="fuwari-card-base p-6 md:p-10 space-y-4">
         <h1 className="text-3xl font-bold fuwari-text-90">
           {m.gallery_title?.() ?? "画廊"}
@@ -265,7 +260,6 @@ export function GalleryPage() {
         </p>
       </div>
 
-      {/* 洗牌按钮 */}
       <button
         onClick={shuffle}
         className="fuwari-card-base group flex items-center gap-4 px-6 py-5 text-left w-full cursor-pointer hover:bg-(--fuwari-btn-plain-bg-hover) active:bg-(--fuwari-btn-plain-bg-active)"
@@ -281,7 +275,6 @@ export function GalleryPage() {
         </div>
       </button>
 
-      {/* 标签筛选 */}
       {allTags.length > 0 && (
         <div className="fuwari-card-base p-4">
           <div className="flex flex-wrap gap-2">
@@ -314,7 +307,6 @@ export function GalleryPage() {
         </div>
       )}
 
-      {/* 瀑布流容器 */}
       <div className="fuwari-card-base p-4">
         <div id="gallery-masonry" ref={masonryRef} className="flex gap-2">
           {columns.map((col, colIdx) => (
@@ -340,7 +332,6 @@ export function GalleryPage() {
                   </div>
                 );
               })}
-              {/* 加载更多按钮放在最右侧列底部 */}
               {colIdx === columns.length - 1 && hasMore && <LoadMoreBtn />}
             </div>
           ))}
