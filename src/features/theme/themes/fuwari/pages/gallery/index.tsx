@@ -1,4 +1,3 @@
-// themes/fuwari/pages/gallery/index.tsx
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Shuffle } from "lucide-react";
@@ -7,6 +6,7 @@ import { getOptimizedImageUrl } from "@/features/media/utils/media.utils";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { Skeleton } from "@/components/ui/skeleton";
+import PhotoSwipeLightbox from "photoswipe/lightbox"; 
 import "photoswipe/dist/photoswipe.css";
 
 interface GalleryItem {
@@ -34,7 +34,6 @@ export function GalleryPage() {
   const [displayItems, setDisplayItems] = useState<GalleryItem[]>([]);
   const [loadedCount, setLoadedCount] = useState(0);
 
-  // 收集所有标签及计数
   const allTags = useMemo(() => {
     const tagMap = new Map<string, number>();
     (items ?? []).forEach((item) => {
@@ -45,31 +44,26 @@ export function GalleryPage() {
     return Array.from(tagMap.entries()).map(([name, count]) => ({ name, count }));
   }, [items]);
 
-  // 合并初始化与标签切换，消除闪烁
   useEffect(() => {
     if (!items) return;
     const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
     const filtered = activeTag
       ? sorted.filter((item) => item.tags.some((t) => t.name === activeTag))
       : sorted;
-
     setDisplayItems(sorted);
     setLoadedCount(Math.min(BATCH, filtered.length));
   }, [items, activeTag]);
 
-  // 当前标签下的图片
   const filteredItems = useMemo(() => {
     return activeTag
       ? displayItems.filter((item) => item.tags.some((t) => t.name === activeTag))
       : displayItems;
   }, [displayItems, activeTag]);
 
-  // 加载更多
   const loadMore = useCallback(() => {
     setLoadedCount((prev) => Math.min(prev + BATCH, filteredItems.length));
   }, [filteredItems.length]);
 
-  // 洗牌：保持当前加载数量不变
   const shuffle = useCallback(() => {
     const target = [...filteredItems];
     for (let i = target.length - 1; i > 0; i--) {
@@ -87,7 +81,6 @@ export function GalleryPage() {
     setLoadedCount((prev) => (prev === 0 ? BATCH : prev));
   }, [filteredItems, displayItems, activeTag]);
 
-  // --- 瀑布流布局 ---
   const masonryRef = useRef<HTMLDivElement>(null);
   const [colCount, setColCount] = useState(() =>
     typeof window !== "undefined" && window.innerWidth >= 1024 ? 3 : 2
@@ -109,14 +102,12 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // --- PhotoSwipe 灯箱初始化 ---
+  // 灯箱初始化——稳定可靠
   useEffect(() => {
-    let lb: any;
-    let cancelled = false;
+    if (!masonryRef.current) return;
 
-    import("photoswipe/lightbox").then(({ default: PhotoSwipeLightbox }) => {
-      if (cancelled) return;
-      lb = new PhotoSwipeLightbox({
+    try {
+      const lb = new PhotoSwipeLightbox({
         gallery: "#gallery-masonry",
         children: ".gallery-item",
         pswpModule: () => import("photoswipe"),
@@ -126,7 +117,6 @@ export function GalleryPage() {
         wheelToZoom: true,
       });
 
-      // 手动创建标题/描述 UI
       lb.on("afterInit", () => {
         const pswp = lb.pswp;
         if (!pswp?.element) return;
@@ -185,7 +175,6 @@ export function GalleryPage() {
         pswp.on("change", updateCaption);
         updateCaption();
 
-        // 移动端隐藏导航箭头，避免误触
         const isMobile = window.innerWidth < 768;
         const arrowLeft = pswp.element.querySelector(".pswp__button--arrow--left") as HTMLElement;
         const arrowRight = pswp.element.querySelector(".pswp__button--arrow--right") as HTMLElement;
@@ -198,16 +187,11 @@ export function GalleryPage() {
         if (captionEl) captionEl.remove();
       });
 
-      // 过滤图片数据，实现原图加载
       lb.addFilter("domItemData", (itemData: any, element: HTMLElement) => {
         const img = element.querySelector("img") as HTMLImageElement | null;
         if (img) {
-          const key =
-            img.dataset.imageKey ||
-            img.src.split("/images/")[1]?.split("?")[0];
-
+          const key = img.dataset.imageKey || img.src.split("/images/")[1]?.split("?")[0];
           if (key) {
-            // 灯箱中使用原始大图（无缩放、无压缩）
             itemData.src = `/images/${key}?original=true`;
             itemData.msrc = img.src;
             itemData.w = itemData.w || img.naturalWidth || img.width;
@@ -223,17 +207,17 @@ export function GalleryPage() {
       });
 
       lb.init();
-    });
 
-    return () => {
-      cancelled = true;
-      lb?.destroy();
-    };
+      return () => {
+        lb.destroy();
+      };
+    } catch (error) {
+      console.error("PhotoSwipe 初始化失败:", error);
+    }
   }, [loadedCount, colCount]);
 
   if (isLoading) return <GallerySkeleton />;
 
-  // 瀑布流列计算
   const visibleItems = filteredItems.slice(0, loadedCount);
   const columns: GalleryItem[][] = Array.from({ length: colCount }, () => []);
   const heights = new Array(colCount).fill(0);
@@ -254,7 +238,6 @@ export function GalleryPage() {
 
   const hasMore = loadedCount < filteredItems.length;
 
-  // 加载更多按钮
   const LoadMoreBtn = () => (
     <button
       onClick={loadMore}
@@ -283,7 +266,6 @@ export function GalleryPage() {
 
   return (
     <div className="flex flex-col gap-4 max-w-(--fuwari-page-width) mx-auto">
-      {/* 介绍卡片 */}
       <div className="fuwari-card-base p-6 md:p-10 space-y-4">
         <h1 className="text-3xl font-bold fuwari-text-90">
           {m.gallery_title?.() ?? "画廊"}
@@ -293,7 +275,6 @@ export function GalleryPage() {
         </p>
       </div>
 
-      {/* 洗牌按钮 */}
       <button
         onClick={shuffle}
         className="fuwari-card-base group flex items-center gap-4 px-6 py-5 text-left w-full cursor-pointer hover:bg-(--fuwari-btn-plain-bg-hover) active:bg-(--fuwari-btn-plain-bg-active)"
@@ -309,7 +290,6 @@ export function GalleryPage() {
         </div>
       </button>
 
-      {/* 标签筛选 */}
       {allTags.length > 0 && (
         <div className="fuwari-card-base p-4">
           <div className="flex flex-wrap gap-2">
@@ -342,7 +322,6 @@ export function GalleryPage() {
         </div>
       )}
 
-      {/* 瀑布流容器 */}
       <div className="fuwari-card-base p-4">
         <div id="gallery-masonry" ref={masonryRef} className="flex gap-2">
           {columns.map((col, colIdx) => (
