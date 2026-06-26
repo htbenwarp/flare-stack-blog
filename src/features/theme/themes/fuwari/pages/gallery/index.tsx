@@ -26,8 +26,8 @@ interface GalleryItem {
   imgHeight?: number;
 }
 
-const BATCH = 12; // 每次加载更多数量
-const GAP = 8;    // 瀑布流列间距 (px)
+const BATCH = 12;
+const GAP = 8;
 
 export function GalleryPage() {
   const { data: items, isLoading } = useQuery({
@@ -40,7 +40,7 @@ export function GalleryPage() {
   const [displayItems, setDisplayItems] = useState<GalleryItem[]>([]);
   const [loadedCount, setLoadedCount] = useState(0);
 
-  // 统计标签及数量
+  // 所有标签及数量
   const allTags = useMemo(() => {
     const tagMap = new Map<string, number>();
     (items ?? []).forEach((item) => {
@@ -51,29 +51,29 @@ export function GalleryPage() {
     return Array.from(tagMap.entries()).map(([name, count]) => ({ name, count }));
   }, [items]);
 
-  // 数据初始化 / 标签切换时重置显示列表
-  useEffect(() => {
-    if (!items) return;
-    const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
-    const filtered = activeTag
-      ? sorted.filter((item) => item.tags.some((t) => t.name === activeTag))
-      : sorted;
-    setDisplayItems(sorted);
-    setLoadedCount(Math.min(BATCH, filtered.length));
-  }, [items, activeTag]);
-
-  // 当前激活标签过滤后的列表
+  // 当前过滤后的列表
   const filteredItems = useMemo(() => {
     return activeTag
       ? displayItems.filter((item) => item.tags.some((t) => t.name === activeTag))
       : displayItems;
   }, [displayItems, activeTag]);
 
+  // 初始化 / 标签切换
+  useEffect(() => {
+    if (!items) return;
+    const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
+    setDisplayItems(sorted);
+    const filtered = activeTag
+      ? sorted.filter((item) => item.tags.some((t) => t.name === activeTag))
+      : sorted;
+    setLoadedCount(Math.min(BATCH, filtered.length));
+  }, [items, activeTag]);
+
   const loadMore = useCallback(() => {
     setLoadedCount((prev) => Math.min(prev + BATCH, filteredItems.length));
   }, [filteredItems.length]);
 
-  // 洗牌：打乱当前可见列表
+  // 洗牌
   const shuffle = useCallback(() => {
     const target = [...filteredItems];
     for (let i = target.length - 1; i > 0; i--) {
@@ -81,7 +81,6 @@ export function GalleryPage() {
       [target[i], target[j]] = [target[j], target[i]];
     }
     if (activeTag) {
-      // 保留其他标签的项，只替换当前标签的项
       const newDisplay = displayItems.filter(
         (item) => !item.tags.some((t) => t.name === activeTag)
       );
@@ -92,6 +91,7 @@ export function GalleryPage() {
     setLoadedCount((prev) => (prev === 0 ? BATCH : prev));
   }, [filteredItems, displayItems, activeTag]);
 
+  // 瀑布流列数及宽度
   const masonryRef = useRef<HTMLDivElement>(null);
   const [colCount, setColCount] = useState(() =>
     typeof window !== "undefined" && window.innerWidth >= 1024 ? 3 : 2
@@ -115,12 +115,76 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // ---------- PhotoSwipe 灯箱 ----------
+  // ---------- 瀑布流列数据（增量追加） ----------
+  const [columnsData, setColumnsData] = useState<GalleryItem[][]>([]);
+  const [columnHeights, setColumnHeights] = useState<number[]>([]);
+
+  const calcItemHeight = useCallback(
+    (item: GalleryItem) => {
+      if (item.imgWidth && item.imgHeight) {
+        return colWidth * (item.imgHeight / item.imgWidth);
+      }
+      return (colWidth * 3) / 4;
+    },
+    [colWidth]
+  );
+
+  // 重置列数据（全量分配），在标签切换、洗牌、窗口列数变化时触发
+  useEffect(() => {
+    if (!filteredItems.length) {
+      setColumnsData([]);
+      setColumnHeights([]);
+      return;
+    }
+    const currentCount = Math.min(loadedCount, filteredItems.length);
+    const cols: GalleryItem[][] = Array.from({ length: colCount }, () => []);
+    const heights = new Array(colCount).fill(0);
+    const itemsToShow = filteredItems.slice(0, currentCount);
+    itemsToShow.forEach((item) => {
+      const imgH = calcItemHeight(item);
+      const minIdx = heights.indexOf(Math.min(...heights));
+      cols[minIdx].push(item);
+      heights[minIdx] += imgH + GAP;
+    });
+    setColumnsData(cols);
+    setColumnHeights(heights);
+  }, [filteredItems, colCount, loadedCount, calcItemHeight]);
+
+  // 增量追加：当 loadedCount 增加时，只追加新项
+  useEffect(() => {
+    if (!filteredItems.length || columnsData.length === 0) return;
+    const currentLoaded = columnsData.reduce((sum, col) => sum + col.length, 0);
+    if (currentLoaded >= loadedCount) return;
+    const newItems = filteredItems.slice(currentLoaded, loadedCount);
+    if (newItems.length === 0) return;
+    const newHeights = [...columnHeights];
+    const newCols = columnsData.map((col) => [...col]);
+    newItems.forEach((item) => {
+      const imgH = calcItemHeight(item);
+      const minIdx = newHeights.indexOf(Math.min(...newHeights));
+      newCols[minIdx].push(item);
+      newHeights[minIdx] += imgH + GAP;
+    });
+    setColumnsData(newCols);
+    setColumnHeights(newHeights);
+  }, [loadedCount, filteredItems, columnsData, columnHeights, calcItemHeight]);
+
+  // 窗口宽度变化时（colWidth 变化），仅重新计算高度，不改变图片顺序
+  useEffect(() => {
+    if (!columnsData.length) return;
+    const newHeights = columnsData.map((col) =>
+      col.reduce((sum, item) => sum + calcItemHeight(item) + GAP, 0)
+    );
+    setColumnHeights(newHeights);
+  }, [colWidth, columnsData, calcItemHeight]);
+
+  // ---------- PhotoSwipe 灯箱（只初始化一次） ----------
+  const lbRef = useRef<PhotoSwipeLightbox | null>(null);
+
   useEffect(() => {
     if (!masonryRef.current) return;
 
     let lb: PhotoSwipeLightbox;
-
     try {
       lb = new PhotoSwipeLightbox({
         gallery: "#gallery-masonry",
@@ -129,9 +193,10 @@ export function GalleryPage() {
         imageClickAction: "close",
         tapAction: "close",
         bgOpacity: 0.9,
-        wheelToZoom: true, // 启用鼠标滚轮缩放
+        wheelToZoom: true,
       });
 
+      // 自定义底部标题
       lb.on("afterInit", () => {
         const pswp = lb.pswp;
         if (!pswp?.element) return;
@@ -190,7 +255,7 @@ export function GalleryPage() {
         pswp.on("change", updateCaption);
         updateCaption();
 
-        // 移动端隐藏导航箭头
+        // 移动端隐藏箭头
         const isMobile = window.innerWidth < 768;
         const arrowLeft = pswp.element.querySelector(".pswp__button--arrow--left") as HTMLElement;
         const arrowRight = pswp.element.querySelector(".pswp__button--arrow--right") as HTMLElement;
@@ -203,60 +268,47 @@ export function GalleryPage() {
         if (captionEl) captionEl.remove();
       });
 
-      // 核心：domItemData 过滤器
+      // 使用 data-msrc 作为预览图（800px），data-src 作为原图
       lb.addFilter("domItemData", (itemData: any, element: HTMLElement) => {
-        const originalSrc = element.dataset.originalSrc;
-        if (originalSrc) {
-          itemData.src = originalSrc;
-        }
-
-        const msrc = element.dataset.msrc;
         const img = element.querySelector("img") as HTMLImageElement | null;
-        itemData.msrc = msrc || img?.src || "";
+        const previewSrc = element.dataset.msrc || img?.src || "";
+        const fullSrc = element.dataset.src || previewSrc;
+        itemData.msrc = previewSrc;
+        itemData.src = fullSrc;
 
-        // 只在有有效宽高数据时才设置，避免 NaN 破坏缩放
-        const realWidth = element.dataset.realWidth;
-        const realHeight = element.dataset.realHeight;
-        if (realWidth && realHeight) {
-          itemData.w = parseInt(realWidth, 10);
-          itemData.h = parseInt(realHeight, 10);
+        // 强制使用 data-width/data-height 作为灯箱尺寸（避免缩略图尺寸干扰）
+        let w = Number(element.dataset.width);
+        let h = Number(element.dataset.height);
+        if (!w || !h) {
+          w = 1200;
+          h = 800;
         }
-        // 否则 PhotoSwipe 自动读取图片 naturalWidth/Height
-
+        itemData.w = w;
+        itemData.h = h;
         return itemData;
       });
 
       lb.init();
+      lbRef.current = lb;
     } catch (error) {
       console.error("PhotoSwipe 初始化失败:", error);
     }
 
     return () => {
-      lb?.destroy();
+      lbRef.current?.destroy();
+      lbRef.current = null;
     };
-  }, [loadedCount, colCount]);
+  }, []); // 仅初始化一次
 
-  if (isLoading) return <GallerySkeleton />;
-
-  const visibleItems = filteredItems.slice(0, loadedCount);
-
-  // 瀑布流布局
-  const columns: GalleryItem[][] = Array.from({ length: colCount }, () => []);
-  const heights = new Array(colCount).fill(0);
-
-  const calcItemHeight = (item: GalleryItem) => {
-    if (item.imgWidth && item.imgHeight) {
-      return colWidth * (item.imgHeight / item.imgWidth);
+  // 当加载更多图片后，刷新 lightbox 以绑定新元素的点击事件
+  useEffect(() => {
+    if (lbRef.current) {
+      lbRef.current.refresh();
     }
-    return (colWidth * 3) / 4; // 未知比例占位，不影响灯箱
-  };
+  }, [loadedCount]);
 
-  visibleItems.forEach((item) => {
-    const imgH = calcItemHeight(item);
-    const minIdx = heights.indexOf(Math.min(...heights));
-    columns[minIdx].push(item);
-    heights[minIdx] += imgH + GAP;
-  });
+  // 加载骨架屏
+  if (isLoading) return <GallerySkeleton />;
 
   const hasMore = loadedCount < filteredItems.length;
 
@@ -314,7 +366,7 @@ export function GalleryPage() {
                 "text-xs px-3 py-1 rounded-full border transition-colors",
                 !activeTag
                   ? "bg-(--fuwari-primary) text-white border-(--fuwari-primary)"
-                  : "fuwari-text-50 border-border hover:border-(--fuwari-primary)",
+                  : "fuwari-text-50 border-border hover:border-(--fuwari-primary)"
               )}
             >
               {m.gallery_all?.() ?? "全部"} ({items?.length ?? 0})
@@ -327,7 +379,7 @@ export function GalleryPage() {
                   "text-xs px-3 py-1 rounded-full border transition-colors",
                   activeTag === tag.name
                     ? "bg-(--fuwari-primary) text-white border-(--fuwari-primary)"
-                    : "fuwari-text-50 border-border hover:border-(--fuwari-primary)",
+                    : "fuwari-text-50 border-border hover:border-(--fuwari-primary)"
                 )}
               >
                 {tag.name} ({tag.count})
@@ -337,10 +389,10 @@ export function GalleryPage() {
         </div>
       )}
 
-      {/* 瀑布流网格 */}
+      {/* 瀑布流 */}
       <div className="fuwari-card-base p-4">
         <div id="gallery-masonry" ref={masonryRef} className="flex gap-2">
-          {columns.map((col, colIdx) => (
+          {columnsData.map((col, colIdx) => (
             <div key={colIdx} className="flex-1 flex flex-col gap-2">
               {col.map((item) => (
                 <div
@@ -348,10 +400,10 @@ export function GalleryPage() {
                   className="gallery-item overflow-hidden cursor-pointer"
                   data-title={item.title || undefined}
                   data-description={item.description || undefined}
-                  data-original-src={getOriginalImageUrl(item.imageKey)}
-                  data-msrc={getOptimizedImageUrl(item.imageKey, 1200)}
-                  data-real-width={item.imgWidth || undefined}
-                  data-real-height={item.imgHeight || undefined}
+                  data-msrc={getOptimizedImageUrl(item.imageKey, 800)}
+                  data-src={getOriginalImageUrl(item.imageKey)}
+                  data-width={item.imgWidth || 1200}
+                  data-height={item.imgHeight || 800}
                 >
                   <img
                     src={getOptimizedImageUrl(item.imageKey, 200)}
@@ -366,7 +418,7 @@ export function GalleryPage() {
                   />
                 </div>
               ))}
-              {colIdx === columns.length - 1 && hasMore && <LoadMoreBtn />}
+              {colIdx === columnsData.length - 1 && hasMore && <LoadMoreBtn />}
             </div>
           ))}
         </div>
