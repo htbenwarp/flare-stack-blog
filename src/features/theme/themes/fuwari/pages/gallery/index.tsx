@@ -1,4 +1,3 @@
-// themes/fuwari/pages/gallery/index.tsx
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Shuffle } from "lucide-react";
@@ -213,6 +212,8 @@ export function GalleryPage() {
           initialZoomLevel: "fit",
           secondaryZoomLevel: 2,
           maxZoomLevel: 4,
+          // 🔥 预加载前后各 3 张图片，确保缩略图提前加载
+          preload: [3, 3],
         });
 
         // 自定义底部标题
