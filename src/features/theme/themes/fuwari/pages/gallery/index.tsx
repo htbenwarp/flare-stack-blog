@@ -25,7 +25,7 @@ interface GalleryItem {
 const BATCH = 12;
 const GAP = 8;
 
-// ---------- 图片组件：加载后动态修正比例 ----------
+// ---------- 图片组件 ----------
 function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number }) {
   const [loaded, setLoaded] = useState(false);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
@@ -40,7 +40,6 @@ function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number 
     setLoaded(true);
   };
 
-  // 计算最终容器宽高比：优先用真实尺寸，否则用数据库字段，再否则用默认 3:2
   const aspectRatio = naturalSize
     ? `${naturalSize.w} / ${naturalSize.h}`
     : `${item.imgWidth || 1200} / ${item.imgHeight || 800}`;
@@ -56,7 +55,8 @@ function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number 
       data-title={item.title || undefined}
       data-description={item.description || undefined}
       data-pswp-src={getOriginalImageUrl(item.imageKey)}
-      data-pswp-msrc={getOptimizedImageUrl(item.imageKey, 600)}
+      // 使用与网格图片相同的 800px 缩略图，保证缓存命中
+      data-pswp-msrc={getOptimizedImageUrl(item.imageKey, 800)}
       data-pswp-width={naturalSize?.w || item.imgWidth || 1200}
       data-pswp-height={naturalSize?.h || item.imgHeight || 800}
     >
@@ -87,6 +87,7 @@ export function GalleryPage() {
   const [displayItems, setDisplayItems] = useState<GalleryItem[]>([]);
   const [loadedCount, setLoadedCount] = useState(0);
 
+  // 标签统计
   const allTags = useMemo(() => {
     const tagMap = new Map<string, number>();
     (items ?? []).forEach((item) => {
@@ -97,6 +98,7 @@ export function GalleryPage() {
     return Array.from(tagMap.entries()).map(([name, count]) => ({ name, count }));
   }, [items]);
 
+  // 初始化显示数据
   useEffect(() => {
     if (!items) return;
     const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -104,16 +106,19 @@ export function GalleryPage() {
     setLoadedCount(Math.min(BATCH, sorted.length));
   }, [items, activeTag]);
 
+  // 筛选后的数据
   const filteredItems = useMemo(() => {
     return activeTag
       ? displayItems.filter((item) => item.tags.some((t) => t.name === activeTag))
       : displayItems;
   }, [displayItems, activeTag]);
 
+  // 加载更多
   const loadMore = useCallback(() => {
     setLoadedCount((prev) => Math.min(prev + BATCH, filteredItems.length));
   }, [filteredItems.length]);
 
+  // 随机排序
   const shuffle = useCallback(() => {
     const target = [...filteredItems];
     for (let i = target.length - 1; i > 0; i--) {
@@ -131,6 +136,7 @@ export function GalleryPage() {
     setLoadedCount((prev) => (prev === 0 ? BATCH : prev));
   }, [filteredItems, displayItems, activeTag]);
 
+  // ---------- 瀑布流布局 ----------
   const masonryRef = useRef<HTMLDivElement>(null);
   const [colCount, setColCount] = useState(() =>
     typeof window !== "undefined" && window.innerWidth >= 1024 ? 3 : 2
@@ -154,27 +160,23 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // ---------- PhotoSwipe：单例模式，只创建一次，后续只刷新 ----------
+  // ---------- PhotoSwipe 单例管理 ----------
   const lbRef = useRef<PhotoSwipeLightbox | null>(null);
   const isInitializedRef = useRef(false);
-
-  // 标记需要刷新（当图片列表变化时）
   const [needsRefresh, setNeedsRefresh] = useState(0);
 
-  // 当 displayItems 或 loadedCount 变化时，标记需要刷新
+  // 当图片列表变化时，标记需要刷新
   useEffect(() => {
     setNeedsRefresh((v) => v + 1);
   }, [displayItems, loadedCount]);
 
   // PhotoSwipe 初始化与刷新
   useEffect(() => {
-    // 数据未加载完成或 DOM 未就绪，不处理
     if (isLoading || !masonryRef.current) return;
 
-    // 如果实例已存在，直接刷新并返回
+    // 如果实例已存在，直接刷新
     if (lbRef.current) {
       try {
-        // 使用 requestAnimationFrame 确保 DOM 已更新
         requestAnimationFrame(() => {
           if (lbRef.current) {
             lbRef.current.refresh();
@@ -183,21 +185,16 @@ export function GalleryPage() {
         return;
       } catch (error) {
         console.warn("PhotoSwipe refresh 失败，准备重建:", error);
-        // 如果 refresh 失败，销毁实例以便重建
         try {
           lbRef.current.destroy();
-        } catch (_) {
-          // 忽略销毁错误
-        }
+        } catch (_) {}
         lbRef.current = null;
         isInitializedRef.current = false;
       }
     }
 
-    // 如果已经初始化过但实例丢失，不重复创建（避免无限循环）
+    // 防止重复创建
     if (isInitializedRef.current && !lbRef.current) {
-      // 这种情况发生在 destroy 后，但 isInitializedRef 未重置
-      // 重置标志位，允许重新创建
       isInitializedRef.current = false;
     }
 
@@ -285,20 +282,15 @@ export function GalleryPage() {
         });
 
         lb.on("close", () => {
-          // 仅移除 caption，不影响其他
           const captionEl = document.querySelector(".pswp__custom-caption");
           if (captionEl) captionEl.remove();
         });
 
         lb.addFilter("domItemData", (itemData: any, element: HTMLElement) => {
           const originalSrc = element.dataset.pswpSrc;
-          if (originalSrc) {
-            itemData.src = originalSrc;
-          }
+          if (originalSrc) itemData.src = originalSrc;
           const msrc = element.dataset.pswpMsrc;
-          if (msrc) {
-            itemData.msrc = msrc;
-          }
+          if (msrc) itemData.msrc = msrc;
           const w = Number(element.dataset.pswpWidth);
           const h = Number(element.dataset.pswpHeight);
           if (w > 0 && h > 0) {
@@ -317,33 +309,26 @@ export function GalleryPage() {
       }
     }
 
-    // Cleanup: 组件卸载时销毁实例
     return () => {
       if (lbRef.current) {
         try {
           lbRef.current.destroy();
-        } catch (_) {
-          // 忽略销毁错误
-        }
+        } catch (_) {}
         lbRef.current = null;
         isInitializedRef.current = false;
       }
-      // 清理可能残留的 caption 元素
       document.querySelectorAll(".pswp__custom-caption").forEach((el) => el.remove());
     };
-    // 依赖 needsRefresh 触发刷新，但不会重建
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, needsRefresh]);
 
-  // 组件卸载时确保清理
+  // 组件卸载时额外清理
   useEffect(() => {
     return () => {
       if (lbRef.current) {
         try {
           lbRef.current.destroy();
-        } catch (_) {
-          // 忽略
-        }
+        } catch (_) {}
         lbRef.current = null;
         isInitializedRef.current = false;
       }
@@ -351,8 +336,10 @@ export function GalleryPage() {
     };
   }, []);
 
+  // ---------- 骨架屏 ----------
   if (isLoading) return <GallerySkeleton />;
 
+  // ---------- 渲染 ----------
   const visibleItems = filteredItems.slice(0, loadedCount);
   const columns: GalleryItem[][] = Array.from({ length: colCount }, () => []);
   const heights = new Array(colCount).fill(0);
@@ -397,6 +384,7 @@ export function GalleryPage() {
 
   return (
     <div className="flex flex-col gap-4 w-full">
+      {/* 标题 */}
       <div className="fuwari-card-base p-6 md:p-10 space-y-4">
         <h1 className="text-3xl font-bold fuwari-text-90">
           {m.gallery_title?.() ?? "画廊"}
@@ -406,6 +394,7 @@ export function GalleryPage() {
         </p>
       </div>
 
+      {/* 随机排序按钮 */}
       <button
         onClick={shuffle}
         className="fuwari-card-base group flex items-center gap-4 px-6 py-5 text-left w-full cursor-pointer hover:bg-(--fuwari-btn-plain-bg-hover) active:bg-(--fuwari-btn-plain-bg-active)"
@@ -421,6 +410,7 @@ export function GalleryPage() {
         </div>
       </button>
 
+      {/* 标签筛选 */}
       {allTags.length > 0 && (
         <div className="fuwari-card-base p-4">
           <div className="flex flex-wrap gap-2">
@@ -453,6 +443,7 @@ export function GalleryPage() {
         </div>
       )}
 
+      {/* 瀑布流 */}
       <div className="fuwari-card-base p-4 w-full">
         <div id="gallery-masonry" ref={masonryRef} className="flex gap-2 w-full">
           {columns.map((col, colIdx) => (
