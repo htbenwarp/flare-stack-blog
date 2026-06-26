@@ -1,4 +1,3 @@
-// themes/fuwari/pages/gallery/index.tsx
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Shuffle } from "lucide-react";
@@ -225,17 +224,14 @@ export function GalleryPage() {
         const img = element.querySelector("img") as HTMLImageElement | null;
         itemData.msrc = msrc || img?.src || "";
 
-        // 提供真实图片尺寸（避免灯箱按页面缩略图的小尺寸显示）
+        // 只在有原始宽高数据时设置，否则交由 PhotoSwipe 从图片本身获取
         const realWidth = element.dataset.realWidth;
         const realHeight = element.dataset.realHeight;
         if (realWidth && realHeight) {
-          itemData.w = parseInt(realWidth);
-          itemData.h = parseInt(realHeight);
-        } else {
-          // 默认假设为全高清尺寸，确保至少能填满屏幕
-          itemData.w = 1920;
-          itemData.h = 1440;
+          itemData.w = parseInt(realWidth, 10);
+          itemData.h = parseInt(realHeight, 10);
         }
+        // 不再设置默认值，PhotoSwipe 会自动读取图片的 naturalWidth/Height
 
         return itemData;
       });
@@ -265,7 +261,7 @@ export function GalleryPage() {
     if (item.imgWidth && item.imgHeight) {
       return colWidth * (item.imgHeight / item.imgWidth);
     }
-    return (colWidth * 3) / 4; // 未知比例默认4:3
+    return (colWidth * 3) / 4; // 未知比例默认4:3（仅影响瀑布流占位高度，不影响灯箱）
   };
 
   visibleItems.forEach((item) => {
@@ -378,8 +374,8 @@ export function GalleryPage() {
                   data-description={item.description || undefined}
                   data-original-src={getOriginalImageUrl(item.imageKey)}
                   data-msrc={getOptimizedImageUrl(item.imageKey, 1200)}
-                  data-real-width={item.imgWidth || "1920"}
-                  data-real-height={item.imgHeight || "1440"}
+                  data-real-width={item.imgWidth}   // 修复：仅在有真实宽度时设置
+                  data-real-height={item.imgHeight} // 修复：仅在有真实高度时设置
                 >
                   <img
                     src={getOptimizedImageUrl(item.imageKey, 200)}
