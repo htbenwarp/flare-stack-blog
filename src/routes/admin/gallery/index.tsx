@@ -219,7 +219,7 @@ function GalleryAdminPage() {
                 </th>
                 <th className="px-6 py-3 font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-normal">
                   <button onClick={() => toggleSort("title")} className="flex items-center gap-2 hover:text-foreground">
-                    {m.gallery_title?.() ?? "标题"}
+                    {m.gallery_title_label?.() ?? "标题"}
                     <ArrowUpDown size={10} className={cn(sortBy === "title" && "text-foreground")} />
                   </button>
                 </th>
@@ -355,7 +355,7 @@ function GalleryItemForm({
       <div className="flex flex-col gap-2">
         <Input
           {...form.register("title")}
-          placeholder={m.gallery_title?.() ?? "标题"}
+          placeholder={m.gallery_title_label?.() ?? "标题"}
           className="h-8 text-sm"
         />
         <Input
