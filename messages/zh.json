@@ -1578,6 +1578,6 @@
   "gallery_delete_title": "删除画廊项目",
   "gallery_delete_message": "确定删除此项目？此操作不可撤销。",
   "gallery_delete_confirm": "删除",
-  "admin_sidebar_gallery": "标题",
+  "admin_sidebar_gallery": "画廊",
   "gallery_tags_placeholder": "逗号分隔，如：风景,旅行"
 }
