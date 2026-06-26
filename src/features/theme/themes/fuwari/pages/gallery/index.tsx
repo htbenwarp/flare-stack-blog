@@ -1,3 +1,4 @@
+// themes/fuwari/pages/gallery/index.tsx
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Shuffle } from "lucide-react";
@@ -107,11 +108,12 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // PhotoSwipe 灯箱初始化（含缩放按钮常驻 + 平滑过渡）
+  // PhotoSwipe 灯箱初始化（集成您提出的三项优化）
   useEffect(() => {
     if (!masonryRef.current) return;
 
-    let lb: PhotoSwipeLightbox;
+    let lb: PhotoSwipeLightbox; // 提到 try 外，确保 cleanup 可销毁
+
     try {
       lb = new PhotoSwipeLightbox({
         gallery: "#gallery-masonry",
@@ -121,9 +123,8 @@ export function GalleryPage() {
         tapAction: "close",
         bgOpacity: 0.9,
         wheelToZoom: true,
-        // ----- 新增配置：缩放按钮常驻 + 柔和过渡 -----
         zoom: true,
-        showHideAnimationType: "fade",
+        // showHideAnimationType: "fade", // 已删除，恢复默认 zoom 动画
         initialZoomLevel: "fit",
         secondaryZoomLevel: 2,
         maxZoomLevel: 4,
@@ -200,23 +201,25 @@ export function GalleryPage() {
         if (captionEl) captionEl.remove();
       });
 
-      // 图片数据过滤：原图加载 + 精确尺寸
+      // 图片数据过滤：使用 data-msrc 作为放大的缩略图，并保留原图 src
       lb.addFilter("domItemData", (itemData: any, element: HTMLElement) => {
         const originalSrc = element.dataset.originalSrc;
         if (originalSrc) {
-          itemData.src = originalSrc; // 灯箱中使用原图
+          itemData.src = originalSrc; // 原图（高清）
         }
 
+        // 优先使用专门的放大缩略图（600px），若不存在则回退到页面 img 的 src
+        const msrc = element.dataset.msrc;
         const img = element.querySelector("img") as HTMLImageElement | null;
-        if (img) {
-          itemData.msrc = img.src; // 缩略图预加载
+        itemData.msrc = msrc || img?.src || "";
 
-          // 优先使用后端存储的宽高
-          const imgWidth = parseInt(img.getAttribute("width") || "0");
-          const imgHeight = parseInt(img.getAttribute("height") || "0");
-          if (imgWidth > 0 && imgHeight > 0) {
-            itemData.w = imgWidth;
-            itemData.h = imgHeight;
+        // 宽高信息：优先取 img 的 width/height 属性，否则使用自然尺寸
+        if (img) {
+          const w = parseInt(img.getAttribute("width") || "0");
+          const h = parseInt(img.getAttribute("height") || "0");
+          if (w > 0 && h > 0) {
+            itemData.w = w;
+            itemData.h = h;
           } else {
             itemData.w = img.naturalWidth || img.width || window.innerWidth;
             itemData.h = img.naturalHeight || img.height || window.innerHeight;
@@ -352,6 +355,7 @@ export function GalleryPage() {
                   data-title={item.title || undefined}
                   data-description={item.description || undefined}
                   data-original-src={getOriginalImageUrl(item.imageKey)}
+                  data-msrc={getOptimizedImageUrl(item.imageKey, 600)} // 新增：放大阶段的缩略图
                 >
                   <img
                     src={getOptimizedImageUrl(item.imageKey, 200)}
