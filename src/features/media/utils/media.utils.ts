@@ -15,32 +15,14 @@ export function getContentTypeFromKey(key: string): string | undefined {
 export function generateKey(fileName: string): string {
   const uuid = crypto.randomUUID();
   const extension = fileName.split(".").pop()?.toLowerCase() || "bin";
-
   return `${uuid}.${extension}`;
 }
 
-/**
- * 从图片 URL 中提取 R2 key
- * 支持格式：
- * - /images/${key}
- * - /images/${key}?quality=80&format=webp
- * - https://domain.com/images/${key}?quality=80
- */
 export function extractImageKey(src: string): string | undefined {
   if (!src) return undefined;
-
   const prefix = "/images/";
-  let pathname = "";
-
-  try {
-    // 尝试解析为 URL
-    const url = new URL(src, "http://dummy.com"); // 传入 base 确保相对路径也能被解析
-    pathname = url.pathname;
-  } catch {
-    // 极少数情况解析失败，手动截断 query
-    pathname = src.split("?")[0];
-  }
-
+  // 移除协议和域名，只保留路径部分
+  const pathname = src.replace(/^https?:\/\/[^/]+/, '').split('?')[0];
   if (pathname.startsWith(prefix)) {
     return pathname.replace(prefix, "");
   }
@@ -50,11 +32,16 @@ export function extractImageKey(src: string): string | undefined {
 /**
  * 生成优化后的图片 URL
  * @param key - R2 key
- * @param width - 可选的宽度限制
+ * @param width - 可选的宽度限制，最大 1600px
  */
 export function getOptimizedImageUrl(key: string, width?: number) {
-  return `/images/${key}?quality=80${width ? `&width=${width}` : ""}`;
+  const MAX_WIDTH = 1600;
+  const effectiveWidth = width ? Math.min(width, MAX_WIDTH) : 800;
+  // format 由 Worker 根据 Accept 头动态决定
+  return `/images/${key}?quality=80&width=${effectiveWidth}`;
 }
+
+const VALID_FIT_VALUES = ['scale-down', 'contain', 'cover', 'crop', 'pad'];
 
 export function buildTransformOptions(
   searchParams: URLSearchParams,
@@ -72,11 +59,18 @@ export function buildTransformOptions(
   }
   if (searchParams.has("quality")) {
     const quality = Number.parseInt(searchParams.get("quality")!, 10);
-    if (!Number.isNaN(quality) && quality > 0 && quality <= 100)
+    if (!Number.isNaN(quality) && quality > 0 && quality <= 100) {
       transformOptions.quality = quality;
+    }
   }
-  if (searchParams.has("fit")) transformOptions.fit = searchParams.get("fit");
+  if (searchParams.has("fit")) {
+    const fit = searchParams.get("fit")!;
+    if (VALID_FIT_VALUES.includes(fit)) {
+      transformOptions.fit = fit;
+    }
+  }
 
+  // 根据 Accept 头选择最优格式
   if (/image\/avif/.test(accept)) {
     transformOptions.format = "avif";
   } else if (/image\/webp/.test(accept)) {

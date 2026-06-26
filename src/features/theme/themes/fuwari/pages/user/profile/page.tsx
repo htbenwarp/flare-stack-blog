@@ -1,3 +1,4 @@
+// themes/fuwari/pages/user/profile.tsx
 import { Link } from "@tanstack/react-router";
 import { CodeSquare, Loader2, LogOut, Settings2, Shield } from "lucide-react";
 import type { ProfilePageProps } from "@/features/theme/contract/pages";

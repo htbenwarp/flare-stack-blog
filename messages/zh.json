@@ -202,7 +202,7 @@
   "profile_settings": "个人设置",
   "profile_settings_desc": "管理你的个人信息与偏好设置。",
   "profile_back_home": "cd /home",
-  "profile_role_admin": "管理员",
+  "profile_role_admin": "博主",
   "profile_role_reader": "读者",
   "profile_basic_info": "基本资料",
   "profile_basic_settings": "基本设置",
@@ -502,7 +502,7 @@
   "admin_sidebar_comments": "评论管理",
   "admin_sidebar_friend_links": "友链管理",
   "admin_sidebar_admin_fallback": "管理员",
-  "admin_sidebar_role_admin": "管理员",
+  "admin_sidebar_role_admin": "博主",
   "admin_sidebar_role_user": "用户",
   "admin_sidebar_logout": "退出登录",
   "admin_sidebar_logout_title": "确认退出",
@@ -1578,6 +1578,6 @@
   "gallery_delete_title": "删除画廊项目",
   "gallery_delete_message": "确定删除此项目？此操作不可撤销。",
   "gallery_delete_confirm": "删除",
-  "admin_sidebar_gallery": "画廊",
+  "admin_sidebar_gallery": "标题",
   "gallery_tags_placeholder": "逗号分隔，如：风景,旅行"
 }
