@@ -1,4 +1,3 @@
-// themes/fuwari/pages/gallery/index.tsx
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Shuffle } from "lucide-react";
@@ -29,7 +28,6 @@ const GAP = 8;
 function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number }) {
   const [loaded, setLoaded] = useState(false);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
@@ -38,7 +36,6 @@ function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number 
   };
 
   const handleError = () => {
-    // 即使失败也显示占位结束
     setLoaded(true);
   };
 
@@ -49,11 +46,10 @@ function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number 
 
   return (
     <div
-      ref={containerRef}
       className="gallery-item overflow-hidden cursor-pointer relative"
       style={{
-        aspectRatio,               // 动态修正后的比例
-        transition: "aspect-ratio 0.3s ease", // 平滑过渡
+        aspectRatio,
+        transition: "aspect-ratio 0.3s ease",
         backgroundColor: "#f0f0f0",
       }}
       data-title={item.title || undefined}
@@ -64,7 +60,7 @@ function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number 
       data-pswp-height={naturalSize?.h || item.imgHeight || 800}
     >
       <img
-        src={getOptimizedImageUrl(item.imageKey, 800)} // 使用较大的缩略图，但保持原始比例（假设服务端不裁剪）
+        src={getOptimizedImageUrl(item.imageKey, 800)}
         alt={item.title}
         loading="lazy"
         decoding="async"
@@ -159,10 +155,8 @@ export function GalleryPage() {
 
   // ---------- PhotoSwipe 初始化与刷新（同一 effect，彻底消除竞态）----------
   const lbRef = useRef<PhotoSwipeLightbox | null>(null);
-  // 用于触发刷新的版本号
   const [dataVersion, setDataVersion] = useState(0);
 
-  // 当显示内容变化时，递增版本号
   useEffect(() => {
     setDataVersion((v) => v + 1);
   }, [displayItems, loadedCount, colCount]);
@@ -170,7 +164,6 @@ export function GalleryPage() {
   useEffect(() => {
     if (isLoading || !masonryRef.current) return;
 
-    // 创建或重用 Lightbox 实例
     let lb = lbRef.current;
     if (!lb) {
       try {
@@ -285,14 +278,12 @@ export function GalleryPage() {
       }
     }
 
-    // 每次数据版本变化时刷新（仅在实例有效时）
     if (lb) {
       requestAnimationFrame(() => {
         lb?.refresh();
       });
     }
 
-    // 清理函数：组件卸载或 isLoading 变化导致 effect 重新执行时销毁
     return () => {
       lb?.destroy();
       lbRef.current = null;
@@ -344,7 +335,7 @@ export function GalleryPage() {
   );
 
   return (
-    <div className="flex flex-col gap-4 max-w-(--fuwari-page-width) mx-auto">
+    <div className="flex flex-col gap-4 w-full">
       <div className="fuwari-card-base p-6 md:p-10 space-y-4">
         <h1 className="text-3xl font-bold fuwari-text-90">
           {m.gallery_title?.() ?? "画廊"}
@@ -401,8 +392,8 @@ export function GalleryPage() {
         </div>
       )}
 
-      <div className="fuwari-card-base p-4">
-        <div id="gallery-masonry" ref={masonryRef} className="flex gap-2">
+      <div className="fuwari-card-base p-4 w-full">
+        <div id="gallery-masonry" ref={masonryRef} className="flex gap-2 w-full">
           {columns.map((col, colIdx) => (
             <div key={colIdx} className="flex-1 flex flex-col gap-2">
               {col.map((item) => (
@@ -419,10 +410,10 @@ export function GalleryPage() {
 
 function GallerySkeleton() {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 w-full">
       <Skeleton className="h-32 w-full rounded-2xl" />
       <Skeleton className="h-16 w-full rounded-2xl" />
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 w-full">
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} className="aspect-[4/3] rounded-xl" />
         ))}
