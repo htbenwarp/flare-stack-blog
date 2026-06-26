@@ -1,4 +1,3 @@
-// themes/fuwari/pages/gallery/index.tsx
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Shuffle } from "lucide-react";
@@ -96,7 +95,7 @@ export function GalleryPage() {
     if (!masonry) return;
     const totalWidth = masonry.getBoundingClientRect().width;
     const count = window.innerWidth >= 1024 ? 3 : 2;
-    const maxColWidth = 320; // 限制列宽，避免桌面端请求过大图片
+    const maxColWidth = 320;
     const rawWidth = (totalWidth - GAP * (count - 1)) / count;
     setColWidth(Math.min(rawWidth, maxColWidth));
     setColCount(count);
@@ -108,7 +107,7 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // PhotoSwipe 灯箱初始化
+  // PhotoSwipe 灯箱初始化（含缩放按钮常驻 + 平滑过渡）
   useEffect(() => {
     if (!masonryRef.current) return;
 
@@ -117,11 +116,17 @@ export function GalleryPage() {
       lb = new PhotoSwipeLightbox({
         gallery: "#gallery-masonry",
         children: ".gallery-item",
-        pswpModule: PhotoSwipe, // 静态导入，避免动态加载带来的 SIMD 指令错误
+        pswpModule: PhotoSwipe,
         imageClickAction: "close",
         tapAction: "close",
         bgOpacity: 0.9,
         wheelToZoom: true,
+        // ----- 新增配置：缩放按钮常驻 + 柔和过渡 -----
+        zoom: true,
+        showHideAnimationType: "fade",
+        initialZoomLevel: "fit",
+        secondaryZoomLevel: 2,
+        maxZoomLevel: 4,
       });
 
       lb.on("afterInit", () => {
@@ -182,7 +187,7 @@ export function GalleryPage() {
         pswp.on("change", updateCaption);
         updateCaption();
 
-        // 移动端隐藏导航箭头，避免误触
+        // 移动端隐藏导航箭头
         const isMobile = window.innerWidth < 768;
         const arrowLeft = pswp.element.querySelector(".pswp__button--arrow--left") as HTMLElement;
         const arrowRight = pswp.element.querySelector(".pswp__button--arrow--right") as HTMLElement;
@@ -199,16 +204,16 @@ export function GalleryPage() {
       lb.addFilter("domItemData", (itemData: any, element: HTMLElement) => {
         const originalSrc = element.dataset.originalSrc;
         if (originalSrc) {
-          itemData.src = originalSrc;           // 灯箱中使用原图
+          itemData.src = originalSrc; // 灯箱中使用原图
         }
 
         const img = element.querySelector("img") as HTMLImageElement | null;
         if (img) {
-          itemData.msrc = img.src;               // 缩略图预加载
+          itemData.msrc = img.src; // 缩略图预加载
 
-          // 优先使用后端存储的宽高，比 naturalWidth 更可靠
-          const imgWidth = parseInt(img.getAttribute('width') || '0');
-          const imgHeight = parseInt(img.getAttribute('height') || '0');
+          // 优先使用后端存储的宽高
+          const imgWidth = parseInt(img.getAttribute("width") || "0");
+          const imgHeight = parseInt(img.getAttribute("height") || "0");
           if (imgWidth > 0 && imgHeight > 0) {
             itemData.w = imgWidth;
             itemData.h = imgHeight;
