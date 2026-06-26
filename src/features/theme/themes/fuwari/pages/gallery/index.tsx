@@ -1,11 +1,14 @@
+// themes/fuwari/pages/gallery/index.tsx
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Shuffle } from "lucide-react";
 import { getGalleryItemsFn } from "@/features/gallery/api/gallery.public.api";
-import { getOptimizedImageUrl } from "@/features/media/utils/media.utils";
+import { getOptimizedImageUrl, getOriginalImageUrl } from "@/features/media/utils/media.utils";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { Skeleton } from "@/components/ui/skeleton";
+import PhotoSwipeLightbox from "photoswipe/lightbox";
+import PhotoSwipe from "photoswipe";
 import "photoswipe/dist/photoswipe.css";
 
 interface GalleryItem {
@@ -50,7 +53,6 @@ export function GalleryPage() {
     const filtered = activeTag
       ? sorted.filter((item) => item.tags.some((t) => t.name === activeTag))
       : sorted;
-
     setDisplayItems(sorted);
     setLoadedCount(Math.min(BATCH, filtered.length));
   }, [items, activeTag]);
@@ -94,8 +96,10 @@ export function GalleryPage() {
     if (!masonry) return;
     const totalWidth = masonry.getBoundingClientRect().width;
     const count = window.innerWidth >= 1024 ? 3 : 2;
+    const maxColWidth = 320; // 限制列宽，避免桌面端请求过大图片
+    const rawWidth = (totalWidth - GAP * (count - 1)) / count;
+    setColWidth(Math.min(rawWidth, maxColWidth));
     setColCount(count);
-    setColWidth((totalWidth - GAP * (count - 1)) / count);
   }, []);
 
   useEffect(() => {
@@ -104,17 +108,16 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // 灯箱初始化
+  // PhotoSwipe 灯箱初始化
   useEffect(() => {
-    let lb: any;
-    let cancelled = false;
+    if (!masonryRef.current) return;
 
-    import("photoswipe/lightbox").then(({ default: PhotoSwipeLightbox }) => {
-      if (cancelled) return;
+    let lb: PhotoSwipeLightbox;
+    try {
       lb = new PhotoSwipeLightbox({
         gallery: "#gallery-masonry",
         children: ".gallery-item",
-        pswpModule: () => import("photoswipe"),
+        pswpModule: PhotoSwipe, // 静态导入，避免动态加载带来的 SIMD 指令错误
         imageClickAction: "close",
         tapAction: "close",
         bgOpacity: 0.9,
@@ -179,6 +182,7 @@ export function GalleryPage() {
         pswp.on("change", updateCaption);
         updateCaption();
 
+        // 移动端隐藏导航箭头，避免误触
         const isMobile = window.innerWidth < 768;
         const arrowLeft = pswp.element.querySelector(".pswp__button--arrow--left") as HTMLElement;
         const arrowRight = pswp.element.querySelector(".pswp__button--arrow--right") as HTMLElement;
@@ -191,22 +195,37 @@ export function GalleryPage() {
         if (captionEl) captionEl.remove();
       });
 
+      // 图片数据过滤：原图加载 + 精确尺寸
       lb.addFilter("domItemData", (itemData: any, element: HTMLElement) => {
+        const originalSrc = element.dataset.originalSrc;
+        if (originalSrc) {
+          itemData.src = originalSrc;           // 灯箱中使用原图
+        }
+
         const img = element.querySelector("img") as HTMLImageElement | null;
         if (img) {
-          itemData.src = img.src;
-          itemData.w = img.naturalWidth || img.width || window.innerWidth;
-          itemData.h = img.naturalHeight || img.height || window.innerHeight;
-          itemData.msrc = img.src;
+          itemData.msrc = img.src;               // 缩略图预加载
+
+          // 优先使用后端存储的宽高，比 naturalWidth 更可靠
+          const imgWidth = parseInt(img.getAttribute('width') || '0');
+          const imgHeight = parseInt(img.getAttribute('height') || '0');
+          if (imgWidth > 0 && imgHeight > 0) {
+            itemData.w = imgWidth;
+            itemData.h = imgHeight;
+          } else {
+            itemData.w = img.naturalWidth || img.width || window.innerWidth;
+            itemData.h = img.naturalHeight || img.height || window.innerHeight;
+          }
         }
         return itemData;
       });
 
       lb.init();
-    });
+    } catch (error) {
+      console.error("PhotoSwipe 初始化失败:", error);
+    }
 
     return () => {
-      cancelled = true;
       lb?.destroy();
     };
   }, [loadedCount, colCount]);
@@ -325,15 +344,23 @@ export function GalleryPage() {
                 <div
                   key={item.id}
                   className="gallery-item overflow-hidden cursor-pointer"
-                  data-caption={`${item.title} — ${item.description}`}
                   data-title={item.title || undefined}
                   data-description={item.description || undefined}
+                  data-original-src={getOriginalImageUrl(item.imageKey)}
                 >
                   <img
-                    src={getOptimizedImageUrl(item.imageKey, 400)}
+                    src={getOptimizedImageUrl(item.imageKey, 200)}
+                    srcSet={`
+                      ${getOptimizedImageUrl(item.imageKey, 200)} 200w,
+                      ${getOptimizedImageUrl(item.imageKey, 400)} 400w,
+                      ${getOptimizedImageUrl(item.imageKey, 600)} 600w,
+                      ${getOptimizedImageUrl(item.imageKey, 800)} 800w
+                    `}
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                     alt={item.title}
                     className="w-full h-auto object-cover transition-transform hover:scale-105"
                     loading="lazy"
+                    decoding="async"
                     width={item.imgWidth}
                     height={item.imgHeight}
                   />

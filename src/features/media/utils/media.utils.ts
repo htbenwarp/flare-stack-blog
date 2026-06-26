@@ -15,32 +15,19 @@ export function getContentTypeFromKey(key: string): string | undefined {
 export function generateKey(fileName: string): string {
   const uuid = crypto.randomUUID();
   const extension = fileName.split(".").pop()?.toLowerCase() || "bin";
-
   return `${uuid}.${extension}`;
 }
 
-/**
- * 从图片 URL 中提取 R2 key
- * 支持格式：
- * - /images/${key}
- * - /images/${key}?quality=80&format=webp
- * - https://domain.com/images/${key}?quality=80
- */
 export function extractImageKey(src: string): string | undefined {
   if (!src) return undefined;
-
   const prefix = "/images/";
   let pathname = "";
-
   try {
-    // 尝试解析为 URL
-    const url = new URL(src, "http://dummy.com"); // 传入 base 确保相对路径也能被解析
+    const url = new URL(src, "http://dummy.com");
     pathname = url.pathname;
   } catch {
-    // 极少数情况解析失败，手动截断 query
     pathname = src.split("?")[0];
   }
-
   if (pathname.startsWith(prefix)) {
     return pathname.replace(prefix, "");
   }
@@ -48,20 +35,29 @@ export function extractImageKey(src: string): string | undefined {
 }
 
 /**
- * 生成优化后的图片 URL
- * @param key - R2 key
- * @param width - 可选的宽度限制
+ * 获取原始图片 URL（无优化参数，灯箱使用）
  */
-export function getOptimizedImageUrl(key: string, width?: number) {
-  return `/images/${key}?quality=80${width ? `&width=${width}` : ""}`;
+export function getOriginalImageUrl(key: string): string {
+  return `/images/${key}`;
 }
 
+/**
+ * 生成 Cloudflare Image Resizing 优化后的 URL
+ * @param key - R2 key
+ * @param width - 限制宽度（高度自动等比缩放）
+ */
+export function getOptimizedImageUrl(key: string, width: number = 800): string {
+  const originalUrl = `/images/${key}`;
+  // 使用 Cloudflare 原生端点，必须包含 width 或 height
+  return `/cdn-cgi/image/width=${width},quality=80,format=auto/${originalUrl}`;
+}
+
+// buildTransformOptions 保留但不影响新逻辑
 export function buildTransformOptions(
   searchParams: URLSearchParams,
   accept: string,
 ) {
   const transformOptions: Record<string, unknown> = { quality: 80 };
-
   if (searchParams.has("width")) {
     const width = Number.parseInt(searchParams.get("width")!, 10);
     if (!Number.isNaN(width) && width > 0) transformOptions.width = width;
@@ -76,12 +72,10 @@ export function buildTransformOptions(
       transformOptions.quality = quality;
   }
   if (searchParams.has("fit")) transformOptions.fit = searchParams.get("fit");
-
   if (/image\/avif/.test(accept)) {
     transformOptions.format = "avif";
   } else if (/image\/webp/.test(accept)) {
     transformOptions.format = "webp";
   }
-
   return transformOptions;
 }
