@@ -11,6 +11,7 @@ import PhotoSwipeLightbox from "photoswipe/lightbox";
 import PhotoSwipe from "photoswipe";
 import "photoswipe/dist/photoswipe.css";
 
+// 图片数据接口
 interface GalleryItem {
   id: number;
   title: string;
@@ -22,20 +23,27 @@ interface GalleryItem {
   imgHeight?: number;
 }
 
+// 每次加载更多时的批次大小
 const BATCH = 12;
+// 瀑布流列间距（单位 px）
 const GAP = 8;
 
 export function GalleryPage() {
+  // 获取画廊数据
   const { data: items, isLoading } = useQuery({
     queryKey: ["gallery", "public"],
     queryFn: () => getGalleryItemsFn(),
     staleTime: 5 * 60 * 1000,
   });
 
+  // 当前激活的标签（null 表示全部）
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  // 用于展示的原始排序列表（经过排序，用于洗牌后的显示）
   const [displayItems, setDisplayItems] = useState<GalleryItem[]>([]);
+  // 当前已加载的图片数量
   const [loadedCount, setLoadedCount] = useState(0);
 
+  // 统计所有标签及数量
   const allTags = useMemo(() => {
     const tagMap = new Map<string, number>();
     (items ?? []).forEach((item) => {
@@ -46,7 +54,7 @@ export function GalleryPage() {
     return Array.from(tagMap.entries()).map(([name, count]) => ({ name, count }));
   }, [items]);
 
-  // 合并初始化与标签切换，消除闪烁
+  // 初始化数据 或 切换标签时重置显示列表
   useEffect(() => {
     if (!items) return;
     const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -57,17 +65,19 @@ export function GalleryPage() {
     setLoadedCount(Math.min(BATCH, filtered.length));
   }, [items, activeTag]);
 
+  // 根据激活标签过滤当前展示列表
   const filteredItems = useMemo(() => {
     return activeTag
       ? displayItems.filter((item) => item.tags.some((t) => t.name === activeTag))
       : displayItems;
   }, [displayItems, activeTag]);
 
+  // 加载更多
   const loadMore = useCallback(() => {
     setLoadedCount((prev) => Math.min(prev + BATCH, filteredItems.length));
   }, [filteredItems.length]);
 
-  // 洗牌：保持当前加载数量不变
+  // 洗牌功能：打乱当前列表，保持当前加载数量
   const shuffle = useCallback(() => {
     const target = [...filteredItems];
     for (let i = target.length - 1; i > 0; i--) {
@@ -75,6 +85,7 @@ export function GalleryPage() {
       [target[i], target[j]] = [target[j], target[i]];
     }
     if (activeTag) {
+      // 保留不属于当前标签的项（如果之前有残留）
       const newDisplay = displayItems.filter(
         (item) => !item.tags.some((t) => t.name === activeTag)
       );
@@ -85,12 +96,15 @@ export function GalleryPage() {
     setLoadedCount((prev) => (prev === 0 ? BATCH : prev));
   }, [filteredItems, displayItems, activeTag]);
 
+  // 瀑布流容器引用
   const masonryRef = useRef<HTMLDivElement>(null);
+  // 列数与列宽
   const [colCount, setColCount] = useState(() =>
     typeof window !== "undefined" && window.innerWidth >= 1024 ? 3 : 2
   );
   const [colWidth, setColWidth] = useState(200);
 
+  // 更新布局：根据容器宽度动态计算列数和列宽
   const updateLayout = useCallback(() => {
     const masonry = masonryRef.current;
     if (!masonry) return;
@@ -108,11 +122,11 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // PhotoSwipe 灯箱初始化（集成您提出的三项优化）
+  // ---------- PhotoSwipe 灯箱初始化 ----------
   useEffect(() => {
     if (!masonryRef.current) return;
 
-    let lb: PhotoSwipeLightbox; // 提到 try 外，确保 cleanup 可销毁
+    let lb: PhotoSwipeLightbox;
 
     try {
       lb = new PhotoSwipeLightbox({
@@ -123,13 +137,9 @@ export function GalleryPage() {
         tapAction: "close",
         bgOpacity: 0.9,
         wheelToZoom: true,
-        zoom: true,
-        // showHideAnimationType: "fade", // 已删除，恢复默认 zoom 动画
-        initialZoomLevel: "fit",
-        secondaryZoomLevel: 2,
-        maxZoomLevel: 4,
       });
 
+      // 灯箱初始化完成后，添加自定义标题
       lb.on("afterInit", () => {
         const pswp = lb.pswp;
         if (!pswp?.element) return;
@@ -196,35 +206,37 @@ export function GalleryPage() {
         if (arrowRight) arrowRight.style.display = isMobile ? "none" : "";
       });
 
+      // 关闭时清理自定义标题
       lb.on("close", () => {
         const captionEl = document.querySelector(".pswp__custom-caption");
         if (captionEl) captionEl.remove();
       });
 
-      // 图片数据过滤：使用 data-msrc 作为放大的缩略图，并保留原图 src
+      // 图片数据过滤器：注入原图地址、缩略图，并告诉PhotoSwipe图片的真实尺寸（防止显示过小）
       lb.addFilter("domItemData", (itemData: any, element: HTMLElement) => {
+        // 灯箱中的原图地址
         const originalSrc = element.dataset.originalSrc;
         if (originalSrc) {
-          itemData.src = originalSrc; // 原图（高清）
+          itemData.src = originalSrc;
         }
 
-        // 优先使用专门的放大缩略图（600px），若不存在则回退到页面 img 的 src
+        // 占位缩略图（用于加载过渡）
         const msrc = element.dataset.msrc;
         const img = element.querySelector("img") as HTMLImageElement | null;
         itemData.msrc = msrc || img?.src || "";
 
-        // 宽高信息：优先取 img 的 width/height 属性，否则使用自然尺寸
-        if (img) {
-          const w = parseInt(img.getAttribute("width") || "0");
-          const h = parseInt(img.getAttribute("height") || "0");
-          if (w > 0 && h > 0) {
-            itemData.w = w;
-            itemData.h = h;
-          } else {
-            itemData.w = img.naturalWidth || img.width || window.innerWidth;
-            itemData.h = img.naturalHeight || img.height || window.innerHeight;
-          }
+        // 提供真实图片尺寸（避免灯箱按页面缩略图的小尺寸显示）
+        const realWidth = element.dataset.realWidth;
+        const realHeight = element.dataset.realHeight;
+        if (realWidth && realHeight) {
+          itemData.w = parseInt(realWidth);
+          itemData.h = parseInt(realHeight);
+        } else {
+          // 默认假设为全高清尺寸，确保至少能填满屏幕
+          itemData.w = 1920;
+          itemData.h = 1440;
         }
+
         return itemData;
       });
 
@@ -238,17 +250,22 @@ export function GalleryPage() {
     };
   }, [loadedCount, colCount]);
 
+  // 加载中骨架屏
   if (isLoading) return <GallerySkeleton />;
 
+  // 当前可见的图片切片
   const visibleItems = filteredItems.slice(0, loadedCount);
+
+  // 瀑布流布局计算：按列分配图片
   const columns: GalleryItem[][] = Array.from({ length: colCount }, () => []);
   const heights = new Array(colCount).fill(0);
 
+  // 根据已知宽高计算图片在瀑布流中的高度
   const calcItemHeight = (item: GalleryItem) => {
     if (item.imgWidth && item.imgHeight) {
       return colWidth * (item.imgHeight / item.imgWidth);
     }
-    return (colWidth * 3) / 4;
+    return (colWidth * 3) / 4; // 未知比例默认4:3
   };
 
   visibleItems.forEach((item) => {
@@ -260,6 +277,7 @@ export function GalleryPage() {
 
   const hasMore = loadedCount < filteredItems.length;
 
+  // 加载更多按钮组件
   const LoadMoreBtn = () => (
     <button
       onClick={loadMore}
@@ -288,6 +306,7 @@ export function GalleryPage() {
 
   return (
     <div className="flex flex-col gap-4 max-w-(--fuwari-page-width) mx-auto">
+      {/* 页面标题区域 */}
       <div className="fuwari-card-base p-6 md:p-10 space-y-4">
         <h1 className="text-3xl font-bold fuwari-text-90">
           {m.gallery_title?.() ?? "画廊"}
@@ -297,6 +316,7 @@ export function GalleryPage() {
         </p>
       </div>
 
+      {/* 洗牌按钮 */}
       <button
         onClick={shuffle}
         className="fuwari-card-base group flex items-center gap-4 px-6 py-5 text-left w-full cursor-pointer hover:bg-(--fuwari-btn-plain-bg-hover) active:bg-(--fuwari-btn-plain-bg-active)"
@@ -312,6 +332,7 @@ export function GalleryPage() {
         </div>
       </button>
 
+      {/* 标签筛选 */}
       {allTags.length > 0 && (
         <div className="fuwari-card-base p-4">
           <div className="flex flex-wrap gap-2">
@@ -344,6 +365,7 @@ export function GalleryPage() {
         </div>
       )}
 
+      {/* 瀑布流图片网格 */}
       <div className="fuwari-card-base p-4">
         <div id="gallery-masonry" ref={masonryRef} className="flex gap-2">
           {columns.map((col, colIdx) => (
@@ -355,7 +377,9 @@ export function GalleryPage() {
                   data-title={item.title || undefined}
                   data-description={item.description || undefined}
                   data-original-src={getOriginalImageUrl(item.imageKey)}
-                  data-msrc={getOptimizedImageUrl(item.imageKey, 600)} // 新增：放大阶段的缩略图
+                  data-msrc={getOptimizedImageUrl(item.imageKey, 1200)}
+                  data-real-width={item.imgWidth || "1920"}
+                  data-real-height={item.imgHeight || "1440"}
                 >
                   <img
                     src={getOptimizedImageUrl(item.imageKey, 200)}
@@ -375,6 +399,7 @@ export function GalleryPage() {
                   />
                 </div>
               ))}
+              {/* 最后一列末尾显示“加载更多”按钮 */}
               {colIdx === columns.length - 1 && hasMore && <LoadMoreBtn />}
             </div>
           ))}
@@ -384,6 +409,7 @@ export function GalleryPage() {
   );
 }
 
+// 加载骨架屏组件
 function GallerySkeleton() {
   return (
     <div className="flex flex-col gap-4">
