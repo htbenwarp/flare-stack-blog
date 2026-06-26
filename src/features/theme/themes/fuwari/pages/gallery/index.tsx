@@ -6,7 +6,6 @@ import { getOptimizedImageUrl } from "@/features/media/utils/media.utils";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { Skeleton } from "@/components/ui/skeleton";
-import PhotoSwipeLightbox from "photoswipe/lightbox"; 
 import "photoswipe/dist/photoswipe.css";
 
 interface GalleryItem {
@@ -44,12 +43,14 @@ export function GalleryPage() {
     return Array.from(tagMap.entries()).map(([name, count]) => ({ name, count }));
   }, [items]);
 
+  // 合并初始化与标签切换，消除闪烁
   useEffect(() => {
     if (!items) return;
     const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
     const filtered = activeTag
       ? sorted.filter((item) => item.tags.some((t) => t.name === activeTag))
       : sorted;
+
     setDisplayItems(sorted);
     setLoadedCount(Math.min(BATCH, filtered.length));
   }, [items, activeTag]);
@@ -64,6 +65,7 @@ export function GalleryPage() {
     setLoadedCount((prev) => Math.min(prev + BATCH, filteredItems.length));
   }, [filteredItems.length]);
 
+  // 洗牌：保持当前加载数量不变
   const shuffle = useCallback(() => {
     const target = [...filteredItems];
     for (let i = target.length - 1; i > 0; i--) {
@@ -102,12 +104,14 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // 灯箱初始化——稳定可靠
+  // 灯箱初始化
   useEffect(() => {
-    if (!masonryRef.current) return;
+    let lb: any;
+    let cancelled = false;
 
-    try {
-      const lb = new PhotoSwipeLightbox({
+    import("photoswipe/lightbox").then(({ default: PhotoSwipeLightbox }) => {
+      if (cancelled) return;
+      lb = new PhotoSwipeLightbox({
         gallery: "#gallery-masonry",
         children: ".gallery-item",
         pswpModule: () => import("photoswipe"),
@@ -190,30 +194,21 @@ export function GalleryPage() {
       lb.addFilter("domItemData", (itemData: any, element: HTMLElement) => {
         const img = element.querySelector("img") as HTMLImageElement | null;
         if (img) {
-          const key = img.dataset.imageKey || img.src.split("/images/")[1]?.split("?")[0];
-          if (key) {
-            itemData.src = `/images/${key}?original=true`;
-            itemData.msrc = img.src;
-            itemData.w = itemData.w || img.naturalWidth || img.width;
-            itemData.h = itemData.h || img.naturalHeight || img.height;
-          } else {
-            itemData.src = img.src;
-            itemData.w = img.naturalWidth || img.width || window.innerWidth;
-            itemData.h = img.naturalHeight || img.height || window.innerHeight;
-            itemData.msrc = img.src;
-          }
+          itemData.src = img.src;
+          itemData.w = img.naturalWidth || img.width || window.innerWidth;
+          itemData.h = img.naturalHeight || img.height || window.innerHeight;
+          itemData.msrc = img.src;
         }
         return itemData;
       });
 
       lb.init();
+    });
 
-      return () => {
-        lb.destroy();
-      };
-    } catch (error) {
-      console.error("PhotoSwipe 初始化失败:", error);
-    }
+    return () => {
+      cancelled = true;
+      lb?.destroy();
+    };
   }, [loadedCount, colCount]);
 
   if (isLoading) return <GallerySkeleton />;
@@ -330,6 +325,7 @@ export function GalleryPage() {
                 <div
                   key={item.id}
                   className="gallery-item overflow-hidden cursor-pointer"
+                  data-caption={`${item.title} — ${item.description}`}
                   data-title={item.title || undefined}
                   data-description={item.description || undefined}
                 >
@@ -340,7 +336,6 @@ export function GalleryPage() {
                     loading="lazy"
                     width={item.imgWidth}
                     height={item.imgHeight}
-                    data-image-key={item.imageKey}
                   />
                 </div>
               ))}
