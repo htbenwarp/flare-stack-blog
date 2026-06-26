@@ -1,3 +1,4 @@
+// themes/fuwari/pages/gallery/index.tsx
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Shuffle } from "lucide-react";
@@ -153,21 +154,57 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // ---------- PhotoSwipe 初始化与刷新（同一 effect，彻底消除竞态）----------
+  // ---------- PhotoSwipe：单例模式，只创建一次，后续只刷新 ----------
   const lbRef = useRef<PhotoSwipeLightbox | null>(null);
-  const [dataVersion, setDataVersion] = useState(0);
+  const isInitializedRef = useRef(false);
 
-  useEffect(() => {
-    setDataVersion((v) => v + 1);
-  }, [displayItems, loadedCount, colCount]);
+  // 标记需要刷新（当图片列表变化时）
+  const [needsRefresh, setNeedsRefresh] = useState(0);
 
+  // 当 displayItems 或 loadedCount 变化时，标记需要刷新
   useEffect(() => {
+    setNeedsRefresh((v) => v + 1);
+  }, [displayItems, loadedCount]);
+
+  // PhotoSwipe 初始化与刷新
+  useEffect(() => {
+    // 数据未加载完成或 DOM 未就绪，不处理
     if (isLoading || !masonryRef.current) return;
 
-    let lb = lbRef.current;
-    if (!lb) {
+    // 如果实例已存在，直接刷新并返回
+    if (lbRef.current) {
       try {
-        lb = new PhotoSwipeLightbox({
+        // 使用 requestAnimationFrame 确保 DOM 已更新
+        requestAnimationFrame(() => {
+          if (lbRef.current) {
+            lbRef.current.refresh();
+          }
+        });
+        return;
+      } catch (error) {
+        console.warn("PhotoSwipe refresh 失败，准备重建:", error);
+        // 如果 refresh 失败，销毁实例以便重建
+        try {
+          lbRef.current.destroy();
+        } catch (_) {
+          // 忽略销毁错误
+        }
+        lbRef.current = null;
+        isInitializedRef.current = false;
+      }
+    }
+
+    // 如果已经初始化过但实例丢失，不重复创建（避免无限循环）
+    if (isInitializedRef.current && !lbRef.current) {
+      // 这种情况发生在 destroy 后，但 isInitializedRef 未重置
+      // 重置标志位，允许重新创建
+      isInitializedRef.current = false;
+    }
+
+    // 创建新实例（仅在首次或实例损坏时）
+    if (!lbRef.current && !isInitializedRef.current) {
+      try {
+        const lb = new PhotoSwipeLightbox({
           gallery: "#gallery-masonry",
           children: ".gallery-item",
           pswpModule: PhotoSwipe,
@@ -248,6 +285,7 @@ export function GalleryPage() {
         });
 
         lb.on("close", () => {
+          // 仅移除 caption，不影响其他
           const captionEl = document.querySelector(".pswp__custom-caption");
           if (captionEl) captionEl.remove();
         });
@@ -272,23 +310,46 @@ export function GalleryPage() {
 
         lb.init();
         lbRef.current = lb;
+        isInitializedRef.current = true;
       } catch (error) {
         console.error("PhotoSwipe 初始化失败:", error);
-        return;
+        isInitializedRef.current = false;
       }
     }
 
-    if (lb) {
-      requestAnimationFrame(() => {
-        lb?.refresh();
-      });
-    }
-
+    // Cleanup: 组件卸载时销毁实例
     return () => {
-      lb?.destroy();
-      lbRef.current = null;
+      if (lbRef.current) {
+        try {
+          lbRef.current.destroy();
+        } catch (_) {
+          // 忽略销毁错误
+        }
+        lbRef.current = null;
+        isInitializedRef.current = false;
+      }
+      // 清理可能残留的 caption 元素
+      document.querySelectorAll(".pswp__custom-caption").forEach((el) => el.remove());
     };
-  }, [isLoading, dataVersion]);
+    // 依赖 needsRefresh 触发刷新，但不会重建
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, needsRefresh]);
+
+  // 组件卸载时确保清理
+  useEffect(() => {
+    return () => {
+      if (lbRef.current) {
+        try {
+          lbRef.current.destroy();
+        } catch (_) {
+          // 忽略
+        }
+        lbRef.current = null;
+        isInitializedRef.current = false;
+      }
+      document.querySelectorAll(".pswp__custom-caption").forEach((el) => el.remove());
+    };
+  }, []);
 
   if (isLoading) return <GallerySkeleton />;
 
