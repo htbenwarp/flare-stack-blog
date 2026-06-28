@@ -24,7 +24,6 @@ interface GalleryItem {
 const BATCH = 12;
 const GAP = 8;
 
-// ---------- 图片组件 ----------
 function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number }) {
   const [loaded, setLoaded] = useState(false);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
@@ -45,7 +44,7 @@ function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number 
 
   return (
     <div
-      className="gallery-item overflow-hidden cursor-pointer relative"
+      className="gallery-item overflow-hidden cursor-pointer relative group"
       style={{
         aspectRatio,
         transition: "aspect-ratio 0.3s ease",
@@ -54,7 +53,6 @@ function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number 
       data-title={item.title || undefined}
       data-description={item.description || undefined}
       data-pswp-src={getOriginalImageUrl(item.imageKey)}
-      // 使用与网格图片相同的 800px 缩略图，保证缓存命中
       data-pswp-msrc={getOptimizedImageUrl(item.imageKey, 800)}
       data-pswp-width={naturalSize?.w || item.imgWidth || 1200}
       data-pswp-height={naturalSize?.h || item.imgHeight || 800}
@@ -67,7 +65,7 @@ function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number 
         onLoad={handleLoad}
         onError={handleError}
         className={cn(
-          "absolute inset-0 w-full h-full object-cover transition-opacity duration-300",
+          "absolute inset-0 w-full h-full object-cover transition duration-300 group-hover:scale-110",
           loaded ? "opacity-100" : "opacity-0"
         )}
       />
@@ -212,7 +210,6 @@ export function GalleryPage() {
           initialZoomLevel: "fit",
           secondaryZoomLevel: 2,
           maxZoomLevel: 4,
-          // 🔥 预加载前后各 3 张图片，确保缩略图提前加载
           preload: [3, 3],
         });
 
