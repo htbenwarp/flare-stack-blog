@@ -157,154 +157,176 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // ---------- PhotoSwipe 单例管理 ----------
+  // ---------- PhotoSwipe 初始化 ----------
   const lbRef = useRef<PhotoSwipeLightbox | null>(null);
-  const isInitializedRef = useRef(false);
   const [needsRefresh, setNeedsRefresh] = useState(0);
 
-  // 当图片列表变化时，标记需要刷新
   useEffect(() => {
     setNeedsRefresh((v) => v + 1);
   }, [displayItems, loadedCount]);
 
-  // PhotoSwipe 初始化与刷新
   useEffect(() => {
     if (isLoading || !masonryRef.current) return;
 
-    // 如果实例已存在，直接刷新
+    // 实例已存在则刷新
     if (lbRef.current) {
-      try {
-        requestAnimationFrame(() => {
-          if (lbRef.current) {
-            lbRef.current.refresh();
+      requestAnimationFrame(() => lbRef.current?.refresh());
+      return;
+    }
+
+    try {
+      const lb = new PhotoSwipeLightbox({
+        gallery: "#gallery-masonry",
+        children: ".gallery-item",
+        pswpModule: PhotoSwipe,
+        imageClickAction: "close",
+        tapAction: "close",
+        bgOpacity: 0.9,
+        wheelToZoom: true,
+        zoom: true,
+        initialZoomLevel: "fit",
+        secondaryZoomLevel: 2,
+        maxZoomLevel: 4,
+        // 关闭默认预加载，手动控制先缩略图后原图
+        preload: [0, 0],
+      });
+
+      // ---------- 手动有序预加载 ----------
+      const preloadQueue = new Set<string>();
+
+      const preloadImage = (url: string): Promise<void> =>
+        new Promise((resolve) => {
+          if (preloadQueue.has(url)) return resolve();
+          preloadQueue.add(url);
+          const img = new Image();
+          img.onload = img.onerror = () => {
+            preloadQueue.delete(url);
+            resolve();
+          };
+          img.src = url;
+        });
+
+      const preloadAdjacent = (pswp: any) => {
+        if (!pswp.items || pswp.items.length === 0) return;
+        const currentIndex = pswp.getCurrentIndex();
+
+        const indices = [currentIndex - 1, currentIndex + 1].filter(
+          (i) => i >= 0 && i < pswp.items.length
+        );
+
+        indices.forEach((index) => {
+          const item = pswp.items[index];
+          const msrc = item.msrc;
+          const src = item.src;
+
+          // 先加载缩略图，完成后再加载原图
+          if (msrc) {
+            preloadImage(msrc).then(() => {
+              if (src) preloadImage(src);
+            });
+          } else if (src) {
+            preloadImage(src);
           }
         });
-        return;
-      } catch (error) {
-        console.warn("PhotoSwipe refresh 失败，准备重建:", error);
-        try {
-          lbRef.current.destroy();
-        } catch (_) {}
-        lbRef.current = null;
-        isInitializedRef.current = false;
-      }
-    }
+      };
 
-    // 防止重复创建
-    if (isInitializedRef.current && !lbRef.current) {
-      isInitializedRef.current = false;
-    }
-
-    // 创建新实例（仅在首次或实例损坏时）
-    if (!lbRef.current && !isInitializedRef.current) {
-      try {
-        const lb = new PhotoSwipeLightbox({
-          gallery: "#gallery-masonry",
-          children: ".gallery-item",
-          pswpModule: PhotoSwipe,
-          imageClickAction: "close",
-          tapAction: "close",
-          bgOpacity: 0.9,
-          wheelToZoom: true,
-          zoom: true,
-          initialZoomLevel: "fit",
-          secondaryZoomLevel: 2,
-          maxZoomLevel: 4,
-          preload: [3, 3],
-        });
+      lb.on("afterInit", () => {
+        const pswp = lb.pswp;
+        if (!pswp?.element) return;
 
         // 自定义底部标题
-        lb.on("afterInit", () => {
-          const pswp = lb.pswp;
-          if (!pswp?.element) return;
+        let captionEl = pswp.element.querySelector(".pswp__custom-caption") as HTMLElement;
+        if (!captionEl) {
+          captionEl = document.createElement("div");
+          captionEl.className = "pswp__custom-caption";
+          captionEl.style.cssText = `
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.65);
+            color: #fff;
+            padding: 8px 18px;
+            border-radius: 10px;
+            max-width: 80%;
+            text-align: center;
+            z-index: 20;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          `;
+          pswp.element.appendChild(captionEl);
+        }
 
-          let captionEl = pswp.element.querySelector(".pswp__custom-caption") as HTMLElement;
-          if (!captionEl) {
-            captionEl = document.createElement("div");
-            captionEl.className = "pswp__custom-caption";
-            captionEl.style.cssText = `
-              position: absolute;
-              bottom: 20px;
-              left: 50%;
-              transform: translateX(-50%);
-              background: rgba(0, 0, 0, 0.65);
-              color: #fff;
-              padding: 8px 18px;
-              border-radius: 10px;
-              max-width: 80%;
-              text-align: center;
-              z-index: 20;
-              pointer-events: none;
-              backdrop-filter: blur(4px);
-              box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-            `;
-            pswp.element.appendChild(captionEl);
-          }
-
-          const updateCaption = () => {
-            const slideData = pswp.currSlide?.data;
-            const title = slideData?.element?.dataset?.title || "";
-            const desc = slideData?.element?.dataset?.description || "";
-            if (captionEl) {
-              captionEl.innerHTML = "";
-              if (title) {
-                const titleEl = document.createElement("span");
-                titleEl.textContent = title;
-                titleEl.style.fontWeight = "bold";
-                titleEl.style.fontFamily = 'Georgia, "Times New Roman", serif';
-                titleEl.style.fontSize = "16px";
-                captionEl.appendChild(titleEl);
-              }
-              if (desc) {
-                const descEl = document.createElement("span");
-                descEl.textContent = desc;
-                descEl.style.fontFamily = 'Georgia, "Times New Roman", serif';
-                descEl.style.fontSize = "14px";
-                captionEl.appendChild(descEl);
-              }
-              captionEl.style.display = title || desc ? "flex" : "none";
+        const updateCaption = () => {
+          const slideData = pswp.currSlide?.data;
+          const title = slideData?.element?.dataset?.title || "";
+          const desc = slideData?.element?.dataset?.description || "";
+          if (captionEl) {
+            captionEl.innerHTML = "";
+            if (title) {
+              const titleEl = document.createElement("span");
+              titleEl.textContent = title;
+              titleEl.style.fontWeight = "bold";
+              // 包含中文字体回退，修复移动端不显示
+              titleEl.style.fontFamily =
+                '"Georgia", "Times New Roman", "Noto Serif CJK SC", "Songti SC", "PingFang SC", "Microsoft YaHei", serif';
+              titleEl.style.fontSize = "16px";
+              captionEl.appendChild(titleEl);
             }
-          };
-
-          pswp.on("change", updateCaption);
-          updateCaption();
-
-          const isMobile = window.innerWidth < 768;
-          const arrowLeft = pswp.element.querySelector(".pswp__button--arrow--left") as HTMLElement;
-          const arrowRight = pswp.element.querySelector(".pswp__button--arrow--right") as HTMLElement;
-          if (arrowLeft) arrowLeft.style.display = isMobile ? "none" : "";
-          if (arrowRight) arrowRight.style.display = isMobile ? "none" : "";
-        });
-
-        lb.on("close", () => {
-          const captionEl = document.querySelector(".pswp__custom-caption");
-          if (captionEl) captionEl.remove();
-        });
-
-        lb.addFilter("domItemData", (itemData: any, element: HTMLElement) => {
-          const originalSrc = element.dataset.pswpSrc;
-          if (originalSrc) itemData.src = originalSrc;
-          const msrc = element.dataset.pswpMsrc;
-          if (msrc) itemData.msrc = msrc;
-          const w = Number(element.dataset.pswpWidth);
-          const h = Number(element.dataset.pswpHeight);
-          if (w > 0 && h > 0) {
-            itemData.w = w;
-            itemData.h = h;
+            if (desc) {
+              const descEl = document.createElement("span");
+              descEl.textContent = desc;
+              descEl.style.fontFamily =
+                '"Georgia", "Times New Roman", "Noto Serif CJK SC", "Songti SC", "PingFang SC", "Microsoft YaHei", serif';
+              descEl.style.fontSize = "14px";
+              captionEl.appendChild(descEl);
+            }
+            captionEl.style.display = title || desc ? "flex" : "none";
           }
-          return itemData;
+        };
+
+        pswp.on("change", () => {
+          updateCaption();
+          preloadAdjacent(pswp); // 切换后预加载新相邻
         });
 
-        lb.init();
-        lbRef.current = lb;
-        isInitializedRef.current = true;
-      } catch (error) {
-        console.error("PhotoSwipe 初始化失败:", error);
-        isInitializedRef.current = false;
-      }
+        updateCaption();
+        preloadAdjacent(pswp); // 首次打开立即预加载
+
+        // 移动端隐藏箭头
+        const isMobile = window.innerWidth < 768;
+        const arrowLeft = pswp.element.querySelector(".pswp__button--arrow--left") as HTMLElement;
+        const arrowRight = pswp.element.querySelector(".pswp__button--arrow--right") as HTMLElement;
+        if (arrowLeft) arrowLeft.style.display = isMobile ? "none" : "";
+        if (arrowRight) arrowRight.style.display = isMobile ? "none" : "";
+      });
+
+      lb.on("close", () => {
+        document.querySelector(".pswp__custom-caption")?.remove();
+      });
+
+      lb.addFilter("domItemData", (itemData: any, element: HTMLElement) => {
+        const originalSrc = element.dataset.pswpSrc;
+        if (originalSrc) itemData.src = originalSrc;
+        const msrc = element.dataset.pswpMsrc;
+        if (msrc) itemData.msrc = msrc;
+        const w = Number(element.dataset.pswpWidth);
+        const h = Number(element.dataset.pswpHeight);
+        if (w > 0 && h > 0) {
+          itemData.w = w;
+          itemData.h = h;
+        }
+        return itemData;
+      });
+
+      lb.init();
+      lbRef.current = lb;
+    } catch (error) {
+      console.error("PhotoSwipe 初始化失败:", error);
     }
 
     return () => {
@@ -313,9 +335,7 @@ export function GalleryPage() {
           lbRef.current.destroy();
         } catch (_) {}
         lbRef.current = null;
-        isInitializedRef.current = false;
       }
-      document.querySelectorAll(".pswp__custom-caption").forEach((el) => el.remove());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, needsRefresh]);
@@ -328,7 +348,6 @@ export function GalleryPage() {
           lbRef.current.destroy();
         } catch (_) {}
         lbRef.current = null;
-        isInitializedRef.current = false;
       }
       document.querySelectorAll(".pswp__custom-caption").forEach((el) => el.remove());
     };
