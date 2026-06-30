@@ -84,7 +84,6 @@ export function GalleryPage() {
   const [displayItems, setDisplayItems] = useState<GalleryItem[]>([]);
   const [loadedCount, setLoadedCount] = useState(0);
 
-  // 标签统计
   const allTags = useMemo(() => {
     const tagMap = new Map<string, number>();
     (items ?? []).forEach((item) => {
@@ -95,7 +94,6 @@ export function GalleryPage() {
     return Array.from(tagMap.entries()).map(([name, count]) => ({ name, count }));
   }, [items]);
 
-  // 初始化显示数据
   useEffect(() => {
     if (!items) return;
     const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -103,19 +101,16 @@ export function GalleryPage() {
     setLoadedCount(Math.min(BATCH, sorted.length));
   }, [items, activeTag]);
 
-  // 筛选后的数据
   const filteredItems = useMemo(() => {
     return activeTag
       ? displayItems.filter((item) => item.tags.some((t) => t.name === activeTag))
       : displayItems;
   }, [displayItems, activeTag]);
 
-  // 加载更多
   const loadMore = useCallback(() => {
     setLoadedCount((prev) => Math.min(prev + BATCH, filteredItems.length));
   }, [filteredItems.length]);
 
-  // 随机排序
   const shuffle = useCallback(() => {
     const target = [...filteredItems];
     for (let i = target.length - 1; i > 0; i--) {
@@ -133,7 +128,6 @@ export function GalleryPage() {
     setLoadedCount((prev) => (prev === 0 ? BATCH : prev));
   }, [filteredItems, displayItems, activeTag]);
 
-  // ---------- 瀑布流布局 ----------
   const masonryRef = useRef<HTMLDivElement>(null);
   const [colCount, setColCount] = useState(() =>
     typeof window !== "undefined" && window.innerWidth >= 1024 ? 3 : 2
@@ -157,7 +151,7 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // ---------- PhotoSwipe 初始化 ----------
+  // ---------- PhotoSwipe 单例管理 ----------
   const lbRef = useRef<PhotoSwipeLightbox | null>(null);
   const [needsRefresh, setNeedsRefresh] = useState(0);
 
@@ -168,7 +162,6 @@ export function GalleryPage() {
   useEffect(() => {
     if (isLoading || !masonryRef.current) return;
 
-    // 实例已存在则刷新
     if (lbRef.current) {
       requestAnimationFrame(() => lbRef.current?.refresh());
       return;
@@ -187,46 +180,43 @@ export function GalleryPage() {
         initialZoomLevel: "fit",
         secondaryZoomLevel: 2,
         maxZoomLevel: 4,
-        // 关闭默认预加载，手动控制先缩略图后原图
-        preload: [0, 0],
+        preload: [0, 0], // 我们手动控制预加载
       });
 
-      // ---------- 手动有序预加载 ----------
-      const preloadQueue = new Set<string>();
-
-      const preloadImage = (url: string): Promise<void> =>
-        new Promise((resolve) => {
-          if (preloadQueue.has(url)) return resolve();
-          preloadQueue.add(url);
+      // ---------- 改进的预加载工具 ----------
+      const preloadCache = new Set<string>();
+      const preloadImage = (url: string): Promise<void> => {
+        if (!url || preloadCache.has(url)) return Promise.resolve();
+        preloadCache.add(url);
+        return new Promise((resolve) => {
           const img = new Image();
           img.onload = img.onerror = () => {
-            preloadQueue.delete(url);
             resolve();
           };
           img.src = url;
         });
+      };
 
-      const preloadAdjacent = (pswp: any) => {
+      /** 批量预加载所有幻灯片的 800px 缩略图，确保切换瞬间可见 */
+      const preloadAllMsrc = (pswp: any) => {
         if (!pswp.items || pswp.items.length === 0) return;
-        const currentIndex = pswp.getCurrentIndex();
+        pswp.items.forEach((item: any) => {
+          if (item.msrc) preloadImage(item.msrc);
+        });
+      };
 
-        const indices = [currentIndex - 1, currentIndex + 1].filter(
-          (i) => i >= 0 && i < pswp.items.length
-        );
-
-        indices.forEach((index) => {
-          const item = pswp.items[index];
-          const msrc = item.msrc;
-          const src = item.src;
-
-          // 先加载缩略图，完成后再加载原图
-          if (msrc) {
-            preloadImage(msrc).then(() => {
-              if (src) preloadImage(src);
-            });
-          } else if (src) {
-            preloadImage(src);
-          }
+      /** 按优先级预加载当前图及前后各 2 张的原图 */
+      const preloadOriginals = (pswp: any) => {
+        if (!pswp.items || pswp.items.length === 0) return;
+        const current = pswp.getCurrentIndex();
+        const indices = new Set<number>();
+        for (let offset = -2; offset <= 2; offset++) {
+          const idx = current + offset;
+          if (idx >= 0 && idx < pswp.items.length) indices.add(idx);
+        }
+        indices.forEach((i) => {
+          const src = pswp.items[i]?.src;
+          if (src) preloadImage(src);
         });
       };
 
@@ -234,7 +224,13 @@ export function GalleryPage() {
         const pswp = lb.pswp;
         if (!pswp?.element) return;
 
-        // 自定义底部标题
+        // 1️⃣ 立刻预加载所有缩略图（800px），保障切换流畅
+        preloadAllMsrc(pswp);
+
+        // 2️⃣ 延迟一点再开始加载当前及附近原图（不阻塞缩略图）
+        setTimeout(() => preloadOriginals(pswp), 100);
+
+        // ---------- 自定义底部标题 ----------
         let captionEl = pswp.element.querySelector(".pswp__custom-caption") as HTMLElement;
         if (!captionEl) {
           captionEl = document.createElement("div");
@@ -271,17 +267,18 @@ export function GalleryPage() {
               const titleEl = document.createElement("span");
               titleEl.textContent = title;
               titleEl.style.fontWeight = "bold";
-              // 包含中文字体回退，修复移动端不显示
+              // ✅ 跨平台安全中文字体栈
               titleEl.style.fontFamily =
-                '"Georgia", "Times New Roman", "Noto Serif CJK SC", "Songti SC", "PingFang SC", "Microsoft YaHei", serif';
+                'Georgia, "Times New Roman", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "WenQuanYi Micro Hei", sans-serif';
               titleEl.style.fontSize = "16px";
               captionEl.appendChild(titleEl);
             }
             if (desc) {
               const descEl = document.createElement("span");
               descEl.textContent = desc;
+              // ✅ 跨平台安全中文字体栈
               descEl.style.fontFamily =
-                '"Georgia", "Times New Roman", "Noto Serif CJK SC", "Songti SC", "PingFang SC", "Microsoft YaHei", serif';
+                'Georgia, "Times New Roman", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "WenQuanYi Micro Hei", sans-serif';
               descEl.style.fontSize = "14px";
               captionEl.appendChild(descEl);
             }
@@ -291,11 +288,11 @@ export function GalleryPage() {
 
         pswp.on("change", () => {
           updateCaption();
-          preloadAdjacent(pswp); // 切换后预加载新相邻
+          // 切换时，如果原图还没加载，再补一次附近原图的预加载
+          preloadOriginals(pswp);
         });
 
         updateCaption();
-        preloadAdjacent(pswp); // 首次打开立即预加载
 
         // 移动端隐藏箭头
         const isMobile = window.innerWidth < 768;
@@ -307,6 +304,8 @@ export function GalleryPage() {
 
       lb.on("close", () => {
         document.querySelector(".pswp__custom-caption")?.remove();
+        // 清空预加载缓存，释放内存（可选）
+        preloadCache.clear();
       });
 
       lb.addFilter("domItemData", (itemData: any, element: HTMLElement) => {
@@ -331,32 +330,25 @@ export function GalleryPage() {
 
     return () => {
       if (lbRef.current) {
-        try {
-          lbRef.current.destroy();
-        } catch (_) {}
+        try { lbRef.current.destroy(); } catch (_) {}
         lbRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, needsRefresh]);
 
-  // 组件卸载时额外清理
   useEffect(() => {
     return () => {
       if (lbRef.current) {
-        try {
-          lbRef.current.destroy();
-        } catch (_) {}
+        try { lbRef.current.destroy(); } catch (_) {}
         lbRef.current = null;
       }
       document.querySelectorAll(".pswp__custom-caption").forEach((el) => el.remove());
     };
   }, []);
 
-  // ---------- 骨架屏 ----------
   if (isLoading) return <GallerySkeleton />;
 
-  // ---------- 渲染 ----------
   const visibleItems = filteredItems.slice(0, loadedCount);
   const columns: GalleryItem[][] = Array.from({ length: colCount }, () => []);
   const heights = new Array(colCount).fill(0);
@@ -401,7 +393,6 @@ export function GalleryPage() {
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      {/* 标题 */}
       <div className="fuwari-card-base p-6 md:p-10 space-y-4">
         <h1 className="text-3xl font-bold fuwari-text-90">
           {m.gallery_title?.() ?? "画廊"}
@@ -411,7 +402,6 @@ export function GalleryPage() {
         </p>
       </div>
 
-      {/* 随机排序按钮 */}
       <button
         onClick={shuffle}
         className="fuwari-card-base group flex items-center gap-4 px-6 py-5 text-left w-full cursor-pointer hover:bg-(--fuwari-btn-plain-bg-hover) active:bg-(--fuwari-btn-plain-bg-active)"
@@ -427,7 +417,6 @@ export function GalleryPage() {
         </div>
       </button>
 
-      {/* 标签筛选 */}
       {allTags.length > 0 && (
         <div className="fuwari-card-base p-4">
           <div className="flex flex-wrap gap-2">
@@ -460,7 +449,6 @@ export function GalleryPage() {
         </div>
       )}
 
-      {/* 瀑布流 */}
       <div className="fuwari-card-base p-4 w-full">
         <div id="gallery-masonry" ref={masonryRef} className="flex gap-2 w-full">
           {columns.map((col, colIdx) => (
