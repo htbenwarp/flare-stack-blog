@@ -1573,5 +1573,6 @@
   "gallery_delete_message": "Are you sure you want to delete this item? This action cannot be undone.",
   "gallery_delete_confirm": "Delete",
   "admin_sidebar_gallery": "Gallery",
-  "gallery_tags_placeholder": "Comma separated, e.g. landscape, travel"
+  "gallery_tags_placeholder": "Comma separated, e.g. landscape, travel",
+  "comments_editor_toolbar_emoji": "Insert Emoji"
 }

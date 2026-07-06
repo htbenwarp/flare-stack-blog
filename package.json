@@ -81,6 +81,7 @@
     "diff": "^8.0.2",
     "drizzle-orm": "^0.45.2",
     "drizzle-zod": "^0.8.3",
+    "emoji-picker-react": "^4.19.1",
     "feed": "^5.2.0",
     "fflate": "^0.8.2",
     "gray-matter": "^4.0.3",

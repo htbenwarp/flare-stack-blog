@@ -1,13 +1,15 @@
 import type { JSONContent } from "@tiptap/react";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import { Loader2, Send } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { getCommentExtensions } from "@/features/comments/components/editor/config";
 import { normalizeLinkHref } from "@/lib/links/normalize-link-href";
 import { m } from "@/paraglide/messages";
 import FuwariCommentEditorToolbar from "./comment-editor-toolbar";
 import type { ModalType } from "./comment-insert-modal";
 import { FuwariInsertModal } from "./comment-insert-modal";
+import { EmojiPickerPopover } from "./emoji-picker-popover";
 
 interface CommentEditorProps {
   onSubmit: (content: JSONContent) => Promise<void>;
@@ -28,6 +30,10 @@ export const FuwariCommentEditor = ({
 
   const [modalType, setModalType] = useState<ModalType>(null);
   const [modalInitialUrl, setModalInitialUrl] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [emojiPickerPosition, setEmojiPickerPosition] = useState({ top: 0, left: 0 });
+
+  const toolbarRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
     extensions: getCommentExtensions(),
@@ -49,7 +55,7 @@ export const FuwariCommentEditor = ({
   });
 
   const openLinkModal = useCallback(() => {
-    const previousUrl = editor.getAttributes("link").href as string | undefined;
+    const previousUrl = editor?.getAttributes("link").href as string | undefined;
     setModalInitialUrl(previousUrl || "");
     setModalType("LINK");
   }, [editor]);
@@ -59,8 +65,31 @@ export const FuwariCommentEditor = ({
     setModalType("IMAGE");
   }, []);
 
+  // 表情按钮点击：计算工具栏位置并切换显示
+  const handleEmojiClick = useCallback(() => {
+    if (toolbarRef.current) {
+      const rect = toolbarRef.current.getBoundingClientRect();
+      setEmojiPickerPosition({
+        top: rect.bottom + 4,
+        left: rect.left + 20,
+      });
+    } else {
+      setEmojiPickerPosition({ top: 60, left: 20 }); // fallback
+    }
+    setShowEmojiPicker((prev) => !prev);
+  }, []);
+
+  const handleEmojiSelect = useCallback(
+    (emoji: string) => {
+      if (!editor) return;
+      editor.chain().focus().insertContent(emoji).run();
+      setShowEmojiPicker(false);
+    },
+    [editor]
+  );
+
   const handleSubmit = async () => {
-    if (isEmpty || isSubmitting) return;
+    if (isEmpty || isSubmitting || !editor) return;
 
     try {
       await onSubmit(editor.getJSON());
@@ -70,14 +99,17 @@ export const FuwariCommentEditor = ({
     }
   };
 
+  if (!editor) return null;
+
   return (
     <div className="relative rounded-(--fuwari-radius-large) border border-(--fuwari-input-border) bg-transparent transition-all duration-300 overflow-hidden focus-within:bg-(--fuwari-primary)/5 focus-within:border-(--fuwari-primary)/50 focus-within:shadow-sm">
       {/* Toolbar */}
-      <div className="border-b border-black/5 dark:border-white/5 px-1 py-0.5">
+      <div ref={toolbarRef} className="border-b border-black/5 dark:border-white/5 px-1 py-0.5">
         <FuwariCommentEditorToolbar
           editor={editor}
           onLinkClick={openLinkModal}
           onImageClick={openImageModal}
+          onEmojiClick={handleEmojiClick}
         />
       </div>
 
@@ -99,7 +131,7 @@ export const FuwariCommentEditor = ({
           <button
             disabled={isEmpty || isSubmitting}
             onClick={handleSubmit}
-            className="fuwari-btn-primary h-8 px-4 text-sm rounded-lg gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="fuwari-btn-primary h-8 px-4 text-sm rounded-lg gap-2 disabled:opacity-40 disabled:cursor-not-allowed flex items-center"
           >
             <span>{actualSubmitLabel}</span>
             {isSubmitting ? (
@@ -111,6 +143,7 @@ export const FuwariCommentEditor = ({
         </div>
       </div>
 
+      {/* Link / Image Modal */}
       <FuwariInsertModal
         type={modalType}
         initialUrl={modalInitialUrl}
@@ -138,6 +171,25 @@ export const FuwariCommentEditor = ({
           setModalType(null);
         }}
       />
+
+      {/* 表情选择器 Portal */}
+      {showEmojiPicker &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: emojiPickerPosition.top,
+              left: emojiPickerPosition.left,
+              zIndex: 9999,
+            }}
+          >
+            <EmojiPickerPopover
+              onEmojiSelect={handleEmojiSelect}
+              onClose={() => setShowEmojiPicker(false)}
+            />
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

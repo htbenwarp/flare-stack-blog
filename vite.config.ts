@@ -34,6 +34,9 @@ const config = defineConfig(({ mode }) => {
         ),
       },
     },
+    optimizeDeps: {
+      include: ["emoji-picker-react"],
+    },
     plugins: [
       paraglideVitePlugin({
         project: "./project.inlang",

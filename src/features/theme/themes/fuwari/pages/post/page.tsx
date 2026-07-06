@@ -273,7 +273,7 @@ export function PostPage({ post }: PostPageProps) {
           </div>
         )}
 
-        <div className="fuwari-card-base z-10 px-6 md:px-9 pt-6 pb-10 relative w-full fuwari-onload-animation overflow-hidden">
+        <div className="fuwari-card-base z-10 px-6 md:px-9 pt-6 pb-10 relative w-full fuwari-onload-animation overflow-visible">
           {breadcrumb}
 
           {!isGuestPost && safeDisplayPost.toc?.length > 0 && (

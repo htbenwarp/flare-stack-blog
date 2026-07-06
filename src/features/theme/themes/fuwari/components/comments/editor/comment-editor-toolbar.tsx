@@ -8,6 +8,7 @@ import {
   Italic,
   Link as LinkIcon,
   Redo,
+  Smile, // 🆕
   Strikethrough,
   Underline as UnderlineIcon,
   Undo,
@@ -20,6 +21,7 @@ interface CommentEditorToolbarProps {
   editor: Editor;
   onLinkClick: () => void;
   onImageClick: () => void;
+  onEmojiClick: () => void; // 🆕
 }
 
 interface ToolbarButtonProps {
@@ -54,6 +56,7 @@ const FuwariCommentEditorToolbar: React.FC<CommentEditorToolbarProps> = ({
   editor,
   onLinkClick,
   onImageClick,
+  onEmojiClick,
 }) => {
   const { isBold, isItalic, isUnderline, isStrike, isCode, isLink } =
     useEditorState({
@@ -70,6 +73,7 @@ const FuwariCommentEditorToolbar: React.FC<CommentEditorToolbarProps> = ({
 
   return (
     <div className="flex items-center gap-0.5 p-1">
+      {/* 文字格式按钮 */}
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBold().run()}
         isActive={isBold}
@@ -103,6 +107,7 @@ const FuwariCommentEditorToolbar: React.FC<CommentEditorToolbarProps> = ({
 
       <div className="h-4 w-px bg-black/10 dark:bg-white/10 mx-1" />
 
+      {/* 链接、图片、表情 */}
       <ToolbarButton
         onClick={onLinkClick}
         isActive={isLink}
@@ -115,7 +120,14 @@ const FuwariCommentEditorToolbar: React.FC<CommentEditorToolbarProps> = ({
         icon={ImageIcon}
         label={m.comments_editor_toolbar_image()}
       />
+      <ToolbarButton
+        onClick={onEmojiClick}
+        isActive={false}
+        icon={Smile}
+        label={m.comments_editor_toolbar_emoji()}
+      />
 
+      {/* 撤销/重做 */}
       <div className="ml-auto flex gap-0.5">
         <ToolbarButton
           onClick={() => editor.chain().focus().undo().run()}
