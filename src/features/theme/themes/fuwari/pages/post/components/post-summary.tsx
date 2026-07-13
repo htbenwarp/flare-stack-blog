@@ -1,11 +1,63 @@
 import { Quote } from "lucide-react";
 import { m } from "@/paraglide/messages";
+import { useState, useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
 
 interface PostSummaryProps {
   summary?: string | null;
 }
 
 export function PostSummary({ summary }: PostSummaryProps) {
+  const [displayText, setDisplayText] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const fullText = summary || "";
+
+  // 重置并开始打字
+  useEffect(() => {
+    // 清空显示
+    setDisplayText("");
+    setIsTyping(false);
+    setIsComplete(false);
+
+    // 清除之前的定时器
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    if (!fullText) return;
+
+    // 延迟启动，让卡片先渲染出来
+    const startDelay = setTimeout(() => {
+      setIsTyping(true);
+      let index = 0;
+
+      const typeNextChar = () => {
+        if (index < fullText.length) {
+          setDisplayText(fullText.slice(0, index + 1));
+          index++;
+          timerRef.current = setTimeout(typeNextChar, 35); // 每个字符35ms
+        } else {
+          setIsTyping(false);
+          setIsComplete(true);
+          timerRef.current = null;
+        }
+      };
+
+      timerRef.current = setTimeout(typeNextChar, 60);
+    }, 400);
+
+    return () => {
+      clearTimeout(startDelay);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [fullText]);
+
   if (!summary) return null;
 
   return (
@@ -21,9 +73,27 @@ export function PostSummary({ summary }: PostSummaryProps) {
           {m.post_summary_title()}
         </h3>
         <p className="text-sm md:text-[15px] leading-relaxed fuwari-text-70 font-medium">
-          {summary}
+          {displayText}
+          {/* 光标 */}
+          <span
+            className={cn(
+              "inline-block w-0.5 h-[1em] ml-0.5 align-middle rounded-sm transition-opacity duration-200",
+              isTyping || !isComplete ? "bg-(--fuwari-primary) opacity-100" : "opacity-0"
+            )}
+            style={{
+              animation: isTyping || !isComplete ? "blink-caret 0.7s step-end infinite" : "none",
+            }}
+          />
         </p>
       </div>
+
+      {/* 光标闪烁动画 */}
+      <style>{`
+        @keyframes blink-caret {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.2; }
+        }
+      `}</style>
     </div>
   );
 }

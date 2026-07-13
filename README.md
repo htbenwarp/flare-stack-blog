@@ -14,7 +14,7 @@
 [![TanStack Start](https://img.shields.io/badge/TanStack%20Start-black?logo=tanstack&style=flat-square)](https://tanstack.com/start)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.0-38B2AC?logo=tailwind-css&style=flat-square)](https://tailwindcss.com)
 
-[演示站点](https://blog.dukda.com) · [部署指南](#部署指南) · [本地开发](#本地开发) · [开发规范](./docs/error-handling-quickstart.md)
+[演示站点](https://pcablog.comcorp.uk) · [部署指南](#部署指南) · [本地开发](#本地开发) · [开发规范](./docs/error-handling-quickstart.md)
 
 </div>
 
@@ -31,7 +31,7 @@
   <img src="docs/assets/admin.png" alt="管理后台预览" width="49%">
 </div>
 
-## 核心功能
+## 核心功能（将主题设为fuwari以体验完整功能）
 
 - **文章管理** — 富文本编辑器，支持代码高亮、图片上传、草稿/发布流程
 - **版本历史** — 编辑器自动快照与文章版本回溯，方便恢复误改内容
@@ -47,7 +47,21 @@
 - **SEO 增强** — Canonical URL、Schema.org 结构化数据、RSS / Sitemap / Robots
 - **AI 辅助** — Cloudflare Workers AI 集成
 - **主题系统** — 可扩展的主题模板，支持完整替换所有页面和布局
-- **导入导出** — 支持Markdown导入导出，保留图片以及Frontmatter
+- **导入导出** — 支持 Markdown 导入导出，保留图片以及Frontmatter
+- **点赞** — Canvas 物理引擎实现下落及碰撞，切换文章实时更新，记录IP防重复
+- **Markdown拓展** — 脚注，github仓库，着重号，展开块等集成在编辑工具栏
+- **音乐播放器** — 常驻侧边栏及右下角，后台可配置网易云歌单 ID
+- **站点信息** — 显示文章数，字数等数据，调用 API
+- **字体自定义** — 后台设置，支持多字体及 Google Fonts
+- **亮暗模式自定义** — 后台可设置亮暗主题的配色与横幅，完全自定义
+- **文章索引** — 移动端位于文章卡片顶部，桌面端位于页面右侧
+- **客邸** — 收藏好友字句，标签显示三层隔离（客邸总览，作者页，文章详情页），用 Tags 识别客邸文章
+- **画廊** — 瀑布流表现形式，支持洗牌功能
+- **留言板** — 复用 PostPage 组件，博主仅需创建slug为guestbook的文章，描述可自定义
+- **评论表情** — 支持上千表情自选，emoji-picker-react
+- **回到顶部** — 阅读进度通过包裹圈实现实时进度显示，移动端半透明
+- **加密文章** — 使用哈希值及 web bcrypt，高度保险，密码永不回显
+- **权限组** — admin，manager，user 三级，仅博主可修改敏感设置
 
 ## 技术栈
 
