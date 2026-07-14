@@ -8,8 +8,15 @@ import { ImageDisplay } from "@/features/theme/themes/fuwari/components/content/
 import { GithubCard } from "@/features/theme/themes/fuwari/components/content/github-card";
 
 // 递归收集所有脚注节点
-function collectFootnotes(content: JSONContent): Array<{ id: string; index: number; text: string; note: string }> {
-  const footnotes: Array<{ id: string; index: number; text: string; note: string }> = [];
+function collectFootnotes(
+  content: JSONContent,
+): Array<{ id: string; index: number; text: string; note: string }> {
+  const footnotes: Array<{
+    id: string;
+    index: number;
+    text: string;
+    note: string;
+  }> = [];
   let counter = 0;
 
   function walk(node: JSONContent | undefined | null) {
@@ -44,7 +51,7 @@ function findFootnoteIndex(
   text: string,
   note: string,
 ): number | undefined {
-  const match = footnotes.find(fn => fn.text === text && fn.note === note);
+  const match = footnotes.find((fn) => fn.text === text && fn.note === note);
   return match?.index;
 }
 
@@ -68,9 +75,13 @@ export function renderReact(content: JSONContent) {
             width?: number | string;
             height?: number | string;
           };
-          const alt = (attrs.alt && attrs.alt !== "null" ? attrs.alt : null) || "blog image";
-          const width = typeof attrs.width === "string" ? parseInt(attrs.width) : attrs.width;
-          const height = typeof attrs.height === "string" ? parseInt(attrs.height) : attrs.height;
+          const alt =
+            (attrs.alt && attrs.alt !== "null" ? attrs.alt : null) ||
+            "blog image";
+          const width =
+            typeof attrs.width === "string" ? parseInt(attrs.width) : attrs.width;
+          const height =
+            typeof attrs.height === "string" ? parseInt(attrs.height) : attrs.height;
           return (
             <ImageDisplay
               src={attrs.src}
@@ -168,6 +179,69 @@ export function renderReact(content: JSONContent) {
           const match = attrs.repoUrl?.match(/github\.com\/([^\/]+)\/([^\/]+)/);
           const repo = match ? `${match[1]}/${match[2]}` : "";
           return <GithubCard repo={repo} />;
+        },
+        iframe: ({ node }) => {
+          const attrs = node.attrs as {
+            src: string;
+            width?: string | number;
+            height?: string | number;
+            allowFullscreen?: boolean;
+            title?: string;
+            loading?: string;
+            frameborder?: string | number;
+            border?: string | number;
+            marginwidth?: string | number;
+            marginheight?: string | number;
+            scrolling?: string;
+            allow?: string;
+            sandbox?: string;
+            referrerpolicy?: string;
+          };
+
+          const iframeProps: any = {
+            src: attrs.src,
+            title: attrs.title || "",
+            loading: attrs.loading || "lazy",
+            className: "rounded-lg border border-border",
+            style: {
+              border: "none",
+            },
+          };
+
+          // 保留用户设置的宽高
+          if (attrs.width) {
+            iframeProps.width = attrs.width;
+            iframeProps.style.width = String(attrs.width).includes("%")
+              ? String(attrs.width)
+              : String(attrs.width) + "px";
+          }
+          if (attrs.height) {
+            iframeProps.height = attrs.height;
+            iframeProps.style.height = String(attrs.height).includes("%")
+              ? String(attrs.height)
+              : String(attrs.height) + "px";
+          }
+
+          // 其他属性
+          if (attrs.frameborder !== undefined && attrs.frameborder !== null) {
+            iframeProps.frameborder = String(attrs.frameborder);
+          }
+          if (attrs.border !== undefined && attrs.border !== null) {
+            iframeProps.border = String(attrs.border);
+          }
+          if (attrs.marginwidth !== undefined && attrs.marginwidth !== null) {
+            iframeProps.marginwidth = String(attrs.marginwidth);
+          }
+          if (attrs.marginheight !== undefined && attrs.marginheight !== null) {
+            iframeProps.marginheight = String(attrs.marginheight);
+          }
+          if (attrs.scrolling) iframeProps.scrolling = attrs.scrolling;
+          if (attrs.allow) iframeProps.allow = attrs.allow;
+          if (attrs.sandbox) iframeProps.sandbox = attrs.sandbox;
+          if (attrs.referrerpolicy) iframeProps.referrerpolicy = attrs.referrerpolicy;
+          if (attrs.allowFullscreen) iframeProps.allowFullscreen = true;
+
+          return <iframe {...iframeProps} />;
         },
       },
     },

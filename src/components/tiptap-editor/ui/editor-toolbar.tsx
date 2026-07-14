@@ -1,3 +1,4 @@
+// src/components/tiptap-editor/ui/editor-toolbar.tsx
 import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import clsx from "clsx";
@@ -25,6 +26,7 @@ import {
   ChevronRight,
   Highlighter,
   ExternalLink,
+  SquareCode,
 } from "lucide-react";
 import type React from "react";
 import { m } from "@/paraglide/messages";
@@ -39,6 +41,7 @@ interface EditorToolbarProps {
   onDetailsClick: () => void;
   onEmphasisClick: () => void;
   onGitHubCardClick: () => void;
+  onIframeClick: () => void;
 }
 
 interface ToolbarButtonProps {
@@ -79,6 +82,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onDetailsClick,
   onEmphasisClick,
   onGitHubCardClick,
+  onIframeClick,
 }) => {
   const state = useEditorState({
     editor,
@@ -290,6 +294,12 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         isActive={false}
         icon={ExternalLink}
         label={m.editor_toolbar_github_card?.() ?? "GitHub卡片"}
+      />
+      <ToolbarButton
+        onClick={onIframeClick}
+        isActive={false}
+        icon={SquareCode}
+        label={m.editor_toolbar_iframe?.() ?? "嵌入代码"}
       />
 
       <div className="ml-auto flex gap-1">

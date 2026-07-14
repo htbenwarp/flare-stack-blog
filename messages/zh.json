@@ -1580,5 +1580,9 @@
   "gallery_delete_confirm": "删除",
   "admin_sidebar_gallery": "画廊",
   "gallery_tags_placeholder": "逗号分隔，如：风景,旅行",
-  "comments_editor_toolbar_emoji": "插入表情"
+  "comments_editor_toolbar_emoji": "插入表情",
+  "editor_toolbar_iframe": "嵌入iframe代码",
+  "editor_insert_iframe_title": "插入 iframe",
+  "editor_insert_iframe_placeholder": "粘贴 iframe 代码，例如：<iframe src=\"https://...\" width=\"100%\" height=\"400\"></iframe>",
+  "editor_insert_iframe_hint": "支持 iframe 标签，自动解析 src, width, height, allowfullscreen 等属性"
 }

@@ -1,3 +1,4 @@
+// src/components/tiptap-editor/index.tsx
 import type {
   Extensions,
   JSONContent,
@@ -72,6 +73,7 @@ export const Editor = memo(function Editor({
     immediatelyRender: false,
   });
 
+  // ===== 弹窗打开回调 =====
   const openLinkModal = useCallback(() => {
     const previousUrl = editor?.getAttributes("link").href;
     setModalInitialUrl(previousUrl || "");
@@ -98,6 +100,10 @@ export const Editor = memo(function Editor({
     setModalOpen("GITHUB_CARD");
   }, []);
 
+  const openIframeModal = useCallback(() => {
+    setModalOpen("IFRAME");
+  }, []);
+
   const handleDetailsClick = useCallback(() => {
     editor?.chain().focus().setDetailsBlock({ summary: "折叠标题" }).run();
   }, [editor]);
@@ -115,6 +121,7 @@ export const Editor = memo(function Editor({
     setFormulaModalOpen(true);
   }, []);
 
+  // ===== 公式模态框编辑 =====
   useEffect(() => {
     if (!editable) return;
     const opener = (payload: FormulaModalPayload) => {
@@ -179,63 +186,92 @@ export const Editor = memo(function Editor({
     [editor],
   );
 
-const handleModalSubmit = useCallback(
-  (
-    url: string,
-    attrs?: { width?: number; height?: number },
-    nodeData?: { type: string; attrs?: Record<string, any>; content?: any[] },
-  ) => {
-    console.log("handleModalSubmit received:", { url, attrs, nodeData, modalOpen });
+  // ===== 插入弹窗提交 =====
+  const handleModalSubmit = useCallback(
+    (
+      url: string,
+      attrs?: { width?: number; height?: number },
+      nodeData?: { type: string; attrs?: Record<string, any>; content?: any[] },
+    ) => {
+      console.log("handleModalSubmit received:", { url, attrs, nodeData, modalOpen });
 
-    if (modalOpen === "LINK") {
-      if (url === "") {
-        editor?.chain().focus().extendMarkRange("link").unsetLink().run();
-      } else {
-        const href = normalizeLinkHref(url);
-        editor?.chain().focus().extendMarkRange("link").setLink({ href }).run();
-      }
-    } else if (modalOpen === "IMAGE") {
-      if (url) {
-        editor
-          ?.chain()
-          .focus()
-          .setImage({ src: url, ...attrs })
-          .run();
-      }
-    } else if (modalOpen === "GITHUB_CARD") {
-      // ✅ 关键修复：直接从 url 参数获取 GitHub URL，插入 githubCard 节点
-      if (url && url.trim()) {
-        editor?.chain().focus().insertContent({
-          type: "githubCard",
-          attrs: { repoUrl: url.trim() },
-        }).run();
-      }
-    } else if (nodeData) {
-      // 处理其他扩展节点（脚注、折叠块、着重号）
-      if (nodeData.type === "emphasisCjk") {
-        if (editor?.state.selection.empty && nodeData.attrs?.text) {
-          editor
-            .chain()
-            .focus()
-            .insertContent(nodeData.attrs.text)
-            .setMark("emphasisCjk")
-            .run();
+      if (modalOpen === "LINK") {
+        if (url === "") {
+          editor?.chain().focus().extendMarkRange("link").unsetLink().run();
         } else {
-          editor?.chain().focus().toggleEmphasisCjk().run();
+          const href = normalizeLinkHref(url);
+          editor?.chain().focus().extendMarkRange("link").setLink({ href }).run();
         }
-      } else if (nodeData.type === "footnoteTip") {
-        editor?.chain().focus().insertContent({
-          type: "footnoteTip",
-          attrs: nodeData.attrs,
-        }).run();
-      } else if (nodeData.type === "detailsBlock") {
-        editor?.chain().focus().setDetailsBlock(nodeData.attrs).run();
+      } else if (modalOpen === "IMAGE") {
+        if (url) {
+          editor
+            ?.chain()
+            .focus()
+            .setImage({ src: url, ...attrs })
+            .run();
+        }
+      } else if (modalOpen === "GITHUB_CARD") {
+        if (url && url.trim()) {
+          editor?.chain().focus().insertContent({
+            type: "githubCard",
+            attrs: { repoUrl: url.trim() },
+          }).run();
+        }
+      } else if (modalOpen === "IFRAME") {
+        // 插入 iframe
+        if (nodeData && nodeData.type === "iframe" && nodeData.attrs) {
+          const iframeAttrs = nodeData.attrs;
+          editor?.chain().focus().insertContent({
+            type: "iframe",
+            attrs: {
+              src: iframeAttrs.src || "",
+              width: iframeAttrs.width || "100%",
+              height: iframeAttrs.height || "400",
+              allowFullscreen: iframeAttrs.allowFullscreen !== undefined ? iframeAttrs.allowFullscreen : true,
+              title: iframeAttrs.title || "",
+              loading: iframeAttrs.loading || "lazy",
+            },
+          }).run();
+        } else if (url && url.trim()) {
+          // 纯 URL 直接插入
+          editor?.chain().focus().insertContent({
+            type: "iframe",
+            attrs: {
+              src: url.trim(),
+              width: "100%",
+              height: "400",
+              allowFullscreen: true,
+              title: "",
+              loading: "lazy",
+            },
+          }).run();
+        }
+      } else if (nodeData) {
+        // 处理其他扩展节点（脚注、折叠块、着重号）
+        if (nodeData.type === "emphasisCjk") {
+          if (editor?.state.selection.empty && nodeData.attrs?.text) {
+            editor
+              .chain()
+              .focus()
+              .insertContent(nodeData.attrs.text)
+              .setMark("emphasisCjk")
+              .run();
+          } else {
+            editor?.chain().focus().toggleEmphasisCjk().run();
+          }
+        } else if (nodeData.type === "footnoteTip") {
+          editor?.chain().focus().insertContent({
+            type: "footnoteTip",
+            attrs: nodeData.attrs,
+          }).run();
+        } else if (nodeData.type === "detailsBlock") {
+          editor?.chain().focus().setDetailsBlock(nodeData.attrs).run();
+        }
       }
-    }
-    setModalOpen(null);
-  },
-  [editor, modalOpen],
-);
+      setModalOpen(null);
+    },
+    [editor, modalOpen],
+  );
 
   return (
     <div className={cn("relative flex flex-col group", className)}>
@@ -250,6 +286,7 @@ const handleModalSubmit = useCallback(
           onDetailsClick={handleDetailsClick}
           onEmphasisClick={handleEmphasisClick}
           onGitHubCardClick={openGitHubCardModal}
+          onIframeClick={openIframeModal}
         />
       )}
 

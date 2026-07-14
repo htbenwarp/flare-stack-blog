@@ -19,18 +19,18 @@ import { getOptimizedImageUrl } from "@/features/media/utils/media.utils";
 import { useDelayUnmount } from "@/hooks/use-delay-unmount";
 import { m } from "@/paraglide/messages";
 
-// 移除 DETAILS 和 EMPHASIS，因为它们的插入已由工具栏直接处理
 export type ModalType =
   | "LINK"
   | "IMAGE"
   | "FOOTNOTE"
   | "GITHUB_CARD"
+  | "IFRAME"
   | null;
 
 interface InsertModalProps {
   type: ModalType;
   initialUrl?: string;
-  initialText?: string; // 用于脚注提示文本
+  initialText?: string;
   onClose: () => void;
   onSubmit: (
     url: string,
@@ -147,8 +147,9 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
   const [footnoteText, setFootnoteText] = useState(initialText || "");
   const [footnoteNote, setFootnoteNote] = useState("");
   const [githubUrl, setGithubUrl] = useState("");
+  const [iframeCode, setIframeCode] = useState("");
 
-  // 重置脚注文本当类型变为 FOOTNOTE 时
+  // 重置状态
   useEffect(() => {
     if (type === "FOOTNOTE") {
       setFootnoteText(initialText || "");
@@ -156,10 +157,15 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
     }
   }, [type, initialText]);
 
-  // 重置 GitHub URL 当类型变为 GITHUB_CARD 时
   useEffect(() => {
     if (type === "GITHUB_CARD") {
       setGithubUrl("");
+    }
+  }, [type]);
+
+  useEffect(() => {
+    if (type === "IFRAME") {
+      setIframeCode("");
     }
   }, [type]);
 
@@ -199,6 +205,86 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
       onSubmit(githubUrl.trim());
       return;
     }
+
+    if (activeType === "IFRAME") {
+      if (!iframeCode.trim()) return;
+
+      // 尝试解析 iframe 标签
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(iframeCode, "text/html");
+      const iframeEl = doc.querySelector("iframe");
+
+      if (!iframeEl) {
+        // 如果是纯 URL，构造一个基础的 iframe
+        const trimmedCode = iframeCode.trim();
+        if (trimmedCode.startsWith("http://") || trimmedCode.startsWith("https://")) {
+          onSubmit("", undefined, {
+            type: "iframe",
+            attrs: {
+              src: trimmedCode,
+              width: "100%",
+              height: "400",
+              allowFullscreen: true,
+              frameborder: "0",
+            },
+          });
+        }
+        return;
+      }
+
+      // 解析所有属性
+      const attrs: Record<string, any> = {};
+
+      // 基本属性
+      const src = iframeEl.getAttribute("src");
+      if (src) attrs.src = src;
+
+      const width = iframeEl.getAttribute("width");
+      if (width) attrs.width = width;
+
+      const height = iframeEl.getAttribute("height");
+      if (height) attrs.height = height;
+
+      const title = iframeEl.getAttribute("title");
+      if (title) attrs.title = title;
+
+      const loading = iframeEl.getAttribute("loading");
+      if (loading) attrs.loading = loading;
+
+      // 网易云等平台特有的属性
+      const frameborder = iframeEl.getAttribute("frameborder");
+      if (frameborder !== null) attrs.frameborder = frameborder;
+
+      const border = iframeEl.getAttribute("border");
+      if (border !== null) attrs.border = border;
+
+      const marginwidth = iframeEl.getAttribute("marginwidth");
+      if (marginwidth !== null) attrs.marginwidth = marginwidth;
+
+      const marginheight = iframeEl.getAttribute("marginheight");
+      if (marginheight !== null) attrs.marginheight = marginheight;
+
+      const scrolling = iframeEl.getAttribute("scrolling");
+      if (scrolling) attrs.scrolling = scrolling;
+
+      const allow = iframeEl.getAttribute("allow");
+      if (allow) attrs.allow = allow;
+
+      const sandbox = iframeEl.getAttribute("sandbox");
+      if (sandbox) attrs.sandbox = sandbox;
+
+      const referrerpolicy = iframeEl.getAttribute("referrerpolicy");
+      if (referrerpolicy) attrs.referrerpolicy = referrerpolicy;
+
+      // allowfullscreen 特殊处理
+      attrs.allowFullscreen = iframeEl.hasAttribute("allowfullscreen");
+
+      onSubmit("", undefined, {
+        type: "iframe",
+        attrs,
+      });
+      return;
+    }
   };
 
   if (!shouldRender) return null;
@@ -234,6 +320,8 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
                 <Bookmark size={14} />
               ) : activeType === "GITHUB_CARD" ? (
                 <ExternalLink size={14} />
+              ) : activeType === "IFRAME" ? (
+                <LinkIcon size={14} />
               ) : null}
             </div>
             <div className="flex flex-col">
@@ -249,7 +337,9 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
                       ? m.editor_insert_footnote_title?.() ?? "插入脚注"
                       : activeType === "GITHUB_CARD"
                         ? m.editor_insert_github_card_title?.() ?? "插入GitHub卡片"
-                        : ""}
+                        : activeType === "IFRAME"
+                          ? m.editor_insert_iframe_title?.() ?? "插入嵌入代码"
+                          : ""}
               </span>
             </div>
           </div>
@@ -267,7 +357,10 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
           {activeType === "IMAGE" && (
             <div className="flex flex-col flex-1 min-h-0">
               <div className="relative shrink-0 border-b border-border/50">
-                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+                <Search
+                  className="absolute left-6 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  size={14}
+                />
                 <input
                   type="text"
                   placeholder={m.editor_insert_search_placeholder()}
@@ -277,17 +370,21 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
                 />
               </div>
               <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-muted/5">
-                {/* ... media grid 代码保持不变 ... */}
                 {isPending ? (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
                     {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                      <div key={i} className="aspect-square bg-muted/20 animate-pulse border border-border/20" />
+                      <div
+                        key={i}
+                        className="aspect-square bg-muted/20 animate-pulse border border-border/20"
+                      />
                     ))}
                   </div>
                 ) : mediaItems.length === 0 ? (
                   <div className="h-48 flex flex-col items-center justify-center text-muted-foreground gap-2">
                     <Search size={24} className="opacity-20" />
-                    <span className="text-sm font-mono">{m.media_grid_empty()}</span>
+                    <span className="text-sm font-mono">
+                      {m.media_grid_empty()}
+                    </span>
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 content-start pb-4">
@@ -302,8 +399,16 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
                         }}
                       />
                     ))}
-                    <div ref={observerTarget} className="col-span-full h-8 flex items-center justify-center p-4">
-                      {isLoadingMore && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
+                    <div
+                      ref={observerTarget}
+                      className="col-span-full h-8 flex items-center justify-center p-4"
+                    >
+                      {isLoadingMore && (
+                        <Loader2
+                          size={14}
+                          className="animate-spin text-muted-foreground"
+                        />
+                      )}
                     </div>
                   </div>
                 )}
@@ -316,13 +421,17 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
             <div className="p-6 space-y-4">
               <input
                 type="text"
-                placeholder={m.editor_insert_footnote_text_placeholder?.() ?? "提示文本"}
+                placeholder={
+                  m.editor_insert_footnote_text_placeholder?.() ?? "提示文本"
+                }
                 value={footnoteText}
                 onChange={(e) => setFootnoteText(e.target.value)}
                 className="w-full bg-transparent border-b border-border text-foreground font-mono text-base py-2 px-4 focus:border-foreground focus:outline-none"
               />
               <textarea
-                placeholder={m.editor_insert_footnote_note_placeholder?.() ?? "脚注内容"}
+                placeholder={
+                  m.editor_insert_footnote_note_placeholder?.() ?? "脚注内容"
+                }
                 value={footnoteNote}
                 onChange={(e) => setFootnoteNote(e.target.value)}
                 className="w-full bg-transparent border-b border-border text-foreground font-mono text-base py-2 px-4 focus:border-foreground focus:outline-none resize-none"
@@ -336,11 +445,34 @@ const InsertModalInternal: React.FC<InsertModalProps> = ({
             <div className="p-6">
               <input
                 type="text"
-                placeholder={m.editor_insert_github_url_placeholder?.() ?? "https://github.com/user/repo"}
+                placeholder={
+                  m.editor_insert_github_url_placeholder?.() ??
+                  "https://github.com/user/repo"
+                }
                 value={githubUrl}
                 onChange={(e) => setGithubUrl(e.target.value)}
                 className="w-full bg-transparent border-b border-border text-foreground font-mono text-base py-2 px-4 focus:border-foreground focus:outline-none"
               />
+            </div>
+          )}
+
+          {/* iframe 表单 */}
+          {activeType === "IFRAME" && (
+            <div className="p-6 space-y-2">
+              <textarea
+                placeholder={
+                  m.editor_insert_iframe_placeholder?.() ??
+                  '粘贴 iframe 代码，例如：<iframe src="https://..." width="100%" height="400"></iframe>'
+                }
+                value={iframeCode}
+                onChange={(e) => setIframeCode(e.target.value)}
+                className="w-full bg-transparent border-b border-border text-foreground font-mono text-base py-2 px-4 focus:border-foreground focus:outline-none resize-y"
+                rows={4}
+              />
+              <p className="text-xs text-muted-foreground">
+                {m.editor_insert_iframe_hint?.() ??
+                  "支持 iframe 标签，自动解析 src, width, height, allowfullscreen 等属性"}
+              </p>
             </div>
           )}
 

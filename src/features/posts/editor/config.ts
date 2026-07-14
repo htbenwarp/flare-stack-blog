@@ -22,6 +22,7 @@ import { EmphasisCjk } from "./extensions/emphasis-cjk";
 import { FootnoteTip } from "./extensions/footnote-tip";
 import { DetailsBlock } from "./extensions/details-block";
 import { GithubCard } from "./extensions/github-card";
+import { IframeExtension } from "./extensions/iframe";
 import { m } from "@/paraglide/messages";
 
 const ALLOWED_IMAGE_MIME_TYPES = [
@@ -153,4 +154,5 @@ export const extensions = [
   FootnoteTip,
   DetailsBlock,
   GithubCard,
+  IframeExtension,
 ];
