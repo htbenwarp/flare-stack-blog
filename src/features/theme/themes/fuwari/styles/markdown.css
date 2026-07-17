@@ -714,3 +714,11 @@ html.card-opacity-enabled .fuwari-card-base {
   background-color: var(--card-bg) !important;
 }
 
+html:not(.card-opacity-enabled) .fuwari-card-base {
+  background-color: oklch(0.95 0.01 var(--fuwari-hue)) !important;
+}
+
+.dark html:not(.card-opacity-enabled) .fuwari-card-base {
+  background-color: oklch(0.15 0.01 var(--fuwari-hue)) !important;
+}
+
