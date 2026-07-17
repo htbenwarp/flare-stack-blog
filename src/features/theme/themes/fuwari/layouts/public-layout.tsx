@@ -16,10 +16,20 @@ const BANNER_HEIGHT_PAGE = 35;
 const MAIN_OVERLAP_REM = 3.5;
 const NAVBAR_HEIGHT_REM = 4.5;
 
-function preloadImage(src: string | undefined) {
-  if (!src) return;
-  const img = new Image();
-  img.src = src;
+function preloadImage(src: string | undefined): Promise<void> {
+  if (!src) return Promise.resolve();
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = src;
+  });
+}
+
+async function preloadImages(sources: (string | undefined)[]) {
+  const valid = sources.filter((s): s is string => !!s);
+  if (valid.length === 0) return;
+  await Promise.all(valid.map(preloadImage));
 }
 
 export function PublicLayout({
@@ -38,6 +48,8 @@ export function PublicLayout({
   const bannerHeightVh = isHomePage ? BANNER_HEIGHT_HOME : BANNER_HEIGHT_PAGE;
 
   const [isDark, setIsDark] = useState(false);
+  // ✅ 预加载状态
+  const [bgLoaded, setBgLoaded] = useState(false);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -53,7 +65,6 @@ export function PublicLayout({
   const lightBg = fuwari?.homeBg ?? "";
   const darkBg = fuwari?.darkHomeBg || fuwari?.homeBg || "";
 
-  // 全屏模式配置 - 应用到所有页面
   const fullscreenEnabled = defaultTheme?.fullscreenEnabled ?? false;
   const fullscreenBg = defaultTheme?.fullscreenBg;
   const lightFullBg = fullscreenBg?.light ?? "";
@@ -61,14 +72,29 @@ export function PublicLayout({
   const isFullscreen = fullscreenEnabled && (lightFullBg || darkFullBg);
 
   useEffect(() => {
-    if (isDark) {
-      preloadImage(lightBg);
+    const imagesToPreload: string[] = [];
+    
+    // 半屏模式背景
+    if (lightBg) imagesToPreload.push(lightBg);
+    if (darkBg) imagesToPreload.push(darkBg);
+    
+    // 全屏模式背景
+    if (lightFullBg) imagesToPreload.push(lightFullBg);
+    if (darkFullBg) imagesToPreload.push(darkFullBg);
+    
+    if (imagesToPreload.length > 0) {
+      preloadImages(imagesToPreload).then(() => {
+        setBgLoaded(true);
+      });
     } else {
-      preloadImage(darkBg);
+      setBgLoaded(true);
     }
-  }, [isDark, lightBg, darkBg]);
+  }, [lightBg, darkBg, lightFullBg, darkFullBg]);
 
-  // ✅ 修复滚动异常：全屏模式下顶部从 0 开始
+  // 当前显示的背景（根据暗色模式）
+  const currentBg = isDark ? darkBg || lightBg : lightBg;
+  const currentFullBg = isDark ? darkFullBg || lightFullBg : lightFullBg;
+
   const marginTop = isFullscreen
     ? "0rem"
     : `calc(${bannerHeightVh}vh - ${MAIN_OVERLAP_REM}rem - ${NAVBAR_HEIGHT_REM}rem)`;
@@ -78,21 +104,23 @@ export function PublicLayout({
       src={src}
       alt={alt}
       fetchPriority="high"
-      className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-300 ${
-        visible ? "opacity-100" : "opacity-0"
+      className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-500 ${
+        visible && bgLoaded ? "opacity-100" : "opacity-0"
       }`}
     />
   );
 
   return (
     <ChaosBackground>
-      {/* ✅ 全屏背景图 - 在粒子下层，应用到所有页面 */}
+      {/* 全屏背景图 */}
       {isFullscreen && (
         <div className="fixed inset-0 z-[-2]">
           <img
-            src={isDark ? darkFullBg || lightFullBg : lightFullBg}
+            src={currentFullBg}
             alt="Fullscreen background"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover transition-opacity duration-500"
+            style={{ opacity: bgLoaded ? 1 : 0 }}
+            fetchPriority="high"
           />
         </div>
       )}
@@ -107,7 +135,6 @@ export function PublicLayout({
           logout={logout}
         />
 
-        {/* Navbar */}
         <div className="sticky top-0 z-50 pointer-events-none">
           <div className="pointer-events-auto max-w-(--fuwari-page-width) mx-auto px-0 md:px-4">
             <Navbar
@@ -137,11 +164,11 @@ export function PublicLayout({
           style={{ marginTop }}
         >
           <div
-            className="relative mx-auto px-0 md:px-4 pb-8 grid grid-cols-1 lg:grid-cols-[17.5rem_1fr] gap-4"
+            className="relative mx-auto px-0 md:px-4 pb-8 grid grid-cols-1 lg:grid-cols-[17.5rem_1fr] gap-4 pt-4 md:pt-6"
             style={{ maxWidth: "var(--fuwari-page-width)" }}
           >
             <Sidebar className="order-2 lg:order-1" />
-            <main className="order-1 lg:order-2 flex flex-col gap-4 min-w-0 relative z-0 pt-4 md:pt-6">
+            <main className="order-1 lg:order-2 flex flex-col gap-4 min-w-0 relative z-0">
               {children}
             </main>
             <div
