@@ -48,7 +48,6 @@ export function PublicLayout({
   const bannerHeightVh = isHomePage ? BANNER_HEIGHT_HOME : BANNER_HEIGHT_PAGE;
 
   const [isDark, setIsDark] = useState(false);
-  // ✅ 预加载状态
   const [bgLoaded, setBgLoaded] = useState(false);
 
   useEffect(() => {
@@ -73,25 +72,18 @@ export function PublicLayout({
 
   useEffect(() => {
     const imagesToPreload: string[] = [];
-    
-    // 半屏模式背景
     if (lightBg) imagesToPreload.push(lightBg);
     if (darkBg) imagesToPreload.push(darkBg);
-    
-    // 全屏模式背景
     if (lightFullBg) imagesToPreload.push(lightFullBg);
     if (darkFullBg) imagesToPreload.push(darkFullBg);
     
     if (imagesToPreload.length > 0) {
-      preloadImages(imagesToPreload).then(() => {
-        setBgLoaded(true);
-      });
+      preloadImages(imagesToPreload).then(() => setBgLoaded(true));
     } else {
       setBgLoaded(true);
     }
   }, [lightBg, darkBg, lightFullBg, darkFullBg]);
 
-  // 当前显示的背景（根据暗色模式）
   const currentBg = isDark ? darkBg || lightBg : lightBg;
   const currentFullBg = isDark ? darkFullBg || lightFullBg : lightFullBg;
 
@@ -112,7 +104,6 @@ export function PublicLayout({
 
   return (
     <ChaosBackground>
-      {/* 全屏背景图 */}
       {isFullscreen && (
         <div className="fixed inset-0 z-[-2]">
           <img
@@ -125,7 +116,6 @@ export function PublicLayout({
         </div>
       )}
 
-      {/* 页面内容容器 */}
       <div className="relative z-10 min-h-screen transition-colors">
         <MobileMenu
           navOptions={navOptions}
@@ -147,7 +137,6 @@ export function PublicLayout({
           </div>
         </div>
 
-        {/* Banner - 全屏模式下隐藏 */}
         {!isFullscreen && (
           <div
             className="absolute left-0 right-0 top-0 z-10 overflow-hidden transition-[height] duration-300 ease-in-out"
@@ -158,13 +147,12 @@ export function PublicLayout({
           </div>
         )}
 
-        {/* Main content */}
         <div
           className="relative z-30 transition-[margin-top] duration-300 ease-in-out"
           style={{ marginTop }}
         >
           <div
-            className="relative mx-auto px-0 md:px-4 pb-8 grid grid-cols-1 lg:grid-cols-[17.5rem_1fr] gap-4 pt-4 md:pt-6"
+            className="relative mx-auto px-0 md:px-4 pb-8 grid grid-cols-1 lg:grid-cols-[17.5rem_1fr] gap-4 pt-4 md:pt-6 items-start"
             style={{ maxWidth: "var(--fuwari-page-width)" }}
           >
             <Sidebar className="order-2 lg:order-1" />

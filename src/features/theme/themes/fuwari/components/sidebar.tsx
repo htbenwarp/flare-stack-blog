@@ -7,7 +7,7 @@ import { MusicList } from "../components/music/music-list";
 
 export function Sidebar({ className }: { className?: string }) {
   return (
-    <aside className={cn("flex flex-col gap-4 pt-4 md:pt-6", className)}>
+    <aside className={cn("flex flex-col gap-4", className)}>
       {/* 个人信息 */}
       <div className="fuwari-onload-animation" style={{ animationDelay: "100ms" }}>
         <Profile />
