@@ -1,56 +1,52 @@
-import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { Copy, Check, Rss, Link as LinkIcon, Globe, User, Loader2 } from "lucide-react";
+import { Link, useRouteContext } from "@tanstack/react-router";
+import { Copy, Check, Rss, Link as LinkIcon, Globe, User } from "lucide-react";
 import { useState } from "react";
 import type { FriendLinksPageProps } from "@/features/theme/contract/pages";
 import { m } from "@/paraglide/messages";
 import { FriendCard } from "./components/friend-card";
 import { RandomRead } from "@/components/ui/random-read";
-import { getSystemConfigFn } from "@/features/config/api/config.api";
-import { toast } from "sonner";
 
 export function FriendLinksPage({ links }: FriendLinksPageProps) {
+  const { siteConfig } = useRouteContext({ from: "__root__" });
+  const site = siteConfig;
+
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
 
-  const { data: config, isLoading: configLoading } = useQuery({
-    queryKey: ["system-config"],
-    queryFn: () => getSystemConfigFn({ data: {} }),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const site = config?.site;
+  // ✅ 从 siteConfig 读取站点信息
+  const blogInfo = {
+    siteName: site?.title ?? "站点名称",
+    siteUrl: window.location.origin,
+    siteDescription: site?.description ?? "",
+    siteAvatar: site?.icons?.appleTouchIcon ?? site?.icons?.faviconSvg ?? "",
+    rssUrl: "/rss.xml",
+    friendLinkUrl: "/friend-links",
+  };
 
   const handleCopy = () => {
     setCopyError(null);
 
-    if (!site?.title) {
-      setCopyError("请先在后台设置站点信息");
-      toast.error("请先在后台设置站点信息");
+    if (!blogInfo.siteName) {
+      setCopyError("站点信息未配置");
       return;
     }
 
-    const siteUrl = window.location.origin;
-    const rssUrl = siteUrl + "/rss.xml";
-    const friendLinkUrl = siteUrl + "/friend-links";
-
     const text = `
-站点名称：${site.title}
-站点地址：${siteUrl}
-站点简介：${site.description || ""}
-头像地址：${site.icons?.appleTouchIcon || site.icons?.faviconSvg || siteUrl + "/favicon.svg"}
-RSS地址：${rssUrl}
-友链页面：${friendLinkUrl}
+站点名称：${blogInfo.siteName}
+站点地址：${blogInfo.siteUrl}
+站点简介：${blogInfo.siteDescription || ""}
+头像地址：${blogInfo.siteAvatar || blogInfo.siteUrl + "/favicon.svg"}
+RSS地址：${blogInfo.rssUrl}
+友链页面：${blogInfo.friendLinkUrl}
     `.trim();
 
     navigator.clipboard.writeText(text).then(
       () => {
         setCopied(true);
-        toast.success("本站信息已复制");
         setTimeout(() => setCopied(false), 3000);
       },
       () => {
-        toast.error("复制失败，请手动复制");
+        setCopyError("复制失败，请手动复制");
       }
     );
   };
@@ -76,7 +72,7 @@ RSS地址：${rssUrl}
         </Link>
       </div>
 
-      {/* 随机一读组件 */}
+      {/* 随机一读 */}
       <div className="fuwari-onload-animation" style={{ animationDelay: "200ms" }}>
         <RandomRead />
       </div>
@@ -104,7 +100,7 @@ RSS地址：${rssUrl}
         )}
       </div>
 
-      {/* 🆕 本站信息卡片 - 放在最下面 */}
+      {/* 本站信息卡片 */}
       <div
         className="fuwari-card-base p-5 md:p-6 fuwari-onload-animation border border-(--fuwari-primary)/10 bg-(--fuwari-primary)/5"
         style={{ animationDelay: "450ms" }}
@@ -112,13 +108,10 @@ RSS地址：${rssUrl}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           {/* 左侧信息 */}
           <div className="flex items-center gap-4 min-w-0">
-            {/* 头像 */}
-            {configLoading ? (
-              <div className="w-12 h-12 rounded-full bg-muted/30 animate-pulse shrink-0" />
-            ) : site?.icons?.appleTouchIcon || site?.icons?.faviconSvg ? (
+            {blogInfo.siteAvatar ? (
               <img
-                src={site.icons?.appleTouchIcon || site.icons?.faviconSvg}
-                alt={site.title || "站点头像"}
+                src={blogInfo.siteAvatar}
+                alt={blogInfo.siteName}
                 className="w-12 h-12 rounded-full border-2 border-(--fuwari-primary)/20 object-cover shrink-0"
               />
             ) : (
@@ -127,85 +120,62 @@ RSS地址：${rssUrl}
               </div>
             )}
 
-            {/* 文本信息 */}
             <div className="min-w-0 flex-1">
-              {configLoading ? (
-                <>
-                  <div className="h-5 w-32 bg-muted/30 animate-pulse rounded" />
-                  <div className="h-3 w-48 bg-muted/30 animate-pulse rounded mt-1.5" />
-                </>
-              ) : site?.title ? (
-                <>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold fuwari-text-90 truncate">
-                      {site.title}
-                    </span>
-                    <span className="text-[10px] font-mono text-muted-foreground/50 tracking-widest shrink-0">
-                      本站
-                    </span>
-                  </div>
-                  {site.description && (
-                    <p className="text-xs fuwari-text-50 truncate">
-                      {site.description}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                    <a
-                      href={window.location.origin + "/rss.xml"}
-                      target="_blank"
-                      rel="noopener"
-                      className="flex items-center gap-0.5 hover:text-(--fuwari-primary) transition-colors"
-                    >
-                      <Rss className="w-3 h-3" /> RSS
-                    </a>
-                    <a
-                      href={window.location.origin + "/friend-links"}
-                      className="flex items-center gap-0.5 hover:text-(--fuwari-primary) transition-colors"
-                    >
-                      <LinkIcon className="w-3 h-3" /> 友链
-                    </a>
-                    <a
-                      href={window.location.origin}
-                      target="_blank"
-                      rel="noopener"
-                      className="flex items-center gap-0.5 hover:text-(--fuwari-primary) transition-colors"
-                    >
-                      <Globe className="w-3 h-3" /> 访问
-                    </a>
-                  </div>
-                </>
-              ) : (
-                <div className="text-xs text-muted-foreground">
-                  请在「后台 → 站点设置」中配置站点信息
-                  <Link
-                    to="/admin/settings"
-                    className="ml-2 text-(--fuwari-primary) hover:underline"
-                  >
-                    去设置
-                  </Link>
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold fuwari-text-90 truncate">
+                  {blogInfo.siteName}
+                </span>
+                <span className="text-[10px] font-mono text-muted-foreground/50 tracking-widest shrink-0">
+                  本站
+                </span>
+              </div>
+              {blogInfo.siteDescription && (
+                <p className="text-xs fuwari-text-50 truncate">
+                  {blogInfo.siteDescription}
+                </p>
               )}
+              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                <a
+                  href={blogInfo.rssUrl}
+                  target="_blank"
+                  rel="noopener"
+                  className="flex items-center gap-0.5 hover:text-(--fuwari-primary) transition-colors"
+                >
+                  <Rss className="w-3 h-3" /> RSS
+                </a>
+                <a
+                  href={blogInfo.friendLinkUrl}
+                  className="flex items-center gap-0.5 hover:text-(--fuwari-primary) transition-colors"
+                >
+                  <LinkIcon className="w-3 h-3" /> 友链
+                </a>
+                <a
+                  href={blogInfo.siteUrl}
+                  target="_blank"
+                  rel="noopener"
+                  className="flex items-center gap-0.5 hover:text-(--fuwari-primary) transition-colors"
+                >
+                  <Globe className="w-3 h-3" /> 访问
+                </a>
+              </div>
             </div>
           </div>
 
-          {/* 右侧操作按钮 */}
+          {/* 复制按钮 */}
           <button
             onClick={handleCopy}
-            disabled={!site?.title || configLoading}
+            disabled={!blogInfo.siteName}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all shrink-0 bg-(--fuwari-primary)/10 text-(--fuwari-primary) hover:bg-(--fuwari-primary)/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {configLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : copied ? (
+            {copied ? (
               <Check className="w-4 h-4" />
             ) : (
               <Copy className="w-4 h-4" />
             )}
-            {copied ? "已复制" : "复制本站信息"}
+            {copied ? "已复制" : "复制友链信息"}
           </button>
         </div>
 
-        {/* 复制失败提示 */}
         {copyError && (
           <p className="mt-2 text-xs text-red-500">{copyError}</p>
         )}
