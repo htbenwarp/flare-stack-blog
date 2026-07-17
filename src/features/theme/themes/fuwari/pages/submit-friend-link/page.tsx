@@ -169,6 +169,30 @@ export function SubmitFriendLinkPage({
               )}
             </div>
 
+            {/* 🆕 RSS 输入框 */}
+            <div>
+              <label className="block text-sm font-medium fuwari-text-75 mb-1.5 transition-colors">
+                RSS 订阅地址{" "}
+                <span className="text-muted-foreground text-xs font-normal">
+                  （可选）
+                </span>
+              </label>
+              <input
+                {...form.register("rssUrl")}
+                type="url"
+                className="w-full px-4 py-2.5 rounded-xl border border-(--fuwari-input-border) bg-(--fuwari-input-bg) focus:outline-none focus:ring-2 focus:ring-(--fuwari-primary)/50 focus:border-transparent transition-all"
+                placeholder="https://example.com/feed.xml"
+              />
+              {form.errors.rssUrl && (
+                <p className="mt-1.5 text-sm text-red-500">
+                  {form.errors.rssUrl.message}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                填写后有机会在「随机一读」中展示您的文章
+              </p>
+            </div>
+
             <div className="pt-2">
               <Turnstile {...form.turnstileProps} />
             </div>

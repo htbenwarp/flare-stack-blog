@@ -30,6 +30,21 @@ import { WebhookSettingsSection } from "@/features/webhook/components/webhook-se
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
+function deepEqual(obj1: any, obj2: any): boolean {
+  if (obj1 === obj2) return true;
+  if (typeof obj1 !== "object" || typeof obj2 !== "object" || obj1 === null || obj2 === null) {
+    return false;
+  }
+  const keys1 = Object.keys(obj1);
+  const keys2 = Object.keys(obj2);
+  if (keys1.length !== keys2.length) return false;
+  for (const key of keys1) {
+    if (!keys2.includes(key)) return false;
+    if (!deepEqual(obj1[key], obj2[key])) return false;
+  }
+  return true;
+}
+
 export const Route = createFileRoute("/admin/settings/")({
   ssr: false,
   component: RouteComponent,
@@ -51,32 +66,16 @@ function RouteComponent() {
   const [activeTab, setActiveTab] = useState("site");
   const formRef = useRef<HTMLFormElement>(null);
   const hasMountedRef = useRef(false);
+
+  const [hasChanges, setHasChanges] = useState(false);
+  const defaultValuesRef = useRef<SystemConfig | null>(null);
+
   const tabItems = [
-    {
-      value: "site",
-      icon: LayoutTemplate,
-      label: m.settings_tab_site(),
-    },
-    {
-      value: "email",
-      icon: Mail,
-      label: m.settings_tab_email(),
-    },
-    {
-      value: "webhook",
-      icon: Webhook,
-      label: m.settings_tab_webhook(),
-    },
-    {
-      value: "maintenance",
-      icon: Hammer,
-      label: m.settings_tab_maintenance(),
-    },
-    {
-      value: "integrations",
-      icon: KeyRound,
-      label: m.settings_tab_mcp(),
-    },
+    { value: "site", icon: LayoutTemplate, label: m.settings_tab_site() },
+    { value: "email", icon: Mail, label: m.settings_tab_email() },
+    { value: "webhook", icon: Webhook, label: m.settings_tab_webhook() },
+    { value: "maintenance", icon: Hammer, label: m.settings_tab_maintenance() },
+    { value: "integrations", icon: KeyRound, label: m.settings_tab_mcp() },
   ] as const;
 
   const methods = useForm<SystemConfig>({
@@ -84,16 +83,54 @@ function RouteComponent() {
     defaultValues: DEFAULT_CONFIG,
   });
 
-  const {
-    reset,
-    handleSubmit,
-    formState: { isSubmitting, isDirty },
-  } = methods;
+  const { reset, handleSubmit, formState: { isSubmitting }, watch } = methods;
+  const currentValues = watch();
 
-  // 同步 settings 到 form
+  useEffect(() => {
+    if (defaultValuesRef.current && currentValues) {
+      const changed = !deepEqual(defaultValuesRef.current, currentValues);
+      setHasChanges(changed);
+    }
+  }, [currentValues]);
+
   useEffect(() => {
     if (settings) {
-      reset(settings);
+      const fixedSettings = {
+        ...settings,
+        site: {
+          ...settings.site,
+          theme: {
+            ...settings.site?.theme,
+            default: {
+              navBarName: settings.site?.theme?.default?.navBarName ?? "",
+              background: settings.site?.theme?.default?.background,
+              glass: settings.site?.theme?.default?.glass ?? {
+                enabled: true,
+                opacity: 0.85,
+              },
+              chaos: settings.site?.theme?.default?.chaos ?? {
+                enabled: false,
+                particleCount: 80,
+                speed: 0.8,
+                color: "#0284c7",
+                darkColor: "#38bdf8",
+                particleSize: 1.8,
+                ringRadius: 10,
+                magnetRadius: 10,
+              },
+              fullscreenBg: settings.site?.theme?.default?.fullscreenBg ?? {
+                light: "",
+                dark: "",
+              },
+              fullscreenEnabled: settings.site?.theme?.default?.fullscreenEnabled ?? false,
+            },
+            fuwari: settings.site?.theme?.fuwari ?? {},
+          },
+        },
+      };
+      reset(fixedSettings);
+      defaultValuesRef.current = fixedSettings;
+      setHasChanges(false);
     }
   }, [settings, reset]);
 
@@ -102,17 +139,11 @@ function RouteComponent() {
       hasMountedRef.current = true;
       return;
     }
-
     const frame = requestAnimationFrame(() => {
       const scrollContainer = formRef.current?.closest(".custom-scrollbar");
       if (!(scrollContainer instanceof HTMLElement)) return;
-
-      scrollContainer.scrollTo({
-        top: 0,
-        left: 0,
-      });
+      scrollContainer.scrollTo({ top: 0, left: 0 });
     });
-
     return () => cancelAnimationFrame(frame);
   }, [activeTab]);
 
@@ -120,8 +151,9 @@ function RouteComponent() {
     try {
       await saveSettings({ data });
       toast.success(m.settings_toast_save_success());
-      // Reset dirty state with new values
       reset(data);
+      defaultValuesRef.current = data;
+      setHasChanges(false);
     } catch {
       toast.error(m.settings_toast_save_error());
     }
@@ -142,7 +174,7 @@ function RouteComponent() {
         onSubmit={handleSubmit(onSubmit)}
         className="space-y-8 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-1000 lg:space-y-12"
       >
-        {/* Header Area */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 pb-5 border-b border-border/30 lg:pb-8">
           <div className="space-y-1">
             <h1 className="text-2xl sm:text-3xl font-serif font-medium tracking-tight text-foreground">
@@ -155,7 +187,7 @@ function RouteComponent() {
 
           <Button
             type="submit"
-            disabled={isSubmitting || !isDirty}
+            disabled={isSubmitting || !hasChanges}
             className="hidden sm:flex h-11 px-8 rounded-none bg-foreground text-background hover:bg-foreground/90 transition-all font-mono text-[11px] uppercase tracking-[0.2em] font-medium disabled:opacity-50 shadow-lg shadow-foreground/5"
           >
             {isSubmitting ? (
@@ -167,7 +199,7 @@ function RouteComponent() {
           </Button>
         </div>
 
-        {/* Main Content with Tabs */}
+        {/* Tabs */}
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
@@ -178,7 +210,6 @@ function RouteComponent() {
               <TabsList className="mx-auto flex w-max min-w-full flex-row justify-center rounded-2xl border border-border/25 bg-background/90 p-1.5 gap-1.5 transition-all duration-300 lg:w-full lg:min-w-0 lg:flex-col lg:justify-start lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:gap-1.5 lg:border-r lg:border-border/20 lg:pr-6">
                 {tabItems.map(({ value, icon: Icon, label }) => {
                   const isActive = activeTab === value;
-
                   return (
                     <TabsTrigger
                       key={value}
@@ -186,25 +217,11 @@ function RouteComponent() {
                       className={cn(
                         "flex items-center justify-center px-3 py-2.5 rounded-full text-[10px] font-mono uppercase tracking-[0.15em] transition-all duration-300 border-none shadow-none group shrink-0 whitespace-nowrap lg:w-full lg:justify-start lg:px-4 lg:py-3 lg:rounded-none lg:border-l-2 lg:border-transparent",
                         "text-muted-foreground data-[state=active]:bg-foreground data-[state=active]:text-background lg:data-[state=active]:bg-muted/30 lg:data-[state=active]:text-foreground lg:data-[state=active]:border-foreground",
-                        isActive ? "pl-3 pr-4" : "px-3",
+                        isActive ? "pl-3 pr-4" : "px-3"
                       )}
                     >
-                      <Icon
-                        size={14}
-                        className={cn(
-                          "shrink-0 transition-all duration-300",
-                          isActive ? "opacity-100" : "opacity-60",
-                        )}
-                      />
-                      <span
-                        className={cn(
-                          "overflow-hidden whitespace-nowrap text-left transition-all duration-300 ease-out",
-                          isActive
-                            ? "ml-2 max-w-32 opacity-100"
-                            : "ml-0 max-w-0 opacity-0",
-                          "lg:ml-3 lg:max-w-none lg:opacity-100",
-                        )}
-                      >
+                      <Icon size={14} className={cn("shrink-0 transition-all duration-300", isActive ? "opacity-100" : "opacity-60")} />
+                      <span className={cn("overflow-hidden whitespace-nowrap text-left transition-all duration-300 ease-out", isActive ? "ml-2 max-w-32 opacity-100" : "ml-0 max-w-0 opacity-0", "lg:ml-3 lg:max-w-none lg:opacity-100")}>
                         {label}
                       </span>
                     </TabsTrigger>
@@ -277,19 +294,14 @@ function RouteComponent() {
           </div>
         </Tabs>
 
-        {/* Floating Action Button for Mobile */}
-        {isDirty && (
+        {hasChanges && (
           <div className="fixed bottom-8 right-6 z-50 sm:hidden animate-in fade-in zoom-in slide-in-from-bottom-10 duration-500">
             <Button
               type="submit"
               disabled={isSubmitting}
               className="h-14 w-14 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all shadow-2xl flex items-center justify-center p-0"
             >
-              {isSubmitting ? (
-                <Loader2 size={24} className="animate-spin" />
-              ) : (
-                <Check size={24} />
-              )}
+              {isSubmitting ? <Loader2 size={24} className="animate-spin" /> : <Check size={24} />}
             </Button>
           </div>
         )}

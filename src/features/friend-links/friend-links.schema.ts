@@ -28,6 +28,7 @@ export const SubmitFriendLinkInputSchema = z.object({
   description: z.string().max(300).optional(),
   logoUrl: z.union([z.literal(""), z.string().url()]).optional(),
   contactEmail: z.string().email(),
+  rssUrl: z.union([z.literal(""), z.string().url()]).optional(), // 🆕
 });
 
 export const createSubmitFriendLinkSchema = (m: Messages) =>
@@ -48,6 +49,12 @@ export const createSubmitFriendLinkSchema = (m: Messages) =>
       ])
       .optional(),
     contactEmail: z.string().email(m.friend_link_validation_invalid_email()),
+    rssUrl: z
+      .union([
+        z.literal(""),
+        z.string().url(m.friend_link_validation_invalid_url()),
+      ])
+      .optional(),
   });
 
 // === Admin create input (manual add) ===
@@ -58,6 +65,7 @@ export const CreateFriendLinkInputSchema = z.object({
   description: z.string().max(300).optional(),
   logoUrl: z.union([z.literal(""), z.string().url()]).optional(),
   contactEmail: z.union([z.literal(""), z.string().email()]).optional(),
+  rssUrl: z.union([z.literal(""), z.string().url()]).optional(), // 🆕
 });
 
 export const createCreateFriendLinkSchema = (m: Messages) =>
@@ -81,6 +89,12 @@ export const createCreateFriendLinkSchema = (m: Messages) =>
       .union([
         z.literal(""),
         z.string().email(m.friend_link_validation_invalid_email()),
+      ])
+      .optional(),
+    rssUrl: z
+      .union([
+        z.literal(""),
+        z.string().url(m.friend_link_validation_invalid_url()),
       ])
       .optional(),
   });
@@ -117,6 +131,7 @@ export const UpdateFriendLinkInputSchema = z.object({
   description: z.string().max(300).optional(),
   logoUrl: z.union([z.literal(""), z.string().url()]).optional(),
   contactEmail: z.union([z.literal(""), z.string().email()]).optional(),
+  rssUrl: z.union([z.literal(""), z.string().url()]).optional(), // 🆕
 });
 
 export const createUpdateFriendLinkSchema = (m: Messages) =>
@@ -142,6 +157,12 @@ export const createUpdateFriendLinkSchema = (m: Messages) =>
       .union([
         z.literal(""),
         z.string().email(m.friend_link_validation_invalid_email()),
+      ])
+      .optional(),
+    rssUrl: z
+      .union([
+        z.literal(""),
+        z.string().url(m.friend_link_validation_invalid_url()),
       ])
       .optional(),
   });

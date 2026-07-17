@@ -29,6 +29,7 @@ const AddFriendLinkModalInternal = ({
       description: "",
       logoUrl: "",
       contactEmail: "",
+      rssUrl: "", // 🆕
     },
   });
   const {
@@ -55,6 +56,7 @@ const AddFriendLinkModalInternal = ({
           description: data.description || undefined,
           logoUrl: data.logoUrl || undefined,
           contactEmail: data.contactEmail || undefined,
+          rssUrl: data.rssUrl || undefined, // 🆕
         },
       },
       {
@@ -117,6 +119,13 @@ const AddFriendLinkModalInternal = ({
             placeholder={m.friend_links_form_email_ph()}
             error={errors.contactEmail?.message}
             inputProps={register("contactEmail")}
+          />
+          {/* 🆕 RSS 输入框 */}
+          <ModalFormField
+            label="RSS 订阅地址"
+            placeholder="https://example.com/feed.xml"
+            error={errors.rssUrl?.message}
+            inputProps={register("rssUrl")}
           />
           <div className="flex justify-end gap-3 pt-4">
             <Button

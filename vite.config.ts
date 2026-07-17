@@ -35,7 +35,13 @@ const config = defineConfig(({ mode }) => {
       },
     },
     optimizeDeps: {
-      include: ["emoji-picker-react"],
+      include: [
+        "emoji-picker-react",
+        "three",
+        "@react-three/fiber",
+        "@react-three/drei",
+        "three-stdlib",
+      ],
     },
     plugins: [
       paraglideVitePlugin({

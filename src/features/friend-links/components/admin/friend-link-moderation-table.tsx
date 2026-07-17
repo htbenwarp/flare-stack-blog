@@ -275,6 +275,18 @@ export const FriendLinkModerationTable = ({
                   <ExternalLink size={10} className="shrink-0" />
                   <span className="truncate">{item.siteUrl}</span>
                 </a>
+                {/* 🆕 RSS 地址显示 */}
+                {item.rssUrl && (
+                  <a
+                    href={item.rssUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-mono text-(--fuwari-primary) hover:underline flex items-center gap-1 truncate"
+                  >
+                    <span>📡</span>
+                    <span className="truncate">{item.rssUrl}</span>
+                  </a>
+                )}
               </div>
 
               {/* Details */}
@@ -374,6 +386,18 @@ export const FriendLinkModerationTable = ({
                   <ExternalLink size={10} className="shrink-0" />
                   <span className="truncate">{item.siteUrl}</span>
                 </a>
+                {/* 🆕 RSS 地址显示（移动端） */}
+                {item.rssUrl && (
+                  <a
+                    href={item.rssUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-mono text-(--fuwari-primary) hover:underline flex items-center gap-1 truncate"
+                  >
+                    <span>📡</span>
+                    <span className="truncate">{item.rssUrl}</span>
+                  </a>
+                )}
               </div>
 
               <div className="flex flex-col gap-2 text-[10px] font-mono text-muted-foreground bg-muted/20 p-3">
@@ -452,6 +476,7 @@ interface FriendLinkActionsProps {
     description: string | null;
     logoUrl: string | null;
     contactEmail: string | null;
+    rssUrl: string | null; // 🆕
   };
 }
 
@@ -695,6 +720,7 @@ const EditModal = ({
     description?: string;
     logoUrl?: string;
     contactEmail?: string;
+    rssUrl?: string; // 🆕
   }) => void;
   isLoading: boolean;
   initialData: {
@@ -703,6 +729,7 @@ const EditModal = ({
     description: string | null;
     logoUrl: string | null;
     contactEmail: string | null;
+    rssUrl: string | null; // 🆕
   };
 }) => {
   const form = useForm<CreateFriendLinkInput>({
@@ -713,6 +740,7 @@ const EditModal = ({
       description: initialData.description || "",
       logoUrl: initialData.logoUrl || "",
       contactEmail: initialData.contactEmail || "",
+      rssUrl: initialData.rssUrl || "", // 🆕
     },
   });
   const {
@@ -737,6 +765,7 @@ const EditModal = ({
       description: data.description || undefined,
       logoUrl: data.logoUrl || undefined,
       contactEmail: data.contactEmail || undefined,
+      rssUrl: data.rssUrl || undefined, // 🆕
     });
   };
 
@@ -777,6 +806,12 @@ const EditModal = ({
             label={m.friend_links_form_email()}
             error={errors.contactEmail?.message}
             inputProps={register("contactEmail")}
+          />
+          {/* 🆕 RSS 输入框 */}
+          <FormField
+            label="RSS 订阅地址"
+            error={errors.rssUrl?.message}
+            inputProps={register("rssUrl")}
           />
           <div className="flex justify-end gap-3 pt-4">
             <Button

@@ -18,6 +18,33 @@ export const DEFAULT_THEME_TRANSITION_MAX = 1500;
 export const FUWARI_THEME_HUE_MIN = 0;
 export const FUWARI_THEME_HUE_MAX = 360;
 
+// ============================================================
+// 卡片透明度 (Card Opacity) 常量
+// ============================================================
+export const GLASS_OPACITY_MIN = 0;
+export const GLASS_OPACITY_MAX = 1;
+
+// ============================================================
+// 混沌背景 (Antigravity) 常量
+// ============================================================
+export const CHAOS_PARTICLE_MIN = 10;
+export const CHAOS_PARTICLE_MAX = 300;
+export const CHAOS_SPEED_MIN = 0.1;
+export const CHAOS_SPEED_MAX = 3;
+export const CHAOS_PARTICLE_SIZE_MIN = 0.5;
+export const CHAOS_PARTICLE_SIZE_MAX = 4;
+export const CHAOS_RADIUS_MIN = 3;
+export const CHAOS_RADIUS_MAX = 30;
+
+// ============================================================
+// 全屏背景图常量
+// ============================================================
+export const FULLSCREEN_ENABLED_DEFAULT = false;
+
+// ============================================================
+// 基础工具函数
+// ============================================================
+
 function createSiteTextSchema(max: number) {
   return z.string().trim().max(max);
 }
@@ -175,6 +202,10 @@ function createHueFormSchema(messages: Messages) {
   });
 }
 
+// ============================================================
+// 背景相关 Schema
+// ============================================================
+
 function createDefaultThemeBackgroundSchema() {
   return z.object({
     homeImage: createBackgroundImageRefSchema(),
@@ -228,27 +259,172 @@ function createDefaultThemeBackgroundInputFormSchema(messages: Messages) {
   });
 }
 
-function createDefaultThemeSiteConfigSchema() {
+// ============================================================
+// 卡片透明度 (Card Opacity) 定义
+// ============================================================
+
+function createGlassSchema() {
   return z.object({
-    navBarName: createSiteTextSchema(60),
-    background: createDefaultThemeBackgroundSchema().optional(),
+    enabled: z.boolean().default(true),
+    opacity: z.number().min(GLASS_OPACITY_MIN).max(GLASS_OPACITY_MAX).default(0.85),
   });
 }
 
-function createDefaultThemeSiteConfigInputSchema() {
+function createGlassInputSchema() {
   return z.object({
-    navBarName: createSiteTextSchema(60).optional(),
-    background: createDefaultThemeBackgroundInputSchema().optional(),
+    enabled: z.boolean().optional(),
+    opacity: z.number().min(GLASS_OPACITY_MIN).max(GLASS_OPACITY_MAX).optional(),
   });
 }
 
-function createDefaultThemeSiteConfigInputFormSchema(messages: Messages) {
+function createGlassInputFormSchema(messages: Messages) {
+  return z.object({
+    enabled: z.boolean().optional(),
+    opacity: z.number().min(GLASS_OPACITY_MIN).max(GLASS_OPACITY_MAX).optional(),
+  });
+}
+
+// ============================================================
+// 混沌背景 (Antigravity) 定义
+// ============================================================
+
+function createChaosSchema() {
+  return z.object({
+    enabled: z.boolean().default(false),
+    particleCount: z
+      .number()
+      .int()
+      .min(CHAOS_PARTICLE_MIN)
+      .max(CHAOS_PARTICLE_MAX)
+      .default(80),
+    speed: z.number().min(CHAOS_SPEED_MIN).max(CHAOS_SPEED_MAX).default(0.8),
+    color: z.string().default("#ff6b6b"),
+    darkColor: z.string().default("#38bdf8"),
+    particleSize: z
+      .number()
+      .min(CHAOS_PARTICLE_SIZE_MIN)
+      .max(CHAOS_PARTICLE_SIZE_MAX)
+      .default(1.8),
+    ringRadius: z.number().min(CHAOS_RADIUS_MIN).max(CHAOS_RADIUS_MAX).default(10),
+    magnetRadius: z
+      .number()
+      .min(CHAOS_RADIUS_MIN)
+      .max(CHAOS_RADIUS_MAX)
+      .default(10),
+  });
+}
+
+function createChaosInputSchema() {
+  return z.object({
+    enabled: z.boolean().optional(),
+    particleCount: z
+      .number()
+      .int()
+      .min(CHAOS_PARTICLE_MIN)
+      .max(CHAOS_PARTICLE_MAX)
+      .optional(),
+    speed: z.number().min(CHAOS_SPEED_MIN).max(CHAOS_SPEED_MAX).optional(),
+    color: z.string().optional(),
+    darkColor: z.string().optional(),
+    particleSize: z
+      .number()
+      .min(CHAOS_PARTICLE_SIZE_MIN)
+      .max(CHAOS_PARTICLE_SIZE_MAX)
+      .optional(),
+    ringRadius: z.number().min(CHAOS_RADIUS_MIN).max(CHAOS_RADIUS_MAX).optional(),
+    magnetRadius: z
+      .number()
+      .min(CHAOS_RADIUS_MIN)
+      .max(CHAOS_RADIUS_MAX)
+      .optional(),
+  });
+}
+
+function createChaosInputFormSchema(messages: Messages) {
+  return z.object({
+    enabled: z.boolean().optional(),
+    particleCount: z
+      .number()
+      .int()
+      .min(CHAOS_PARTICLE_MIN)
+      .max(CHAOS_PARTICLE_MAX)
+      .optional(),
+    speed: z.number().min(CHAOS_SPEED_MIN).max(CHAOS_SPEED_MAX).optional(),
+    color: z.string().optional(),
+    darkColor: z.string().optional(),
+    particleSize: z
+      .number()
+      .min(CHAOS_PARTICLE_SIZE_MIN)
+      .max(CHAOS_PARTICLE_SIZE_MAX)
+      .optional(),
+    ringRadius: z.number().min(CHAOS_RADIUS_MIN).max(CHAOS_RADIUS_MAX).optional(),
+    magnetRadius: z
+      .number()
+      .min(CHAOS_RADIUS_MIN)
+      .max(CHAOS_RADIUS_MAX)
+      .optional(),
+  });
+}
+
+// ============================================================
+// 全屏背景图 Schema
+// ============================================================
+
+const FullscreenBgSchema = z.object({
+  light: createBackgroundImageRefSchema().optional(),
+  dark: createBackgroundImageRefSchema().optional(),
+});
+
+const FullscreenBgInputSchema = z.object({
+  light: createBackgroundImageRefSchema().optional(),
+  dark: createBackgroundImageRefSchema().optional(),
+});
+
+const FullscreenBgInputFormSchema = (messages: Messages) =>
+  z.object({
+    light: createBackgroundImageRefFormSchema(messages).optional(),
+    dark: createBackgroundImageRefFormSchema(messages).optional(),
+  });
+
+// ============================================================
+// Default Theme 相关 Schema
+// ============================================================
+
+export const defaultThemeBackgroundSchema = createDefaultThemeBackgroundSchema();
+export const defaultThemeBackgroundInputSchema = createDefaultThemeBackgroundInputSchema();
+
+export const defaultThemeSiteConfigSchema = z.object({
+  navBarName: createSiteTextSchema(60),
+  background: defaultThemeBackgroundSchema.optional(),
+  glass: createGlassSchema().optional(),
+  chaos: createChaosSchema().optional(),
+  fullscreenBg: FullscreenBgSchema.optional(),
+  fullscreenEnabled: z.boolean().default(FULLSCREEN_ENABLED_DEFAULT),
+});
+
+export const defaultThemeSiteConfigInputSchema = z.object({
+  navBarName: createSiteTextSchema(60).optional(),
+  background: defaultThemeBackgroundInputSchema.optional(),
+  glass: createGlassInputSchema().optional(),
+  chaos: createChaosInputSchema().optional(),
+  fullscreenBg: FullscreenBgInputSchema.optional(),
+  fullscreenEnabled: z.boolean().optional(),
+});
+
+export function createDefaultThemeSiteConfigInputFormSchema(messages: Messages) {
   return z.object({
     navBarName: createSiteTextFormSchema(60, messages).optional(),
-    background:
-      createDefaultThemeBackgroundInputFormSchema(messages).optional(),
+    background: createDefaultThemeBackgroundInputFormSchema(messages).optional(),
+    glass: createGlassInputFormSchema(messages).optional(),
+    chaos: createChaosInputFormSchema(messages).optional(),
+    fullscreenBg: FullscreenBgInputFormSchema(messages).optional(),
+    fullscreenEnabled: z.boolean().optional(),
   });
 }
+
+// ============================================================
+// Fuwari Theme 相关 Schema
+// ============================================================
 
 function createFuwariThemeSiteConfigSchema() {
   return z.object({
@@ -280,19 +456,13 @@ function createFuwariThemeSiteConfigInputFormSchema(messages: Messages) {
   });
 }
 
-export const defaultThemeBackgroundSchema =
-  createDefaultThemeBackgroundSchema();
-export const defaultThemeBackgroundInputSchema =
-  createDefaultThemeBackgroundInputSchema();
-export const defaultThemeSiteConfigSchema =
-  createDefaultThemeSiteConfigSchema();
-export const defaultThemeSiteConfigInputSchema =
-  createDefaultThemeSiteConfigInputSchema();
 export const fuwariThemeSiteConfigSchema = createFuwariThemeSiteConfigSchema();
-export const fuwariThemeSiteConfigInputSchema =
-  createFuwariThemeSiteConfigInputSchema();
+export const fuwariThemeSiteConfigInputSchema = createFuwariThemeSiteConfigInputSchema();
 
-// ==================== 核心修改：添加 startDate ====================
+// ============================================================
+// 完整的站点配置 Schema
+// ============================================================
+
 export const FullSiteConfigSchema = z.object({
   startDate: z.string().refine((v) => !isNaN(Date.parse(v)), {
     message: "Must be a valid date string (YYYY-MM-DD)",
@@ -317,6 +487,10 @@ export const FullSiteConfigSchema = z.object({
   }),
 });
 
+// ============================================================
+// 输入 Schema（用于表单和 API）
+// ============================================================
+
 export function createSiteConfigInputFormSchema(messages: Messages) {
   return z.object({
     startDate: z.string().optional(),
@@ -338,8 +512,7 @@ export function createSiteConfigInputFormSchema(messages: Messages) {
       .optional(),
     theme: z
       .object({
-        default:
-          createDefaultThemeSiteConfigInputFormSchema(messages).optional(),
+        default: createDefaultThemeSiteConfigInputFormSchema(messages).optional(),
         fuwari: createFuwariThemeSiteConfigInputFormSchema(messages).optional(),
       })
       .optional(),
@@ -374,6 +547,10 @@ export const SiteConfigInputSchema = z.object({
 
 export const SiteConfigSchema = SiteConfigInputSchema;
 
+// ============================================================
+// 类型导出
+// ============================================================
+
 export type DefaultThemeSiteConfig = z.infer<
   typeof defaultThemeSiteConfigSchema
 >;
@@ -389,3 +566,8 @@ export type FuwariThemeSiteConfigInput = z.infer<
 >;
 export type SiteConfig = z.infer<typeof FullSiteConfigSchema>;
 export type SiteConfigInput = z.infer<typeof SiteConfigInputSchema>;
+
+export type GlassConfig = z.infer<ReturnType<typeof createGlassSchema>>;
+export type GlassInput = z.infer<ReturnType<typeof createGlassInputSchema>>;
+export type ChaosConfig = z.infer<ReturnType<typeof createChaosSchema>>;
+export type ChaosInput = z.infer<ReturnType<typeof createChaosInputSchema>>;

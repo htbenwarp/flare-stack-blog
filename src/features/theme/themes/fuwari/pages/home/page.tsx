@@ -51,13 +51,11 @@ export function HomePage({ posts, pinnedPosts, popularPosts }: HomePageProps) {
   const { data: viewCounts, isPending: isPendingViewCounts } =
     useViewCounts(allSlugs);
 
-  // 为每篇文章构建路径
   const paths = useMemo(
     () => allSlugs.map((slug) => `/post/${slug}`),
     [allSlugs],
   );
 
-  // 并行获取每个路径的点赞数（与详情页同一函数）
   const likeQueries = useQueries({
     queries: paths.map((path) => ({
       queryKey: ["likeCount", path],
@@ -66,7 +64,6 @@ export function HomePage({ posts, pinnedPosts, popularPosts }: HomePageProps) {
     })),
   });
 
-  // 安全地建立映射，不再依赖 query.queryKey
   const likeCountMap = useMemo(() => {
     const map: Record<string, number> = {};
     likeQueries.forEach((query, index) => {
@@ -84,11 +81,11 @@ export function HomePage({ posts, pinnedPosts, popularPosts }: HomePageProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col rounded-(--fuwari-radius-large) bg-(--fuwari-card-bg) py-1 md:py-0 md:bg-transparent md:gap-4">
+      <div className="flex flex-col rounded-(--fuwari-radius-large) py-1 md:py-0 md:gap-4 bg-transparent">
         {mergedPosts.map(({ post, pinned, popular }, i) => (
           <div
             key={post.slug}
-            className="fuwari-onload-animation"
+            className="fuwari-onload-animation md:mb-0 mb-4"
             style={{
               animationDelay: `calc(var(--fuwari-content-delay) + ${i * delayOffset}ms)`,
             }}

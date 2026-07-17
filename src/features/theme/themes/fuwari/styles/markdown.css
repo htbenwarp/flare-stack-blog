@@ -684,3 +684,33 @@ a.card-github:hover {
   border: 1px solid var(--fuwari-btn-regular-bg-active);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
+
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--fuwari-primary);
+  border-radius: 9999px;
+  transition: background 0.25s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fuwari-primary-hover);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--fuwari-primary) transparent;
+}
+
+html.card-opacity-enabled .fuwari-card-base {
+  background-color: var(--card-bg) !important;
+}
+

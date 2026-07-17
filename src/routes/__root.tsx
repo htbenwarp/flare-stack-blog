@@ -7,7 +7,7 @@ import {
   useRouteContext,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import theme from "@theme";
 import { ThemeProvider } from "@/components/common/theme-provider";
 import { siteConfigQuery } from "@/features/config/queries";
@@ -64,35 +64,56 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const hueLight = siteConfig?.theme?.fuwari?.primaryHue ?? 250;
   const hueDark = siteConfig?.theme?.fuwari?.darkPrimaryHue ?? hueLight;
 
-  // 多重字体动态加载（支持完整字体栈）
+  // 卡片透明度配置
+  const glass = siteConfig?.theme?.default?.glass;
+  const glassEnabled = glass?.enabled ?? true;
+  const glassOpacity = glass?.opacity ?? 0.85;
+
+  // 🔥 检测暗色模式
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const check = () => {
+      // 检查 html 或 body 上的 dark 类
+      const isDarkMode = html.classList.contains('dark') || document.body.classList.contains('dark');
+      setIsDark(isDarkMode);
+    };
+    check();
+
+    const observer = new MutationObserver(check);
+    observer.observe(html, { attributes: true, attributeFilter: ['class'] });
+
+    return () => observer.disconnect();
+  }, []);
+
+  // 根据暗色模式计算背景色
+  const currentBg = isDark
+    ? `hsla(${hueDark}, 30%, 15%, ${glassOpacity})`
+    : `hsla(${hueLight}, 30%, 95%, ${glassOpacity})`;
+
+  // 多重字体动态加载
   useEffect(() => {
     if (!fontFamily) {
       document.documentElement.style.removeProperty('--font-body');
       return;
     }
 
-    // ① 保持完整字体栈，CSS 回退机制不受影响
     document.documentElement.style.setProperty('--font-body', fontFamily);
 
-    // ---------- 工具函数 ----------
     const parseFontStack = (stack: string): string[] =>
       stack
         .split(',')
         .map(part => part.trim().replace(/^['"]|['"]$/g, ''))
         .filter(name => name.length > 0);
 
-    // 提取纯字体族名（去掉冒号后的变体说明，如 Inter:400 -> Inter）
     const getFamilyName = (raw: string): string => raw.split(':')[0].trim();
+    const normalize = (name: string): string => name.toLowerCase().replace(/['"]/g, '');
 
-    const normalize = (name: string): string =>
-      name.toLowerCase().replace(/['"]/g, '');
-
-    // 通用族名 + 常见系统字体（无需网络加载）
     const skipFonts = new Set([
       'serif', 'sans-serif', 'monospace', 'cursive', 'fantasy',
       'system-ui', 'ui-serif', 'ui-sans-serif', 'ui-monospace',
       'ui-rounded', 'emoji', 'math', 'fangsong',
-      // 常见系统字体
       'arial', 'helvetica', 'times new roman', 'times', 'courier new',
       'courier', 'verdana', 'georgia', 'tahoma', 'trebuchet ms',
       'comic sans ms', 'impact', 'simsun', 'microsoft yahei',
@@ -100,14 +121,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     ]);
 
     const shouldSkip = (name: string) => skipFonts.has(normalize(name));
+    const encodeFontName = (name: string) => encodeURIComponent(name).replace(/%20/g, '+');
 
-    // 安全编码字体名用于 URL
-    const encodeFontName = (name: string) =>
-      encodeURIComponent(name).replace(/%20/g, '+');
-
-    // ---------- 收集需要加载的字体 ----------
     const fonts = parseFontStack(fontFamily);
-
     const loadedSet = new Set<string>();
     const googleFontNames: string[] = [];
     let needLXGW = false;
@@ -123,15 +139,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         needLXGW = true;
         continue;
       }
-
-      // 其余字体归为 Google Fonts
       googleFontNames.push(family);
     }
 
-    // ---------- 注入 link 并记录 id 以便清理 ----------
     const addedLinkIds: string[] = [];
 
-    // 1) LXGW Wenkai 特殊 CDN
     if (needLXGW) {
       const id = 'lxgw-wenkai-font';
       if (!document.getElementById(id)) {
@@ -144,12 +156,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // 2) Google Fonts（合并为单次请求）
     if (googleFontNames.length > 0) {
       const unique = Array.from(new Set(googleFontNames));
-      const families = unique
-        .map(name => `family=${encodeFontName(name)}:wght@400;500;600;700`)
-        .join('&');
+      const families = unique.map(name => `family=${encodeFontName(name)}:wght@400;500;600;700`).join('&');
       const href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
 
       const id = 'google-fonts-dynamic';
@@ -164,7 +173,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       addedLinkIds.push(id);
     }
 
-    // 清理：依赖变化或卸载时移除本次添加的 link
     return () => {
       for (const id of addedLinkIds) {
         const el = document.getElementById(id);
@@ -173,15 +181,19 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     };
   }, [fontFamily]);
 
+  const htmlStyle = {
+    ...theme.getDocumentStyle?.(siteConfig),
+    '--fuwari-hue-light': hueLight,
+    '--fuwari-hue-dark': hueDark,
+    '--card-bg': currentBg,
+  } as React.CSSProperties;
+
   return (
     <html
       lang={locale}
+      className={glassEnabled ? 'card-opacity-enabled' : ''}
+      style={htmlStyle}
       suppressHydrationWarning
-      style={{
-        ...theme.getDocumentStyle?.(siteConfig),
-        '--fuwari-hue-light': hueLight,
-        '--fuwari-hue-dark': hueDark,
-      } as React.CSSProperties}
     >
       <head>
         <HeadContent />

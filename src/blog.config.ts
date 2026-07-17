@@ -1,7 +1,7 @@
 import type { SiteConfig } from "@/features/config/site-config.schema";
 
 export const blogConfig = {
-  startDate: "2026-04-19",  // 请替换为你的站点实际上线日期
+  startDate: "2026-04-19",
   title: "站点名称",
   author: "作者",
   musicPlaylistId: "",
@@ -23,6 +23,25 @@ export const blogConfig = {
   theme: {
     default: {
       navBarName: "导航栏名称",
+      glass: {
+        enabled: true,
+        opacity: 0.65,
+      },
+      chaos: {
+        enabled: false,
+        particleCount: 80,
+        speed: 0.8,
+        color: "#ff6b6b",
+        darkColor: "#38bdf8",
+        particleSize: 1.8,
+        ringRadius: 10,
+        magnetRadius: 10,
+      },
+      fullscreenBg: {
+        light: "",
+        dark: "",
+      },
+      fullscreenEnabled: false,
     },
     fuwari: {
       homeBg: "/images/home-bg.webp",
@@ -33,4 +52,3 @@ export const blogConfig = {
     },
   },
 } as const satisfies SiteConfig;
-

@@ -34,10 +34,36 @@ function resolveEmailConfig(config: SystemConfig | null | undefined) {
   };
 }
 
+function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
+  const result = { ...target };
+
+  for (const key in source) {
+    if (source[key] === undefined) continue;
+
+    const sourceValue = source[key];
+    const targetValue = result[key];
+
+    if (
+      sourceValue &&
+      typeof sourceValue === "object" &&
+      !Array.isArray(sourceValue) &&
+      targetValue &&
+      typeof targetValue === "object" &&
+      !Array.isArray(targetValue)
+    ) {
+      result[key] = deepMerge(targetValue, sourceValue) as any;
+    } else {
+      result[key] = sourceValue as any;
+    }
+  }
+
+  return result;
+}
+
 export function resolveSystemConfig(
   config: SystemConfig | null | undefined,
 ): SystemConfig {
-  return {
+  const base = {
     ...DEFAULT_CONFIG,
     ...config,
     email: resolveEmailConfig(config),
@@ -61,6 +87,15 @@ export function resolveSystemConfig(
     },
     site: resolveSiteConfig(config),
   };
+
+  if (config?.site?.theme?.default) {
+    base.site.theme.default = deepMerge(
+      base.site.theme.default,
+      config.site.theme.default
+    );
+  }
+
+  return base;
 }
 
 function migrateSocial(social: unknown): SocialLink[] {
@@ -82,9 +117,7 @@ export function resolveSiteConfig(
   const configDefaultBackground = config?.site?.theme?.default?.background;
 
   return FullSiteConfigSchema.parse({
-    // ✅ 新增：startDate 字段，从数据库读取，若无则用 blogConfig 默认值
     startDate: config?.site?.startDate ?? blogConfig.startDate,
-
     title: config?.site?.title ?? blogConfig.title,
     author: config?.site?.author ?? blogConfig.author,
     description: config?.site?.description ?? blogConfig.description,
@@ -122,6 +155,25 @@ export function resolveSiteConfig(
                 configDefaultBackground.transitionDuration ?? 600,
             }
           : undefined,
+        glass: config?.site?.theme?.default?.glass ?? {
+          enabled: true,
+          opacity: 0.85,
+        },
+        chaos: config?.site?.theme?.default?.chaos ?? {
+          enabled: false,
+          particleCount: 80,
+          speed: 0.8,
+          color: "#ff6b6b",
+          darkColor: "#38bdf8",
+          particleSize: 1.8,
+          ringRadius: 10,
+          magnetRadius: 10,
+        },
+        fullscreenBg: config?.site?.theme?.default?.fullscreenBg ?? {
+          light: "",
+          dark: "",
+        },
+        fullscreenEnabled: config?.site?.theme?.default?.fullscreenEnabled ?? false,
       },
       fuwari: {
         homeBg:
@@ -131,10 +183,14 @@ export function resolveSiteConfig(
         primaryHue:
           config?.site?.theme?.fuwari?.primaryHue ??
           blogConfig.theme.fuwari.primaryHue,
-        darkHomeBg: 
-          config?.site?.theme?.fuwari?.darkHomeBg ?? config?.site?.theme?.fuwari?.homeBg ?? blogConfig.theme.fuwari.homeBg,
-        darkPrimaryHue: 
-          config?.site?.theme?.fuwari?.darkPrimaryHue ?? config?.site?.theme?.fuwari?.primaryHue ?? blogConfig.theme.fuwari.primaryHue,
+        darkHomeBg:
+          config?.site?.theme?.fuwari?.darkHomeBg ??
+          config?.site?.theme?.fuwari?.homeBg ??
+          blogConfig.theme.fuwari.homeBg,
+        darkPrimaryHue:
+          config?.site?.theme?.fuwari?.darkPrimaryHue ??
+          config?.site?.theme?.fuwari?.primaryHue ??
+          blogConfig.theme.fuwari.primaryHue,
       },
     },
   });
@@ -189,7 +245,28 @@ export async function updateSystemConfig(
   data: SystemConfig,
 ) {
   const currentConfig = await ConfigRepo.getSystemConfig(context.db);
-  const nextConfig = resolveSystemConfig(data);
+  
+  if (data?.site?.theme?.default?.fullscreenBg === undefined) {
+    const currentFullscreenBg = currentConfig?.site?.theme?.default?.fullscreenBg;
+    if (currentFullscreenBg) {
+      data = {
+        ...data,
+        site: {
+          ...data?.site,
+          theme: {
+            ...data?.site?.theme,
+            default: {
+              ...data?.site?.theme?.default,
+              fullscreenBg: currentFullscreenBg,
+            },
+          },
+        },
+      };
+    }
+  }
+  
+  const merged = deepMerge(currentConfig || {}, data);
+  const nextConfig = resolveSystemConfig(merged);
 
   await ConfigRepo.upsertSystemConfig(context.db, nextConfig);
   await CacheService.deleteKey(context, CONFIG_CACHE_KEYS.system);

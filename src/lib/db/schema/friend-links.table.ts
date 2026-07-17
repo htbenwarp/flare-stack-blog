@@ -17,6 +17,7 @@ export const FriendLinksTable = sqliteTable(
     description: text(),
     logoUrl: text("logo_url"),
     contactEmail: text("contact_email"),
+    rssUrl: text("rss_url"),
     status: text("status", { enum: FRIEND_LINK_STATUSES })
       .notNull()
       .default("pending"),
