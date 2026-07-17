@@ -23,6 +23,10 @@ interface AntigravityInnerProps {
   fieldStrength?: number;
   isDarkMode?: boolean;
   colors?: string[];
+  isPreview?: boolean;
+  containerWidth?: number;
+  containerHeight?: number;
+  previewMousePos?: { x: number; y: number };
 }
 
 const AntigravityInner = ({
@@ -42,6 +46,10 @@ const AntigravityInner = ({
   fieldStrength = 10,
   isDarkMode = false,
   colors,
+  isPreview = false,
+  containerWidth,
+  containerHeight,
+  previewMousePos = { x: 0.5, y: 0.5 },
 }: AntigravityInnerProps) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const { viewport } = useThree();
@@ -87,7 +95,10 @@ const AntigravityInner = ({
     return temp;
   }, [count, viewport.width, viewport.height, palette]);
 
+  // 非预览模式下的窗口鼠标追踪
   useEffect(() => {
+    if (isPreview) return;
+
     const handleMove = (x: number, y: number) => {
       const nx = (x / window.innerWidth) * 2 - 1;
       const ny = -(y / window.innerHeight) * 2 + 1;
@@ -111,7 +122,7 @@ const AntigravityInner = ({
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchstart", onTouchMove);
     };
-  }, []);
+  }, [isPreview]);
 
   useFrame((state) => {
     const mesh = meshRef.current;
@@ -122,15 +133,32 @@ const AntigravityInner = ({
     }
 
     const { viewport: v } = state;
-    const m = lastMousePos.current;
 
-    let destX = (m.x * v.width) / 2;
-    let destY = (m.y * v.height) / 2;
+    // 使用预览容器尺寸或 viewport 尺寸
+    const width = isPreview && containerWidth ? containerWidth : v.width;
+    const height = isPreview && containerHeight ? containerHeight : v.height;
 
-    if (autoAnimate && Date.now() - lastMouseMoveTime.current > 2000) {
-      const time = state.clock.getElapsedTime();
-      destX = Math.sin(time * 0.5) * (v.width / 4);
-      destY = Math.cos(time * 0.5 * 2) * (v.height / 4);
+    let destX: number;
+    let destY: number;
+
+    if (isPreview) {
+      // ✅ 预览模式：使用容器内鼠标相对坐标（0~1）
+      const nx = previewMousePos.x * 2 - 1;   // -1 ~ 1
+      const ny = -(previewMousePos.y * 2 - 1); // 反转 y，匹配 Three.js 坐标系
+      destX = (nx * width) / 2;
+      destY = (ny * height) / 2;
+    } else {
+      // 非预览模式：使用全局窗口坐标
+      const m = lastMousePos.current;
+      destX = (m.x * width) / 2;
+      destY = (m.y * height) / 2;
+
+      // 自动动画（鼠标不活动时）
+      if (autoAnimate && Date.now() - lastMouseMoveTime.current > 2000) {
+        const time = state.clock.getElapsedTime();
+        destX = Math.sin(time * 0.5) * (width / 4);
+        destY = Math.cos(time * 0.5 * 2) * (height / 4);
+      }
     }
 
     const smoothFactor = 0.05;
@@ -311,7 +339,13 @@ const Antigravity = (props: AntigravityProps) => {
   const { isPreview = false, colors, darkColors, ...rest } = props;
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [particleCount, setParticleCount] = useState(rest.count || 100);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
+  // ✅ 预览模式下的鼠标位置（容器相对坐标 0~1）
+  const [previewMousePos, setPreviewMousePos] = useState({ x: 0.5, y: 0.5 });
+
+  // 暗色模式检测
   useEffect(() => {
     const checkDarkMode = () => {
       setIsDarkMode(document.documentElement.classList.contains("dark"));
@@ -327,6 +361,7 @@ const Antigravity = (props: AntigravityProps) => {
     return () => observer.disconnect();
   }, []);
 
+  // 响应式粒子数量
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
@@ -341,6 +376,52 @@ const Antigravity = (props: AntigravityProps) => {
     return () => window.removeEventListener("resize", handleResize);
   }, [rest.count]);
 
+  // 预览模式下监听容器尺寸
+  useEffect(() => {
+    if (!isPreview || !containerRef.current) return;
+
+    const updateSize = () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        setContainerSize({ width: rect.width, height: rect.height });
+      }
+    };
+
+    updateSize();
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(containerRef.current);
+
+    return () => observer.disconnect();
+  }, [isPreview]);
+
+  // ✅ 预览模式下监听容器内的鼠标移动
+  useEffect(() => {
+    if (!isPreview || !containerRef.current) return;
+
+    const container = containerRef.current;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = container.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;   // 0 ~ 1
+      const y = (e.clientY - rect.top) / rect.height;   // 0 ~ 1
+      setPreviewMousePos({ x, y });
+    };
+
+    const handleMouseLeave = () => {
+      // 鼠标离开预览区域时回到中心
+      setPreviewMousePos({ x: 0.5, y: 0.5 });
+    };
+
+    container.addEventListener("mousemove", handleMouseMove);
+    container.addEventListener("mouseleave", handleMouseLeave);
+
+    return () => {
+      container.removeEventListener("mousemove", handleMouseMove);
+      container.removeEventListener("mouseleave", handleMouseLeave);
+    };
+  }, [isPreview]);
+
   const activeColors = isDarkMode
     ? (darkColors || ["#38bdf8", "#22d3ee", "#ffffff"])
     : (colors || ["#0284c7", "#0369a1", "#505050"]);
@@ -350,7 +431,7 @@ const Antigravity = (props: AntigravityProps) => {
     : "fixed inset-0 z-0 overflow-hidden pointer-events-none";
 
   return (
-    <div className={containerClassName}>
+    <div ref={containerRef} className={containerClassName}>
       <div className="w-full h-full">
         <Canvas camera={{ position: [0, 0, 50], fov: 35 }}>
           <AntigravityInner
@@ -358,6 +439,10 @@ const Antigravity = (props: AntigravityProps) => {
             count={particleCount}
             isDarkMode={isDarkMode}
             colors={activeColors}
+            isPreview={isPreview}
+            containerWidth={containerSize.width}
+            containerHeight={containerSize.height}
+            previewMousePos={previewMousePos}
           />
         </Canvas>
       </div>
