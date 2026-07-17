@@ -41,6 +41,7 @@ export async function getAllFriendLinks(
       description: FriendLinksTable.description,
       logoUrl: FriendLinksTable.logoUrl,
       contactEmail: FriendLinksTable.contactEmail,
+      rssUrl: FriendLinksTable.rssUrl,
       status: FriendLinksTable.status,
       rejectionReason: FriendLinksTable.rejectionReason,
       userId: FriendLinksTable.userId,
