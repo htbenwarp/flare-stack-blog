@@ -710,15 +710,19 @@ a.card-github:hover {
   scrollbar-color: var(--fuwari-primary) transparent;
 }
 
+/* 半透明模式 - 使用透明度变量 */
 html.card-opacity-enabled .fuwari-card-base {
   background-color: var(--card-bg) !important;
 }
 
+/* 非半透明模式 - 使用不透明的主题色背景 */
 html:not(.card-opacity-enabled) .fuwari-card-base {
   background-color: oklch(0.95 0.01 var(--fuwari-hue)) !important;
 }
 
+/* 暗色模式 + 非半透明 */
+html:not(.card-opacity-enabled).dark .fuwari-card-base,
 .dark html:not(.card-opacity-enabled) .fuwari-card-base {
-  background-color: oklch(0.15 0.01 var(--fuwari-hue)) !important;
+  background-color: oklch(0.25 0.01 var(--fuwari-hue)) !important;
 }
 
