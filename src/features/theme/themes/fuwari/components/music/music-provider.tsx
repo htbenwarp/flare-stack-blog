@@ -51,11 +51,21 @@ export const useMusic = () => {
 };
 
 export function MusicProvider({ children }: { children: React.ReactNode }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const preloadAudioRef = useRef<HTMLAudioElement | null>(null);
-  const nextTrackRef = useRef<() => void>(() => {});
-  const preloadLockRef = useRef<boolean>(false);
-  const preloadIndexRef = useRef<number>(-1);
+  // 两个固定的 Audio 元素
+  const audio1Ref = useRef<HTMLAudioElement | null>(null);
+  const audio2Ref = useRef<HTMLAudioElement | null>(null);
+  // 当前播放器标识，用于驱动事件绑定
+  const [currentPlayerId, setCurrentPlayerId] = useState<"audio1" | "audio2">("audio1");
+  // 获取当前正在播放的 Audio 引用
+  const getCurrentAudio = useCallback(
+    () => (currentPlayerId === "audio1" ? audio1Ref.current : audio2Ref.current),
+    [currentPlayerId],
+  );
+  // 获取预载 Audio 引用
+  const getPreloadAudio = useCallback(
+    () => (currentPlayerId === "audio1" ? audio2Ref.current : audio1Ref.current),
+    [currentPlayerId],
+  );
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -69,143 +79,175 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { data: playlist = [] } = useQuery(musicPlaylistQueryOptions());
 
-  // 在客户端创建 Audio 实例
+  // 用 ref 同步最新状态，供事件回调使用
+  const currentIndexRef = useRef(currentIndex);
+  const modeRef = useRef(mode);
+  const playlistRef = useRef(playlist);
+  const preloadIndexRef = useRef(-1);
+  const preloadLockRef = useRef(false);
+
+  useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { playlistRef.current = playlist; }, [playlist]);
+
+  // 初始化两个 Audio 元素（仅在客户端执行）
   useEffect(() => {
     if (typeof window !== "undefined") {
-      if (!audioRef.current) {
-        audioRef.current = new Audio();
-        audioRef.current.crossOrigin = "anonymous";
+      if (!audio1Ref.current) {
+        const a1 = new Audio();
+        a1.crossOrigin = "anonymous";
+        a1.preload = "auto";
+        audio1Ref.current = a1;
       }
-      if (!preloadAudioRef.current) {
-        preloadAudioRef.current = new Audio();
-        preloadAudioRef.current.crossOrigin = "anonymous";
-        preloadAudioRef.current.preload = "auto";
+      if (!audio2Ref.current) {
+        const a2 = new Audio();
+        a2.crossOrigin = "anonymous";
+        a2.preload = "auto";
+        audio2Ref.current = a2;
       }
     }
   }, []);
 
   // 进入管理后台时暂停
   useEffect(() => {
-    if (location.pathname.startsWith("/admin") && audioRef.current) {
-      audioRef.current.pause();
+    if (location.pathname.startsWith("/admin")) {
+      getCurrentAudio()?.pause();
     }
-  }, [location.pathname]);
+  }, [location.pathname, getCurrentAudio]);
 
   // 计算下一首索引
   const getNextIndex = useCallback(
     (currentIdx: number): number => {
-      if (playlist.length === 0) return currentIdx;
-      if (mode === "single") return currentIdx;
-      if (mode === "random") return Math.floor(Math.random() * playlist.length);
+      const list = playlistRef.current;
+      if (list.length === 0) return currentIdx;
+      if (modeRef.current === "single") return currentIdx;
+      if (modeRef.current === "random") return Math.floor(Math.random() * list.length);
       const next = currentIdx + 1;
-      return next >= playlist.length ? 0 : next;
+      return next >= list.length ? 0 : next;
     },
-    [playlist.length, mode],
+    [], // 使用 ref，无需依赖
   );
 
-  // 核心播放函数
-  const loadAndPlay = useCallback(
+  // ---- 预载逻辑 ----
+  const preloadTrack = useCallback(
     (index: number) => {
-      const track = playlist[index];
-      if (!track?.url || !audioRef.current) return;
+      if (index < 0 || index >= playlistRef.current.length) return;
+      const track = playlistRef.current[index];
+      if (!track?.url) return;
 
-      setCurrentTime(0);
-      setDuration(0);
-
-      // 检查预载音频是否匹配
-      const preAudio = preloadAudioRef.current;
-      if (preAudio && preAudio.src && preAudio.src === track.url && preAudio.readyState >= 2) {
-        // 不替换 ref，而是转移数据到主音频
-        const mainAudio = audioRef.current;
-        mainAudio.src = preAudio.src;
-        mainAudio.currentTime = 0;
-        mainAudio.load();
-        mainAudio.play().catch(() => {});
-
-        // 重置预载音频
-        preAudio.src = "";
-        preAudio.load();
-        preloadLockRef.current = false;
-        preloadIndexRef.current = -1;
-        setIsPreloading(false);
-      } else {
-        audioRef.current.src = track.url;
-        audioRef.current.load();
-        audioRef.current.play().catch(() => {});
-      }
-
-      setCurrentIndex(index);
-    },
-    [playlist],
-  );
-
-  // 预载下一首（带锁机制）
-  const preloadNextTrack = useCallback(
-    (currentIdx: number) => {
-      if (!playlist.length || playlist.length === 1) return;
-      if (preloadLockRef.current) return;
-      if (preloadIndexRef.current === getNextIndex(currentIdx)) return;
-
-      const nextIdx = getNextIndex(currentIdx);
-      if (nextIdx === currentIdx) return;
-
-      const nextTrack = playlist[nextIdx];
-      if (!nextTrack?.url) return;
-
-      const preAudio = preloadAudioRef.current;
+      const preAudio = getPreloadAudio();
       if (!preAudio) return;
 
-      // 避免重复加载同一首歌
-      if (preAudio.src === nextTrack.url && preAudio.readyState >= 2) {
-        preloadIndexRef.current = nextIdx;
+      // 已经在加载同一首歌，且已足够缓冲
+      if (preAudio.src === track.url && preAudio.readyState >= 2) {
+        preloadIndexRef.current = index;
+        preloadLockRef.current = false;
         return;
       }
 
+      if (preloadLockRef.current) return; // 上一轮预载仍在进行
+
       preloadLockRef.current = true;
       setIsPreloading(true);
-      preloadIndexRef.current = nextIdx;
-
-      preAudio.src = nextTrack.url;
+      preAudio.src = track.url;
       preAudio.load();
+      preloadIndexRef.current = index;
 
-      // 监听加载完成，解除锁定
-      const onCanPlay = () => {
+      const onReady = () => {
         preloadLockRef.current = false;
         setIsPreloading(false);
-        preAudio.removeEventListener("canplaythrough", onCanPlay);
+        preAudio.removeEventListener("canplaythrough", onReady);
         preAudio.removeEventListener("error", onError);
       };
       const onError = () => {
         preloadLockRef.current = false;
         setIsPreloading(false);
         preloadIndexRef.current = -1;
-        preAudio.removeEventListener("canplaythrough", onCanPlay);
+        preAudio.removeEventListener("canplaythrough", onReady);
         preAudio.removeEventListener("error", onError);
-        console.warn("预载失败，将使用回退机制");
       };
 
-      preAudio.addEventListener("canplaythrough", onCanPlay);
+      preAudio.addEventListener("canplaythrough", onReady);
       preAudio.addEventListener("error", onError);
 
-      // 超时保护：10秒后强制解锁
+      // 超时保护
       setTimeout(() => {
         if (preloadLockRef.current) {
           preloadLockRef.current = false;
           setIsPreloading(false);
-          preAudio.removeEventListener("canplaythrough", onCanPlay);
+          preAudio.removeEventListener("canplaythrough", onReady);
           preAudio.removeEventListener("error", onError);
         }
       }, 10000);
     },
-    [playlist, getNextIndex],
+    [getPreloadAudio],
   );
 
+  // ---- 双音频轮换（核心无缝切换）----
+  const switchToPreloaded = useCallback(
+    (expectedIndex: number): boolean => {
+      const preAudio = getPreloadAudio();
+      const curAudio = getCurrentAudio();
+      if (!preAudio || !curAudio) return false;
+
+      // 必须匹配索引且缓冲足够
+      if (preloadIndexRef.current !== expectedIndex) return false;
+      if (preAudio.readyState < 2) return false;
+
+      // 暂停旧播放器，准备回收为预载器
+      curAudio.pause();
+
+      // 确保新播放器从头开始
+      preAudio.currentTime = 0;
+
+      // 交换角色：新的播放器是 preAudio，旧的变成预载器
+      const newPlayerId = currentPlayerId === "audio1" ? "audio2" : "audio1";
+      setCurrentPlayerId(newPlayerId);
+      setCurrentIndex(expectedIndex);
+      preloadIndexRef.current = -1;
+      preloadLockRef.current = false;
+      setIsPreloading(false);
+
+      // 立即播放
+      preAudio.play().catch(() => {});
+
+      // 预载新的下一首
+      const nextIdx = getNextIndex(expectedIndex);
+      // 延迟执行，等待 setCurrentPlayerId 引起的 useEffect 更新完成
+      setTimeout(() => preloadTrack(nextIdx), 0);
+      return true;
+    },
+    [currentPlayerId, getNextIndex, getPreloadAudio, getCurrentAudio, preloadTrack],
+  );
+
+  // ---- 在当前播放器上强制加载（回退方案）----
+  const loadAndPlayOnCurrent = useCallback(
+    (index: number) => {
+      const track = playlistRef.current[index];
+      if (!track?.url) return;
+
+      const audio = getCurrentAudio();
+      if (!audio) return;
+
+      audio.src = track.url;
+      audio.load();
+      audio.play().catch(() => {});
+      setCurrentIndex(index);
+
+      // 开始加载下一首
+      const nextIdx = getNextIndex(index);
+      preloadTrack(nextIdx);
+    },
+    [getCurrentAudio, getNextIndex, preloadTrack],
+  );
+
+  // ---- 手动操作 API ----
   const togglePlay = useCallback(() => {
-    const audio = audioRef.current;
+    const audio = getCurrentAudio();
     if (!audio) return;
-    if (!audio.src && playlist.length > 0) {
-      const index = currentIndex >= 0 && currentIndex < playlist.length ? currentIndex : 0;
-      loadAndPlay(index);
+    if (!audio.src && playlistRef.current.length > 0) {
+      const idx = currentIndexRef.current < playlistRef.current.length ? currentIndexRef.current : 0;
+      loadAndPlayOnCurrent(idx);
       return;
     }
     if (audio.paused) {
@@ -213,102 +255,90 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     } else {
       audio.pause();
     }
-  }, [currentIndex, playlist, loadAndPlay]);
+  }, [getCurrentAudio, loadAndPlayOnCurrent]);
 
   const playTrack = useCallback(
     (index: number) => {
-      if (index === currentIndex && audioRef.current && !audioRef.current.paused) {
-        audioRef.current.pause();
-      } else {
-        loadAndPlay(index);
+      if (index === currentIndexRef.current) {
+        togglePlay();
+        return;
+      }
+      // 尝试无缝切换
+      if (!switchToPreloaded(index)) {
+        loadAndPlayOnCurrent(index);
       }
     },
-    [currentIndex, loadAndPlay],
+    [switchToPreloaded, loadAndPlayOnCurrent, togglePlay],
   );
 
   const prevTrack = useCallback(() => {
-    if (playlist.length === 0) return;
-    let nextIndex = currentIndex - 1;
-    if (nextIndex < 0) nextIndex = playlist.length - 1;
-    loadAndPlay(nextIndex);
-  }, [currentIndex, playlist, loadAndPlay]);
+    const list = playlistRef.current;
+    if (list.length === 0) return;
+    let prev = currentIndexRef.current - 1;
+    if (prev < 0) prev = list.length - 1;
+    playTrack(prev);
+  }, [playTrack]);
 
   const nextTrack = useCallback(() => {
-    if (playlist.length === 0) return;
-    const nextIdx = getNextIndex(currentIndex);
-    loadAndPlay(nextIdx);
-  }, [currentIndex, getNextIndex, loadAndPlay]);
-
-  useEffect(() => {
-    nextTrackRef.current = nextTrack;
-  }, [nextTrack]);
+    const list = playlistRef.current;
+    if (list.length === 0) return;
+    const nextIdx = getNextIndex(currentIndexRef.current);
+    playTrack(nextIdx);
+  }, [getNextIndex, playTrack]);
 
   const seek = useCallback((time: number) => {
-    if (audioRef.current && isFinite(time) && time >= 0) {
-      audioRef.current.currentTime = time;
+    const audio = getCurrentAudio();
+    if (audio && isFinite(time) && time >= 0) {
+      audio.currentTime = time;
     }
-  }, []);
+  }, [getCurrentAudio]);
 
-  // 绑定音频事件
+  // ---- 事件绑定（跟随 currentPlayerId）----
   useEffect(() => {
-    const audio = audioRef.current;
+    const audio = getCurrentAudio();
     if (!audio) return;
 
     const PRELOAD_THRESHOLD = 10;
 
     const onTimeUpdate = () => {
-      if (isFinite(audio.currentTime)) setCurrentTime(audio.currentTime);
+      if (!isFinite(audio.currentTime)) return;
+      setCurrentTime(audio.currentTime);
 
-      const remaining = audio.duration - audio.currentTime;
-      if (remaining <= PRELOAD_THRESHOLD && remaining > 0) {
-        preloadNextTrack(currentIndex);
+      const dur = audio.duration;
+      if (dur > 0 && dur - audio.currentTime <= PRELOAD_THRESHOLD) {
+        const nextIdx = getNextIndex(currentIndexRef.current);
+        if (nextIdx !== currentIndexRef.current) {
+          preloadTrack(nextIdx);
+        }
       }
     };
 
     const onLoadedMetadata = () => {
-      if (isFinite(audio.duration) && audio.duration > 0) {
-        setDuration(audio.duration);
-      }
+      if (isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration);
     };
 
     const onDurationChange = () => {
-      if (isFinite(audio.duration) && audio.duration > 0) {
-        setDuration(audio.duration);
-      }
+      if (isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration);
     };
 
-    // 无缝切换：使用预载缓存的索引
     const onEnded = () => {
-      const preAudio = preloadAudioRef.current;
-      const mainAudio = audioRef.current;
-
-      if (preAudio && preAudio.src && preAudio.readyState >= 2 && mainAudio) {
-        mainAudio.src = preAudio.src;
-        mainAudio.currentTime = 0;
-        mainAudio.load();
-        mainAudio.play().catch(() => {});
-
-        preAudio.src = "";
-        preAudio.load();
-        preloadLockRef.current = false;
-        setIsPreloading(false);
-
-        // 直接使用预载时缓存的索引
-        const nextIdx = preloadIndexRef.current;
-        if (nextIdx >= 0 && nextIdx < playlist.length) {
-          setCurrentIndex(nextIdx);
-        } else {
-          const fallbackIdx = getNextIndex(currentIndex);
-          setCurrentIndex(fallbackIdx);
-        }
-        preloadIndexRef.current = -1;
-      } else {
-        nextTrackRef.current();
+      const nextIdx = getNextIndex(currentIndexRef.current);
+      if (!switchToPreloaded(nextIdx)) {
+        // 预载未就绪，回退到当前播放器加载
+        loadAndPlayOnCurrent(nextIdx);
       }
     };
 
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
+
+    // 歌曲开始播放后立即预载下一首（更激进）
+    const onPlaying = () => {
+      const nextIdx = getNextIndex(currentIndexRef.current);
+      if (nextIdx !== currentIndexRef.current) {
+        preloadTrack(nextIdx);
+      }
+    };
 
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("loadedmetadata", onLoadedMetadata);
@@ -316,6 +346,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
+    audio.addEventListener("playing", onPlaying);
 
     return () => {
       audio.removeEventListener("timeupdate", onTimeUpdate);
@@ -324,18 +355,25 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
+      audio.removeEventListener("playing", onPlaying);
     };
-  }, [currentIndex, getNextIndex, preloadNextTrack, playlist.length]);
+  }, [currentPlayerId, getCurrentAudio, getNextIndex, switchToPreloaded, loadAndPlayOnCurrent, preloadTrack]);
 
   // 音量同步
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-    }
-    if (preloadAudioRef.current) {
-      preloadAudioRef.current.volume = volume;
-    }
+    if (audio1Ref.current) audio1Ref.current.volume = volume;
+    if (audio2Ref.current) audio2Ref.current.volume = volume;
   }, [volume]);
+
+  // 初始化首曲（无 src 时自动加载第一首）
+  useEffect(() => {
+    if (playlist.length > 0) {
+      const audio = getCurrentAudio();
+      if (audio && !audio.src) {
+        loadAndPlayOnCurrent(0);
+      }
+    }
+  }, [playlist, getCurrentAudio, loadAndPlayOnCurrent]);
 
   return (
     <MusicContext.Provider
