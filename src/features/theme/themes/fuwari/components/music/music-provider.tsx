@@ -68,6 +68,9 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
   const [showGlobalLyrics, setShowGlobalLyrics] = useState(false);
   const [isPreloading, setIsPreloading] = useState(false);
 
+  // 用于强制重新绑定事件的 key
+  const [activeAudioKey, setActiveAudioKey] = useState(0);
+
   const location = useLocation();
   const { data: playlist = [] } = useQuery(musicPlaylistQueryOptions());
 
@@ -202,10 +205,12 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
       preloadLockRef.current = false;
       setIsPreloading(false);
 
-      // 5. 用新的预载器（原来的 active）预载下一首
+      // 5. 强制重新绑定事件到新的 active 音频
+      setActiveAudioKey(prev => prev + 1);
+
+      // 6. 用新的预载器（原来的 active）预载下一首
       const nextIdx = getNextIndex(expectedIndex);
       if (nextIdx !== expectedIndex) {
-        // 延迟到下一个事件循环以确保 preloadAudioRef 已更新（实际已同步更新）
         setTimeout(() => preloadTrack(nextIdx), 0);
       }
 
@@ -232,6 +237,9 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
       audio.play().catch(() => {});
       setCurrentIndex(index);
       setIsPlaying(true);
+
+      // 强制重新绑定事件
+      setActiveAudioKey(prev => prev + 1);
 
       // 预载下一首
       const nextIdx = getNextIndex(index);
@@ -354,7 +362,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("playing", onPlaying);
     };
-  }, [getNextIndex, switchToPreloaded, loadAndPlayOnCurrent, preloadTrack]);
+  }, [activeAudioKey, getNextIndex, switchToPreloaded, loadAndPlayOnCurrent, preloadTrack]);
 
   // 音量同步
   useEffect(() => {
