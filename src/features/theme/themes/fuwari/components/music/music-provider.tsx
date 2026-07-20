@@ -1,194 +1,532 @@
-import { useMusic } from "./music-provider";
-import {
-  X, Play, Pause, SkipBack, SkipForward,
-  Repeat, Shuffle, Volume2, VolumeX, Loader2
-} from "lucide-react";
-import { MusicList } from "./music-list";
-import { useState, useEffect, useCallback } from "react";
-import { m } from "@/paraglide/messages";
-import { cn } from "@/lib/utils";
+import { createContext, useContext, useRef, useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useLocation } from '@tanstack/react-router';
+import { musicPlaylistQueryOptions } from '@/features/music/queries';
+import type { MusicTrack } from '@/features/music/schema';
 
-function formatTime(seconds: number) {
-  if (!isFinite(seconds)) return "0:00";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
+// ---------- Context 类型 ----------
+interface MusicContextType {
+  playlist: MusicTrack[];
+  currentIndex: number;
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  volume: number;
+  mode: 'list' | 'single' | 'random';
+  isLoading: boolean;
+  togglePlay: () => void;
+  playTrack: (index: number) => void;
+  prevTrack: () => void;
+  nextTrack: () => void;
+  seek: (time: number) => void;
+  setVolume: (vol: number) => void;
+  setMode: (mode: 'list' | 'single' | 'random') => void;
+  showGlobalLyrics: boolean;
+  setShowGlobalLyrics: (show: boolean) => void;
 }
 
-export function MusicPanel({ onClose }: { onClose: () => void }) {
-  const {
-    playlist, currentIndex, isPlaying, currentTime, duration, volume,
-    togglePlay, prevTrack, nextTrack, seek, setVolume,
-    mode, setMode, showGlobalLyrics, setShowGlobalLyrics,
-    isLoading  // 新增
-  } = useMusic();
+const MusicContext = createContext<MusicContextType | null>(null);
 
-  const track = playlist[currentIndex];
-  const [closing, setClosing] = useState(false);
-
-  const handleClose = useCallback(() => {
-    setClosing(true);
-    setTimeout(() => {
-      onClose();
-    }, 200);
-  }, [onClose]);
-
-  if (!track) {
-    return (
-      <div className={cn(
-        "fixed bottom-20 right-6 z-50 w-80 rounded-2xl",
-        "bg-(--fuwari-card-bg)/95 backdrop-blur-2xl",
-        "border border-(--fuwari-primary)/20",
-        "shadow-2xl shadow-black/20 overflow-hidden",
-        "p-6 text-center",
-        "animate-in fade-in slide-in-from-bottom-4 duration-200"
-      )}>
-        <p className="text-muted-foreground text-sm">暂无歌曲</p>
-        <button onClick={handleClose} className="mt-3 text-(--fuwari-primary) text-sm hover:underline">关闭</button>
-      </div>
-    );
+export const useMusic = () => {
+  const ctx = useContext(MusicContext);
+  if (!ctx) {
+    return {
+      playlist: [],
+      currentIndex: 0,
+      isPlaying: false,
+      currentTime: 0,
+      duration: 0,
+      volume: 0.7,
+      mode: 'list' as const,
+      isLoading: false,
+      togglePlay: () => {},
+      playTrack: () => {},
+      prevTrack: () => {},
+      nextTrack: () => {},
+      seek: () => {},
+      setVolume: () => {},
+      setMode: () => {},
+      showGlobalLyrics: false,
+      setShowGlobalLyrics: () => {},
+    };
   }
+  return ctx;
+};
 
+export function MusicProvider({ children }: { children: React.ReactNode }) {
+  // ---------- 状态 ----------
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(0.7);
+  const [mode, setMode] = useState<'list' | 'single' | 'random'>('list');
+  const [showGlobalLyrics, setShowGlobalLyrics] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const location = useLocation();
+  const { data: playlist = [] } = useQuery(musicPlaylistQueryOptions());
+
+  // ---------- Web Audio 引用 ----------
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const currentGainRef = useRef<GainNode | null>(null);
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const currentBufferRef = useRef<AudioBuffer | null>(null);
+  const nextBufferRef = useRef<AudioBuffer | null>(null);
+
+  // 状态 refs
+  const currentIndexRef = useRef(currentIndex);
+  const modeRef = useRef(mode);
+  const playlistRef = useRef(playlist);
+  const volumeRef = useRef(volume);
+  const isPlayingRef = useRef(isPlaying);
+
+  // 播放参数
+  const pauseOffsetRef = useRef(0);
+  const startTimeRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
+
+  // 取消令牌
+  const switchTokenRef = useRef(0);
+  const preloadTokenRef = useRef(0);
+
+  // 自动切换与加载锁
+  const autoSwitchPendingRef = useRef(false);
+  const isLoadingRef = useRef(false);
+
+  // 同步 refs
+  useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { playlistRef.current = playlist; }, [playlist]);
+  useEffect(() => { volumeRef.current = volume; }, [volume]);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+
+  // ---------- 工具函数 ----------
+  const getNextIndex = useCallback((currentIdx: number): number => {
+    const list = playlistRef.current;
+    if (list.length === 0) return currentIdx;
+    if (modeRef.current === 'single') return currentIdx;
+    if (modeRef.current === 'random') {
+      if (list.length === 1) return currentIdx;
+      let next;
+      do { next = Math.floor(Math.random() * list.length); } while (next === currentIdx);
+      return next;
+    }
+    const next = currentIdx + 1;
+    return next >= list.length ? 0 : next;
+  }, []);
+
+  const getPrevIndex = useCallback((currentIdx: number): number => {
+    const list = playlistRef.current;
+    if (list.length === 0) return currentIdx;
+    if (modeRef.current === 'single') return currentIdx;
+    if (modeRef.current === 'random') {
+      if (list.length === 1) return currentIdx;
+      let prev;
+      do { prev = Math.floor(Math.random() * list.length); } while (prev === currentIdx);
+      return prev;
+    }
+    const prev = currentIdx - 1;
+    return prev < 0 ? list.length - 1 : prev;
+  }, []);
+
+  const ensureAudioContext = useCallback(() => {
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    return audioCtxRef.current;
+  }, []);
+
+  const stopPlayback = useCallback(() => {
+    if (currentSourceRef.current) {
+      try { currentSourceRef.current.stop(); } catch (e) {}
+      currentSourceRef.current.disconnect();
+      currentSourceRef.current = null;
+    }
+    if (currentGainRef.current) {
+      currentGainRef.current.disconnect();
+      currentGainRef.current = null;
+    }
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, []);
+
+  // ---------- 解码与创建音频源 ----------
+  const decodeTrack = useCallback(async (
+    track: MusicTrack,
+    token: number,
+    cancelRef: React.MutableRefObject<number>
+  ): Promise<AudioBuffer | null> => {
+    try {
+      const response = await fetch(track.url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const arrayBuffer = await response.arrayBuffer();
+      if (token !== cancelRef.current) return null;
+      const ctx = ensureAudioContext();
+      const buffer = await ctx.decodeAudioData(arrayBuffer);
+      if (token !== cancelRef.current) return null;
+      return buffer;
+    } catch (error) {
+      console.error('解码失败:', track.title, error);
+      return null;
+    }
+  }, [ensureAudioContext]);
+
+  const createBufferSource = useCallback((buffer: AudioBuffer, offset = 0, when = 0) => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return null;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(when, offset);
+    return { source, gain };
+  }, []);
+
+  // ---------- 预载下一首 ----------
+  const preloadNext = useCallback((currentIdx: number) => {
+    const nextIdx = getNextIndex(currentIdx);
+    if (nextIdx === currentIdx) return;
+    const token = ++preloadTokenRef.current;
+    const track = playlistRef.current[nextIdx];
+    if (track?.url) {
+      decodeTrack(track, token, preloadTokenRef).then(buf => {
+        if (token === preloadTokenRef.current && buf) {
+          nextBufferRef.current = buf;
+        }
+      }).catch(() => {});
+    }
+  }, [getNextIndex, decodeTrack]);
+
+  // ---------- 进度更新 ref（避免循环依赖） ----------
+  const updateProgressRef = useRef<() => void>(() => {});
+
+  // ---------- 核心加载函数（带并发锁，finally 保证解锁） ----------
+  const loadAndPlay = useCallback(async (index: number, isAuto = false) => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
+    setIsLoading(true);
+
+    const token = ++switchTokenRef.current;
+    try {
+      const track = playlistRef.current[index];
+      if (!track) {
+        if (isAuto) autoSwitchPendingRef.current = false;
+        return;
+      }
+
+      stopPlayback();
+      setCurrentTime(0);
+      setDuration(0);
+      setIsPlaying(false);
+
+      const ctx = ensureAudioContext();
+      if (ctx.state === 'suspended') await ctx.resume();
+
+      const buffer = await decodeTrack(track, token, switchTokenRef);
+      if (token !== switchTokenRef.current) {
+        if (isAuto) autoSwitchPendingRef.current = false;
+        return;
+      }
+      if (!buffer) {
+        if (isAuto) autoSwitchPendingRef.current = false;
+        return;
+      }
+
+      currentBufferRef.current = buffer;
+      setDuration(buffer.duration);
+
+      const { source, gain } = createBufferSource(buffer, 0, ctx.currentTime)!;
+      currentSourceRef.current = source;
+      currentGainRef.current = gain;
+      gain.gain.setValueAtTime(volumeRef.current, ctx.currentTime);
+
+      startTimeRef.current = ctx.currentTime;
+      pauseOffsetRef.current = 0;
+      setCurrentIndex(index);
+      setIsPlaying(true);
+
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(updateProgressRef.current);
+
+      preloadNext(index);
+    } finally {
+      isLoadingRef.current = false;
+      setIsLoading(false);
+      if (isAuto) autoSwitchPendingRef.current = false;
+    }
+  }, [stopPlayback, ensureAudioContext, decodeTrack, createBufferSource, preloadNext]);
+
+  // ---------- 无缝切换（消除咔声） ----------
+  const immediateSwitch = useCallback((nextIndex: number) => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) {
+      autoSwitchPendingRef.current = false;
+      return;
+    }
+    const buffer = nextBufferRef.current;
+    if (!buffer) {
+      autoSwitchPendingRef.current = false;
+      loadAndPlay(nextIndex, true);
+      return;
+    }
+
+    const now = ctx.currentTime;
+    const currentPos = pauseOffsetRef.current + (now - startTimeRef.current);
+    const dur = currentBufferRef.current!.duration;
+    const remaining = dur - currentPos;
+    const crossfade = 0.05;
+
+    const fadeStart = now + Math.max(remaining - crossfade, 0.001);
+
+    // 旧源安排淡出，不强制停止
+    const oldSource = currentSourceRef.current;
+    const oldGain = currentGainRef.current;
+    if (oldSource && oldGain) {
+      oldGain.gain.cancelScheduledValues(fadeStart);
+      oldGain.gain.setValueAtTime(volumeRef.current, fadeStart);
+      oldGain.gain.linearRampToValueAtTime(0, fadeStart + crossfade);
+      oldSource.onended = () => {
+        oldSource.disconnect();
+        oldGain.disconnect();
+      };
+    }
+
+    // 新源淡入
+    const { source, gain } = createBufferSource(buffer, 0, fadeStart)!;
+    gain.gain.setValueAtTime(0, fadeStart);
+    gain.gain.linearRampToValueAtTime(volumeRef.current, fadeStart + crossfade);
+
+    currentSourceRef.current = source;
+    currentGainRef.current = gain;
+    currentBufferRef.current = buffer;
+    nextBufferRef.current = null;
+
+    startTimeRef.current = fadeStart;
+    pauseOffsetRef.current = 0;
+
+    setCurrentIndex(nextIndex);
+    setDuration(buffer.duration);
+    setCurrentTime(0);
+    setIsPlaying(true);
+
+    preloadNext(nextIndex);
+
+    autoSwitchPendingRef.current = false;
+  }, [createBufferSource, preloadNext, loadAndPlay]);
+
+  // ---------- 进度更新 ----------
+  const updateProgress = useCallback(() => {
+    if (!audioCtxRef.current) {
+      rafRef.current = requestAnimationFrame(updateProgressRef.current);
+      return;
+    }
+    const ctx = audioCtxRef.current;
+
+    if (ctx.state === 'suspended' && isPlayingRef.current) {
+      setIsPlaying(false);
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      return;
+    }
+
+    if (isPlayingRef.current && currentBufferRef.current && currentSourceRef.current) {
+      const elapsed = ctx.currentTime - startTimeRef.current;
+      const dur = currentBufferRef.current.duration;
+      const pos = Math.min(Math.max(elapsed + pauseOffsetRef.current, 0), dur);
+      setCurrentTime(pos);
+
+      if (pos >= dur - 0.1 && !autoSwitchPendingRef.current) {
+        autoSwitchPendingRef.current = true;
+        const nextIdx = getNextIndex(currentIndexRef.current);
+
+        if (modeRef.current === 'single') {
+          autoSwitchPendingRef.current = false;
+          loadAndPlay(currentIndexRef.current, true);
+        } else if (nextIdx !== currentIndexRef.current) {
+          immediateSwitch(nextIdx);
+        } else {
+          stopPlayback();
+          setIsPlaying(false);
+          autoSwitchPendingRef.current = false;
+        }
+      }
+    }
+    rafRef.current = requestAnimationFrame(updateProgressRef.current);
+  }, [getNextIndex, immediateSwitch, loadAndPlay, stopPlayback]);
+
+  useEffect(() => {
+    updateProgressRef.current = updateProgress;
+  }, [updateProgress]);
+
+  // ---------- 播放/暂停切换 ----------
+  const togglePlay = useCallback(async () => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) {
+      if (!currentBufferRef.current) return;
+      if (playlistRef.current.length) await loadAndPlay(0);
+      return;
+    }
+    if (ctx.state === 'suspended') await ctx.resume();
+
+    if (isPlayingRef.current) {
+      // 暂停
+      if (currentSourceRef.current) {
+        const elapsed = ctx.currentTime - startTimeRef.current;
+        pauseOffsetRef.current += elapsed;
+        currentSourceRef.current.stop();
+        currentSourceRef.current.disconnect();
+        currentSourceRef.current = null;
+        if (currentGainRef.current) {
+          currentGainRef.current.disconnect();
+          currentGainRef.current = null;
+        }
+        setIsPlaying(false);
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
+      }
+    } else {
+      // 恢复播放
+      if (currentBufferRef.current) {
+        const offset = Math.min(pauseOffsetRef.current, currentBufferRef.current.duration - 0.1);
+        const { source, gain } = createBufferSource(currentBufferRef.current, offset, ctx.currentTime)!;
+        currentSourceRef.current = source;
+        currentGainRef.current = gain;
+        gain.gain.setValueAtTime(volumeRef.current, ctx.currentTime);
+        startTimeRef.current = ctx.currentTime;
+        setIsPlaying(true);
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(updateProgressRef.current);
+      } else {
+        if (playlistRef.current.length) await loadAndPlay(0);
+      }
+    }
+  }, [loadAndPlay, createBufferSource]);
+
+  // ---------- 拖动进度 ----------
+  const seek = useCallback((time: number) => {
+    if (!currentBufferRef.current) return;
+    const clamped = Math.max(0, Math.min(time, currentBufferRef.current.duration));
+    if (isPlayingRef.current && currentSourceRef.current && audioCtxRef.current) {
+      const ctx = audioCtxRef.current;
+      currentSourceRef.current.stop();
+      currentSourceRef.current.disconnect();
+      if (currentGainRef.current) currentGainRef.current.disconnect();
+
+      const { source, gain } = createBufferSource(currentBufferRef.current, clamped, ctx.currentTime)!;
+      currentSourceRef.current = source;
+      currentGainRef.current = gain;
+      gain.gain.setValueAtTime(volumeRef.current, ctx.currentTime);
+      startTimeRef.current = ctx.currentTime;
+      pauseOffsetRef.current = clamped;
+      setCurrentTime(clamped);
+    } else {
+      pauseOffsetRef.current = clamped;
+      setCurrentTime(clamped);
+    }
+  }, [createBufferSource]);
+
+  // ---------- 手动切歌 ----------
+  const switchToTrack = useCallback((index: number) => {
+    autoSwitchPendingRef.current = false;
+    switchTokenRef.current += 1;
+
+    const sameTrack = index === currentIndexRef.current;
+    if (sameTrack && modeRef.current !== 'single') {
+      togglePlay();
+      return;
+    }
+
+    // 立即更新 UI
+    setCurrentIndex(index);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPlaying(false);
+    stopPlayback();
+
+    loadAndPlay(index, false);
+  }, [togglePlay, loadAndPlay, stopPlayback]);
+
+  // ---------- 外部 API ----------
+  const playTrack = useCallback((index: number) => {
+    switchToTrack(index);
+  }, [switchToTrack]);
+
+  const prevTrack = useCallback(() => {
+    const list = playlistRef.current;
+    if (list.length === 0) return;
+    const prevIdx = getPrevIndex(currentIndexRef.current);
+    playTrack(prevIdx);
+  }, [getPrevIndex, playTrack]);
+
+  const nextTrack = useCallback(() => {
+    const list = playlistRef.current;
+    if (list.length === 0) return;
+    const nextIdx = getNextIndex(currentIndexRef.current);
+    playTrack(nextIdx);
+  }, [getNextIndex, playTrack]);
+
+  // ---------- 路由变化暂停 ----------
+  useEffect(() => {
+    if (location.pathname.startsWith('/admin') && isPlayingRef.current) {
+      togglePlay();
+    }
+  }, [location.pathname, togglePlay]);
+
+  // ---------- 音量同步 ----------
+  useEffect(() => {
+    if (currentGainRef.current && audioCtxRef.current) {
+      currentGainRef.current.gain.setValueAtTime(volume, audioCtxRef.current.currentTime);
+    }
+  }, [volume]);
+
+  // ---------- 组件卸载清理 ----------
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      stopPlayback();
+      if (audioCtxRef.current) audioCtxRef.current.close();
+    };
+  }, [stopPlayback]);
+
+  // ---------- 初始加载 ----------
+  useEffect(() => {
+    if (playlist.length > 0 && !currentBufferRef.current && !isLoadingRef.current) {
+      loadAndPlay(0);
+    }
+  }, [playlist, loadAndPlay]);
+
+  // ---------- 返回值 ----------
   return (
-    <div className={cn(
-      "fixed bottom-20 right-6 z-50 w-80 rounded-2xl",
-      "bg-(--fuwari-card-bg)/95 backdrop-blur-2xl",
-      "border border-(--fuwari-primary)/20",
-      "shadow-2xl shadow-black/20 overflow-hidden",
-      "transition-all duration-200 ease-out",
-      closing
-        ? "opacity-0 scale-95 translate-y-2"
-        : "animate-in fade-in slide-in-from-bottom-4"
-    )}>
-      {/* 封面区域 */}
-      <div className="relative h-40 overflow-hidden">
-        <img
-          src={track.cover || "/images/music-placeholder.png"}
-          alt="cover"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-        <button
-          onClick={handleClose}
-          className="absolute top-2 right-2 p-1 rounded-full bg-black/30 text-white hover:bg-black/50"
-        >
-          <X size={16} />
-        </button>
-        <div className="absolute bottom-0 left-0 right-0 p-4">
-          <h4 className="text-white font-bold text-base truncate">{track.name}</h4>
-          <p className="text-white/70 text-sm truncate">{track.artist}</p>
-        </div>
-      </div>
-
-      {/* 进度条 */}
-      <div className="px-4 pt-3">
-        <input
-          type="range"
-          min={0}
-          max={duration || 1}  // 避免为 0 导致滑块失效
-          value={currentTime}
-          disabled={isLoading || duration === 0}
-          onChange={(e) => seek(+e.target.value)}
-          className={cn(
-            "w-full h-1 accent-(--fuwari-primary)",
-            (isLoading || duration === 0) && "opacity-50 cursor-not-allowed"
-          )}
-        />
-        <div className="flex justify-between text-xs text-muted-foreground mt-1">
-          <span>{formatTime(currentTime)}</span>
-          <span>{isLoading ? "加载中..." : formatTime(duration)}</span>
-        </div>
-      </div>
-
-      {/* 控制按钮 */}
-      <div className="flex items-center justify-center gap-4 py-2">
-        <button
-          onClick={() => setMode(mode === "single" ? "list" : mode === "list" ? "random" : "single")}
-          className="text-muted-foreground hover:text-(--fuwari-primary)"
-          title={
-            mode === "list" ? "列表循环" :
-            mode === "single" ? "单曲循环" :
-            "随机播放"
-          }
-        >
-          {mode === "list" ? (
-            <Repeat size={18} />
-          ) : mode === "single" ? (
-            <Repeat size={18} className="text-(--fuwari-primary)" />
-          ) : (
-            <Shuffle size={18} className="text-(--fuwari-primary)" />
-          )}
-        </button>
-
-        <button
-          onClick={prevTrack}
-          className="text-foreground hover:text-(--fuwari-primary)"
-        >
-          <SkipBack size={22} />
-        </button>
-
-        {/* 播放/暂停按钮：加载中禁用 */}
-        <button
-          onClick={togglePlay}
-          disabled={isLoading}
-          className={cn(
-            "w-12 h-12 rounded-full flex items-center justify-center shadow-lg",
-            "bg-(--fuwari-primary) text-white",
-            "hover:opacity-90 transition-opacity",
-            isLoading && "opacity-50 cursor-not-allowed"
-          )}
-        >
-          {isLoading ? (
-            <Loader2 size={24} className="animate-spin" />
-          ) : isPlaying ? (
-            <Pause size={24} />
-          ) : (
-            <Play size={24} className="ml-1" />
-          )}
-        </button>
-
-        <button
-          onClick={nextTrack}
-          className="text-foreground hover:text-(--fuwari-primary)"
-        >
-          <SkipForward size={22} />
-        </button>
-
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setVolume(volume === 0 ? 0.7 : 0)}
-            className="text-muted-foreground hover:text-(--fuwari-primary)"
-          >
-            {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={volume}
-            onChange={(e) => setVolume(parseFloat(e.target.value))}
-            className="w-16 h-1 accent-(--fuwari-primary)"
-          />
-        </div>
-      </div>
-
-      {/* 歌词全局开关 */}
-      <div className="px-4 pb-2 text-center">
-        <button
-          onClick={() => setShowGlobalLyrics(!showGlobalLyrics)}
-          className="text-(--fuwari-primary) text-xs hover:underline"
-        >
-          {showGlobalLyrics
-            ? m.music_hide_lyrics?.() ?? "隐藏歌词"
-            : m.music_show_lyrics?.() ?? "显示歌词"}
-        </button>
-      </div>
-
-      {/* 歌单列表 */}
-      <div className="max-h-60 overflow-y-auto border-t border-(--fuwari-primary)/10">
-        <MusicList compact />
-      </div>
-    </div>
+    <MusicContext.Provider
+      value={{
+        playlist,
+        currentIndex,
+        isPlaying,
+        currentTime,
+        duration,
+        volume,
+        mode,
+        isLoading,
+        togglePlay,
+        playTrack,
+        prevTrack,
+        nextTrack,
+        seek,
+        setVolume,
+        setMode,
+        showGlobalLyrics,
+        setShowGlobalLyrics,
+      }}
+    >
+      {children}
+    </MusicContext.Provider>
   );
 }
