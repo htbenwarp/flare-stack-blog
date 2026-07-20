@@ -172,7 +172,7 @@ RSS地址：${blogInfo.rssUrl}
             ) : (
               <Copy className="w-4 h-4" />
             )}
-            {copied ? "已复制" : "复制友链信息"}
+            {copied ? "已复制" : "复制本站信息"}
           </button>
         </div>
 
