@@ -4,7 +4,6 @@ import { useLocation } from '@tanstack/react-router';
 import { musicPlaylistQueryOptions } from '@/features/music/queries';
 import type { MusicTrack } from '@/features/music/schema';
 
-// ---------- Context 类型 ----------
 interface MusicContextType {
   playlist: MusicTrack[];
   currentIndex: number;
@@ -73,6 +72,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
   const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const currentBufferRef = useRef<AudioBuffer | null>(null);
   const nextBufferRef = useRef<AudioBuffer | null>(null);
+  const nextBufferIndexRef = useRef<number>(-1); // 预载的索引
 
   // 状态 refs
   const currentIndexRef = useRef(currentIndex);
@@ -153,24 +153,47 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // ---------- 解码与创建音频源 ----------
+  // ---------- 解码（保留超时保护） ----------
   const decodeTrack = useCallback(async (
     track: MusicTrack,
     token: number,
     cancelRef: React.MutableRefObject<number>
   ): Promise<AudioBuffer | null> => {
+    const FETCH_TIMEOUT = 15000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+
     try {
-      const response = await fetch(track.url);
+      if (token !== cancelRef.current) return null;
+
+      const response = await fetch(track.url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const arrayBuffer = await response.arrayBuffer();
+
       if (token !== cancelRef.current) return null;
+
       const ctx = ensureAudioContext();
-      const buffer = await ctx.decodeAudioData(arrayBuffer);
+      const DECODE_TIMEOUT = 5000;
+      const decodePromise = ctx.decodeAudioData(arrayBuffer);
+      const timeoutPromise = new Promise<AudioBuffer>((_, reject) =>
+        setTimeout(() => reject(new Error('解码超时')), DECODE_TIMEOUT)
+      );
+
+      const buffer = await Promise.race([decodePromise, timeoutPromise]);
+
       if (token !== cancelRef.current) return null;
       return buffer;
-    } catch (error) {
-      console.error('解码失败:', track.title, error);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.warn('解码取消或超时:', track.title);
+      } else {
+        console.error('解码失败:', track.title, error);
+      }
       return null;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }, [ensureAudioContext]);
 
@@ -186,7 +209,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     return { source, gain };
   }, []);
 
-  // ---------- 预载下一首 ----------
+  // ---------- 预载下一首（记录索引） ----------
   const preloadNext = useCallback((currentIdx: number) => {
     const nextIdx = getNextIndex(currentIdx);
     if (nextIdx === currentIdx) return;
@@ -196,63 +219,63 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
       decodeTrack(track, token, preloadTokenRef).then(buf => {
         if (token === preloadTokenRef.current && buf) {
           nextBufferRef.current = buf;
+          nextBufferIndexRef.current = nextIdx; // 记录预载的索引
         }
       }).catch(() => {});
     }
   }, [getNextIndex, decodeTrack]);
 
-  // ---------- 进度更新 ref（避免循环依赖） ----------
   const updateProgressRef = useRef<() => void>(() => {});
 
-  // ---------- 核心加载函数（带并发锁，finally 保证解锁） ----------
-  const loadAndPlay = useCallback(async (index: number, isAuto = false) => {
+  // ---------- 核心加载 ----------
+  const loadAndPlay = useCallback(async (index: number, isAuto = false, startPlaying = true) => {
     if (isLoadingRef.current) return;
     isLoadingRef.current = true;
     setIsLoading(true);
 
     const token = ++switchTokenRef.current;
+    const track = playlistRef.current[index];
+    if (!track) {
+      isLoadingRef.current = false;
+      setIsLoading(false);
+      if (isAuto) autoSwitchPendingRef.current = false;
+      return;
+    }
+
+    stopPlayback();
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPlaying(false);
+
     try {
-      const track = playlistRef.current[index];
-      if (!track) {
-        if (isAuto) autoSwitchPendingRef.current = false;
-        return;
-      }
-
-      stopPlayback();
-      setCurrentTime(0);
-      setDuration(0);
-      setIsPlaying(false);
-
       const ctx = ensureAudioContext();
-      if (ctx.state === 'suspended') await ctx.resume();
 
       const buffer = await decodeTrack(track, token, switchTokenRef);
-      if (token !== switchTokenRef.current) {
-        if (isAuto) autoSwitchPendingRef.current = false;
-        return;
-      }
-      if (!buffer) {
-        if (isAuto) autoSwitchPendingRef.current = false;
-        return;
-      }
+      if (token !== switchTokenRef.current || !buffer) return;
 
       currentBufferRef.current = buffer;
       setDuration(buffer.duration);
-
-      const { source, gain } = createBufferSource(buffer, 0, ctx.currentTime)!;
-      currentSourceRef.current = source;
-      currentGainRef.current = gain;
-      gain.gain.setValueAtTime(volumeRef.current, ctx.currentTime);
-
-      startTimeRef.current = ctx.currentTime;
-      pauseOffsetRef.current = 0;
       setCurrentIndex(index);
-      setIsPlaying(true);
 
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(updateProgressRef.current);
+      if (startPlaying) {
+        if (ctx.state === 'suspended') {
+          await ctx.resume();
+        }
 
-      preloadNext(index);
+        const { source, gain } = createBufferSource(buffer, 0, ctx.currentTime)!;
+        currentSourceRef.current = source;
+        currentGainRef.current = gain;
+        gain.gain.setValueAtTime(volumeRef.current, ctx.currentTime);
+
+        startTimeRef.current = ctx.currentTime;
+        pauseOffsetRef.current = 0;
+        setIsPlaying(true);
+
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(updateProgressRef.current);
+
+        preloadNext(index);
+      }
     } finally {
       isLoadingRef.current = false;
       setIsLoading(false);
@@ -260,17 +283,20 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     }
   }, [stopPlayback, ensureAudioContext, decodeTrack, createBufferSource, preloadNext]);
 
-  // ---------- 无缝切换（消除咔声） ----------
-  const immediateSwitch = useCallback((nextIndex: number) => {
+  // ---------- 无缝切换（使用预载索引） ----------
+  const immediateSwitch = useCallback(() => {
     const ctx = audioCtxRef.current;
     if (!ctx) {
       autoSwitchPendingRef.current = false;
       return;
     }
     const buffer = nextBufferRef.current;
-    if (!buffer) {
+    const nextIdx = nextBufferIndexRef.current;
+    if (!buffer || nextIdx < 0) {
+      // 降级：重新随机并加载
       autoSwitchPendingRef.current = false;
-      loadAndPlay(nextIndex, true);
+      const fallbackIdx = getNextIndex(currentIndexRef.current);
+      loadAndPlay(fallbackIdx, true);
       return;
     }
 
@@ -282,7 +308,6 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
 
     const fadeStart = now + Math.max(remaining - crossfade, 0.001);
 
-    // 旧源安排淡出，不强制停止
     const oldSource = currentSourceRef.current;
     const oldGain = currentGainRef.current;
     if (oldSource && oldGain) {
@@ -295,7 +320,6 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    // 新源淡入
     const { source, gain } = createBufferSource(buffer, 0, fadeStart)!;
     gain.gain.setValueAtTime(0, fadeStart);
     gain.gain.linearRampToValueAtTime(volumeRef.current, fadeStart + crossfade);
@@ -304,19 +328,20 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     currentGainRef.current = gain;
     currentBufferRef.current = buffer;
     nextBufferRef.current = null;
+    nextBufferIndexRef.current = -1; // 消耗后清空
 
     startTimeRef.current = fadeStart;
     pauseOffsetRef.current = 0;
 
-    setCurrentIndex(nextIndex);
+    setCurrentIndex(nextIdx); // 使用预载的索引
     setDuration(buffer.duration);
     setCurrentTime(0);
     setIsPlaying(true);
 
-    preloadNext(nextIndex);
+    preloadNext(nextIdx);
 
     autoSwitchPendingRef.current = false;
-  }, [createBufferSource, preloadNext, loadAndPlay]);
+  }, [createBufferSource, preloadNext, loadAndPlay, getNextIndex]);
 
   // ---------- 进度更新 ----------
   const updateProgress = useCallback(() => {
@@ -349,7 +374,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
           autoSwitchPendingRef.current = false;
           loadAndPlay(currentIndexRef.current, true);
         } else if (nextIdx !== currentIndexRef.current) {
-          immediateSwitch(nextIdx);
+          immediateSwitch(); // 不再传参
         } else {
           stopPlayback();
           setIsPlaying(false);
@@ -360,9 +385,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     rafRef.current = requestAnimationFrame(updateProgressRef.current);
   }, [getNextIndex, immediateSwitch, loadAndPlay, stopPlayback]);
 
-  useEffect(() => {
-    updateProgressRef.current = updateProgress;
-  }, [updateProgress]);
+  useEffect(() => { updateProgressRef.current = updateProgress; }, [updateProgress]);
 
   // ---------- 播放/暂停切换 ----------
   const togglePlay = useCallback(async () => {
@@ -375,7 +398,6 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     if (ctx.state === 'suspended') await ctx.resume();
 
     if (isPlayingRef.current) {
-      // 暂停
       if (currentSourceRef.current) {
         const elapsed = ctx.currentTime - startTimeRef.current;
         pauseOffsetRef.current += elapsed;
@@ -393,7 +415,6 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } else {
-      // 恢复播放
       if (currentBufferRef.current) {
         const offset = Math.min(pauseOffsetRef.current, currentBufferRef.current.duration - 0.1);
         const { source, gain } = createBufferSource(currentBufferRef.current, offset, ctx.currentTime)!;
@@ -444,50 +465,45 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // 立即更新 UI
     setCurrentIndex(index);
     setCurrentTime(0);
     setDuration(0);
     setIsPlaying(false);
     stopPlayback();
 
+    // 清空预载缓冲，防止索引错乱
+    nextBufferRef.current = null;
+    nextBufferIndexRef.current = -1;
+
     loadAndPlay(index, false);
   }, [togglePlay, loadAndPlay, stopPlayback]);
 
-  // ---------- 外部 API ----------
-  const playTrack = useCallback((index: number) => {
-    switchToTrack(index);
-  }, [switchToTrack]);
+  const playTrack = useCallback((index: number) => { switchToTrack(index); }, [switchToTrack]);
 
   const prevTrack = useCallback(() => {
-    const list = playlistRef.current;
-    if (list.length === 0) return;
+    if (playlistRef.current.length === 0) return;
     const prevIdx = getPrevIndex(currentIndexRef.current);
     playTrack(prevIdx);
   }, [getPrevIndex, playTrack]);
 
   const nextTrack = useCallback(() => {
-    const list = playlistRef.current;
-    if (list.length === 0) return;
+    if (playlistRef.current.length === 0) return;
     const nextIdx = getNextIndex(currentIndexRef.current);
     playTrack(nextIdx);
   }, [getNextIndex, playTrack]);
 
-  // ---------- 路由变化暂停 ----------
   useEffect(() => {
     if (location.pathname.startsWith('/admin') && isPlayingRef.current) {
       togglePlay();
     }
   }, [location.pathname, togglePlay]);
 
-  // ---------- 音量同步 ----------
   useEffect(() => {
     if (currentGainRef.current && audioCtxRef.current) {
       currentGainRef.current.gain.setValueAtTime(volume, audioCtxRef.current.currentTime);
     }
   }, [volume]);
 
-  // ---------- 组件卸载清理 ----------
   useEffect(() => {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -496,14 +512,12 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     };
   }, [stopPlayback]);
 
-  // ---------- 初始加载 ----------
   useEffect(() => {
     if (playlist.length > 0 && !currentBufferRef.current && !isLoadingRef.current) {
-      loadAndPlay(0);
+      loadAndPlay(0, false, false);
     }
   }, [playlist, loadAndPlay]);
 
-  // ---------- 返回值 ----------
   return (
     <MusicContext.Provider
       value={{

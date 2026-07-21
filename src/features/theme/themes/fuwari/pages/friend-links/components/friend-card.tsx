@@ -35,7 +35,6 @@ export function FriendCard({ link, className, style }: FriendCardProps) {
               className="w-full h-full object-cover transition-opacity duration-300"
               loading="lazy"
               onError={(e) => {
-                // Fallback icon on image load failure by hiding image and showing the background icon conceptually
                 e.currentTarget.style.display = "none";
                 e.currentTarget.parentElement?.classList.add(
                   "!bg-(--fuwari-btn-regular-bg)",
@@ -49,9 +48,13 @@ export function FriendCard({ link, className, style }: FriendCardProps) {
 
         {/* Content Area */}
         <div className="min-w-0 flex-1 flex flex-col justify-center">
-          <h3 className="text-lg font-bold fuwari-text-90 truncate transition-colors duration-300 group-hover:text-(--fuwari-primary) flex items-center gap-1.5">
-            {link.siteName}
-            <ExternalLink className="w-4 h-4 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-(--fuwari-primary)" />
+          <h3 className="text-lg font-bold fuwari-text-90 transition-colors duration-300 group-hover:text-(--fuwari-primary) flex items-center gap-1.5">
+            {/* 用 span 包裹文本，并给父级相对定位 */}
+            <span className="relative inline-block truncate max-w-full">
+              {link.siteName}
+              <span className="absolute -bottom-0.5 left-0 w-full h-[2px] bg-(--fuwari-primary) scale-x-0 origin-center transition-transform duration-300 ease-out group-hover:scale-x-100" />
+            </span>
+            <ExternalLink className="w-4 h-4 shrink-0 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-(--fuwari-primary)" />
           </h3>
           <p
             className="text-sm fuwari-text-50 mt-1 line-clamp-2 leading-relaxed"

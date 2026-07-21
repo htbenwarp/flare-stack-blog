@@ -41,6 +41,7 @@ export async function submitFriendLink(
     description: data.description,
     logoUrl: data.logoUrl,
     contactEmail: data.contactEmail,
+    rssUrl: data.rssUrl,
     userId: context.session.user.id,
     status: "pending",
   });
@@ -117,6 +118,7 @@ export async function createFriendLink(
     description: data.description,
     logoUrl: data.logoUrl,
     contactEmail: data.contactEmail,
+    rssUrl: data.rssUrl,
     userId: null,
     status: "approved",
   });

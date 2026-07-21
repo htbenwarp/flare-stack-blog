@@ -726,3 +726,39 @@ html:not(.card-opacity-enabled).dark .fuwari-card-base,
   background-color: oklch(0.25 0.01 var(--fuwari-hue)) !important;
 }
 
+/* ============================================================
+   表格横向滚动（移动端适配）
+   ============================================================ */
+
+.fuwari-custom-md table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch; /* iOS 平滑滚动 */
+  white-space: nowrap; /* 防止单元格内容换行，保持表格列宽 */
+}
+
+.fuwari-custom-md table td,
+.fuwari-custom-md table th {
+  white-space: normal;
+  min-width: 80px; 
+}
+
+.fuwari-custom-md table::-webkit-scrollbar {
+  height: 6px;
+}
+
+.fuwari-custom-md table::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.fuwari-custom-md table::-webkit-scrollbar-thumb {
+  background: var(--fuwari-primary);
+  border-radius: 9999px;
+}
+
+/* 暗色模式适配 */
+:is(.dark .fuwari-custom-md) table::-webkit-scrollbar-thumb {
+  background: var(--fuwari-primary);
+}
+

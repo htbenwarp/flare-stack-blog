@@ -76,8 +76,7 @@ export function renderReact(content: JSONContent) {
             height?: number | string;
           };
           const alt =
-            (attrs.alt && attrs.alt !== "null" ? attrs.alt : null) ||
-            "blog image";
+            attrs.alt && attrs.alt !== "null" ? attrs.alt : "";
           const width =
             typeof attrs.width === "string" ? parseInt(attrs.width) : attrs.width;
           const height =
