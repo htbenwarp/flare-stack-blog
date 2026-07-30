@@ -12,7 +12,6 @@ import { NullableJsonContentSchema } from "./json-content.schema";
 const coercedDate = z.union([z.date(), z.string().pipe(z.coerce.date())]);
 const coercedDateNullable = coercedDate.nullable();
 
-// ✅ 基础查询 schema：已移除 passwordHash 和 publicContentJson
 export const PostSelectSchema = createSelectSchema(PostsTable, {
   publishedAt: coercedDateNullable,
   pinnedAt: coercedDateNullable,
@@ -40,14 +39,13 @@ export const PostUpdateSchema = createUpdateSchema(PostsTable, {
   })
   .passthrough();
 
-// ✅ 列表项：增加 isEncrypted 容错
 export const PostItemSchema = PostSelectSchema.omit({
   contentJson: true,
 }).extend({
   tags: z.array(TagSelectSchema).optional(),
   isEncrypted: z.boolean().optional().default(false),
-  isGuestPost: z.boolean().optional().default(false),    // ✅ 新增
-  guestAuthorId: z.number().nullable().optional(),       // ✅ 新增
+  isGuestPost: z.boolean().optional().default(false),
+  guestAuthorId: z.number().nullable().optional(),
 });
 
 export const PostListResponseSchema = z.object({
@@ -78,11 +76,22 @@ export const PostWithTocSchema = PostSelectSchema.extend({
   guestAuthorSlug: z.string().nullable().optional(),
 }).nullable();
 
+// ✅ 上游新增的工具函数（已合并）
+export function normalizePostTagName(
+  tagName: string | undefined,
+): string | undefined {
+  return tagName === "" ? undefined : tagName;
+}
+
+export const PostTagNameSchema = z
+  .string()
+  .transform(normalizePostTagName)
+  .optional();
 
 export const GetPostsCursorInputSchema = z.object({
   cursor: z.number().optional(),
   limit: z.number().optional(),
-  tagName: z.string().optional(),
+  tagName: PostTagNameSchema,
   excludePinned: z.boolean().optional(),
 });
 
@@ -99,7 +108,6 @@ export type GetPostsCursorInput = z.infer<typeof GetPostsCursorInputSchema>;
 export type FindPostBySlugInput = z.infer<typeof FindPostBySlugInputSchema>;
 export type FindRelatedPostsInput = z.infer<typeof FindRelatedPostsInputSchema>;
 
-// Admin API Schemas
 export const GenerateSlugInputSchema = z.object({
   title: z.string().optional(),
   excludeId: z.number().optional(),
@@ -157,8 +165,10 @@ export type PostItem = z.infer<typeof PostItemSchema>;
 export type PostWithToc = z.infer<typeof PostWithTocSchema>;
 
 export const POSTS_CACHE_KEYS = {
-  list: (version: string, limit: number, cursor: number, tagName: string) =>
-    ["posts", "list", version, limit, cursor, tagName] as const,
+  list: (version: string, limit: number, cursor: number, tagName?: string) =>
+    tagName === undefined
+      ? (["posts", "list", version, limit, cursor, "all"] as const)
+      : (["posts", "list", version, limit, cursor, "tag", tagName] as const),
   detail: (version: string, slug: string) => [version, "post", slug] as const,
   related: (slug: string, limit?: number) =>
     ["posts", "related-ids", slug, limit] as const,
