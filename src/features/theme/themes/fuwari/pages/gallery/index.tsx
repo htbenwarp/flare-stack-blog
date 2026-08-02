@@ -24,6 +24,27 @@ interface GalleryItem {
 const BATCH = 12;
 const GAP = 8;
 
+// 全局尺寸缓存（key: 优化图 URL，value: 宽高）
+const sizeCache = new Map<string, { w: number; h: number }>();
+
+function preloadImageSize(src: string): Promise<{ w: number; h: number }> {
+  if (sizeCache.has(src)) return Promise.resolve(sizeCache.get(src)!);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const size = { w: img.naturalWidth, h: img.naturalHeight };
+      sizeCache.set(src, size);
+      resolve(size);
+    };
+    img.onerror = () => {
+      const fallback = { w: 800, h: 600 };
+      sizeCache.set(src, fallback);
+      resolve(fallback);
+    };
+    img.src = src;
+  });
+}
+
 function GalleryImage({
   item,
   colWidth,
@@ -44,6 +65,7 @@ function GalleryImage({
     const h = img.naturalHeight;
     if (w > 0 && h > 0) {
       setNaturalSize({ w, h });
+      sizeCache.set(optimizedUrl, { w, h });
     }
     setLoaded(true);
   };
@@ -88,7 +110,6 @@ export function GalleryPage() {
   const [displayItems, setDisplayItems] = useState<GalleryItem[]>([]);
   const [loadedCount, setLoadedCount] = useState(0);
 
-  // 标签统计
   const allTags = useMemo(() => {
     const tagMap = new Map<string, number>();
     (items ?? []).forEach((item) => {
@@ -99,7 +120,6 @@ export function GalleryPage() {
     return Array.from(tagMap.entries()).map(([name, count]) => ({ name, count }));
   }, [items]);
 
-  // 初始化显示数据
   useEffect(() => {
     if (!items) return;
     const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -107,19 +127,16 @@ export function GalleryPage() {
     setLoadedCount(Math.min(BATCH, sorted.length));
   }, [items, activeTag]);
 
-  // 筛选后的数据
   const filteredItems = useMemo(() => {
     return activeTag
       ? displayItems.filter((item) => item.tags.some((t) => t.name === activeTag))
       : displayItems;
   }, [displayItems, activeTag]);
 
-  // 加载更多
   const loadMore = useCallback(() => {
     setLoadedCount((prev) => Math.min(prev + BATCH, filteredItems.length));
   }, [filteredItems.length]);
 
-  // 随机洗牌
   const shuffle = useCallback(() => {
     const target = [...filteredItems];
     for (let i = target.length - 1; i > 0; i--) {
@@ -137,7 +154,6 @@ export function GalleryPage() {
     setLoadedCount((prev) => (prev === 0 ? BATCH : prev));
   }, [filteredItems, displayItems, activeTag]);
 
-  // ---------- 瀑布流布局 ----------
   const masonryRef = useRef<HTMLDivElement>(null);
   const [colCount, setColCount] = useState(() =>
     typeof window !== "undefined" && window.innerWidth >= 1024 ? 3 : 2
@@ -161,18 +177,29 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // ---------- 手动 PhotoSwipe ----------
   const openPhotoSwipe = useCallback(
-    (index: number) => {
+    async (index: number) => {
       const images = filteredItems.slice(0, loadedCount);
       if (images.length === 0) return;
 
-      const slides = images.map((item) => ({
-        src: getOriginalImageUrl(item.imageKey),
-        msrc: getOptimizedImageUrl(item.imageKey, 800),
-        title: item.title,
-        description: item.description,
-      }));
+      const slides = await Promise.all(
+        images.map(async (item) => {
+          const originalUrl = getOriginalImageUrl(item.imageKey);
+          const thumbUrl = getOptimizedImageUrl(item.imageKey, 800);
+          let size = sizeCache.get(thumbUrl);
+          if (!size) {
+            size = await preloadImageSize(thumbUrl);
+          }
+          return {
+            src: originalUrl,
+            msrc: thumbUrl,
+            w: size.w,
+            h: size.h,
+            title: item.title,
+            description: item.description,
+          };
+        })
+      );
 
       const pswp = new PhotoSwipe({
         dataSource: slides,
@@ -184,7 +211,6 @@ export function GalleryPage() {
         showHideAnimationType: "fade",
       });
 
-      // 自定义底部标题
       pswp.on("afterInit", () => {
         if (!pswp.element) return;
         let captionEl = pswp.element.querySelector(".pswp__custom-caption") as HTMLElement;
@@ -225,10 +251,8 @@ export function GalleryPage() {
     [filteredItems, loadedCount]
   );
 
-  // ---------- 骨架屏 ----------
   if (isLoading) return <GallerySkeleton />;
 
-  // ---------- 渲染 ----------
   const visibleItems = filteredItems.slice(0, loadedCount);
   const columns: GalleryItem[][] = Array.from({ length: colCount }, () => []);
   const heights = new Array(colCount).fill(0);
@@ -252,31 +276,13 @@ export function GalleryPage() {
     <button
       onClick={loadMore}
       className="w-full aspect-[4/3] flex items-center justify-center rounded-xl transition-all"
-      style={{
-        backgroundColor: "var(--fuwari-btn-regular-bg)",
-        color: "var(--fuwari-btn-content)",
-      }}
-      onMouseEnter={(e) =>
-        (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-hover)")
-      }
-      onMouseLeave={(e) =>
-        (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg)")
-      }
-      onMouseDown={(e) =>
-        (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-active)")
-      }
-      onMouseUp={(e) =>
-        (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-hover)")
-      }
+      style={{ backgroundColor: "var(--fuwari-btn-regular-bg)", color: "var(--fuwari-btn-content)" }}
+      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-hover)")}
+      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg)")}
+      onMouseDown={(e) => (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-active)")}
+      onMouseUp={(e) => (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-hover)")}
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        width="24"
-        height="24"
-        className="rotate-90"
-        aria-hidden="true"
-      >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" className="rotate-90" aria-hidden="true">
         <path fill="currentColor" d="M12.6 12L8 7.4L9.4 6l6 6l-6 6L8 16.6z" />
       </svg>
     </button>
@@ -284,17 +290,11 @@ export function GalleryPage() {
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      {/* 标题 */}
       <div className="fuwari-card-base p-6 md:p-10 space-y-4">
-        <h1 className="text-3xl font-bold fuwari-text-90">
-          {m.gallery_title?.() ?? "画廊"}
-        </h1>
-        <p className="text-sm fuwari-text-50">
-          {m.gallery_intro?.() ?? "浏览摄影作品"}
-        </p>
+        <h1 className="text-3xl font-bold fuwari-text-90">{m.gallery_title?.() ?? "画廊"}</h1>
+        <p className="text-sm fuwari-text-50">{m.gallery_intro?.() ?? "浏览摄影作品"}</p>
       </div>
 
-      {/* 随机排序按钮 */}
       <button
         onClick={shuffle}
         className="fuwari-card-base group flex items-center gap-4 px-6 py-5 text-left w-full cursor-pointer hover:bg-(--fuwari-btn-plain-bg-hover) active:bg-(--fuwari-btn-plain-bg-active)"
@@ -310,7 +310,6 @@ export function GalleryPage() {
         </div>
       </button>
 
-      {/* 标签筛选 */}
       {allTags.length > 0 && (
         <div className="fuwari-card-base p-4">
           <div className="flex flex-wrap gap-2">
@@ -343,7 +342,6 @@ export function GalleryPage() {
         </div>
       )}
 
-      {/* 瀑布流 */}
       <div className="fuwari-card-base p-4 w-full">
         <div id="gallery-masonry" ref={masonryRef} className="flex gap-2 w-full">
           {columns.map((col, colIdx) => (
