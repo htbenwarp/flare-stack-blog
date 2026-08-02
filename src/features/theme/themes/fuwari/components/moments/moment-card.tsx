@@ -1,4 +1,3 @@
-// src/features/theme/themes/fuwari/components/moments/moment-card.tsx
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Pencil, Trash2, ChevronLeft, ChevronRight, X } from "lucide-react";
@@ -10,6 +9,8 @@ import { deleteMomentFn } from "@/features/moments/api/moments.api";
 import type { JSONContent } from "@tiptap/react";
 
 // ---------- 工具函数 ----------
+
+/** 提取所有图片 src */
 function extractImageSrcs(doc: JSONContent | null): string[] {
   if (!doc) return [];
   const srcs: string[] = [];
@@ -23,6 +24,7 @@ function extractImageSrcs(doc: JSONContent | null): string[] {
   return srcs;
 }
 
+/** 提取纯文本，跳过图片 alt */
 function extractTextWithoutImageAlt(doc: JSONContent | null): string {
   if (!doc) return "";
   const parts: string[] = [];
@@ -36,7 +38,16 @@ function extractTextWithoutImageAlt(doc: JSONContent | null): string {
   return parts.join("").trim();
 }
 
+/** GIF 图片添加 no-transform 参数，避免 Cloudflare 转换失败 */
+function getImageSrc(src: string): string {
+  if (src.toLowerCase().endsWith(".gif")) {
+    return `${src}?no-transform=1`;
+  }
+  return src;
+}
+
 // ---------- 画廊灯箱 ----------
+
 function GalleryLightbox({
   images,
   initialIndex,
@@ -57,7 +68,7 @@ function GalleryLightbox({
     setCurrent((prev) => (prev - 1 + images.length) % images.length);
   }, [images.length]);
 
-  // 键盘
+  // 键盘控制
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -83,19 +94,26 @@ function GalleryLightbox({
     touchStartX.current = null;
   };
 
+  if (images.length === 0) return null;
+
   return (
     <div
       className="fixed inset-0 z-200 bg-black/95 flex items-center justify-center select-none"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
+      {/* 点击背景关闭 */}
       <div className="absolute inset-0 cursor-zoom-out" onClick={onClose} />
+
+      {/* 关闭按钮 */}
       <button
         onClick={onClose}
         className="absolute top-4 right-4 z-210 p-2 bg-white/10 hover:bg-white/20 rounded-lg transition"
       >
         <X className="w-6 h-6 text-white" />
       </button>
+
+      {/* 左箭头 */}
       {images.length > 1 && (
         <button
           onClick={prev}
@@ -104,14 +122,18 @@ function GalleryLightbox({
           <ChevronLeft className="w-8 h-8 text-white" />
         </button>
       )}
+
+      {/* 图片（阻止点击冒泡） */}
       <div className="relative z-205" onClick={(e) => e.stopPropagation()}>
         <img
-          src={images[current]}
+          src={getImageSrc(images[current])}
           alt=""
           className="max-w-[90vw] max-h-[90vh] object-contain"
           draggable={false}
         />
       </div>
+
+      {/* 右箭头 */}
       {images.length > 1 && (
         <button
           onClick={next}
@@ -120,6 +142,8 @@ function GalleryLightbox({
           <ChevronRight className="w-8 h-8 text-white" />
         </button>
       )}
+
+      {/* 计数指示器 */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 text-white text-sm px-4 py-1.5 rounded-full z-210">
         {current + 1} / {images.length}
       </div>
@@ -128,6 +152,7 @@ function GalleryLightbox({
 }
 
 // ---------- 图片网格 ----------
+
 function ImageGrid({
   images,
   onImageClick,
@@ -149,14 +174,16 @@ function ImageGrid({
             onClick={() => onImageClick(idx)}
           >
             <img
-              src={src}
+              src={getImageSrc(src)}
               alt=""
               className="absolute inset-0 w-full h-full object-cover rounded-none"
               loading="lazy"
             />
             {isLast && remaining > 0 && (
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none rounded-none">
-                <span className="text-white text-lg font-bold">+{remaining}</span>
+                <span className="text-white text-lg font-bold">
+                  +{remaining}
+                </span>
               </div>
             )}
           </div>
@@ -166,7 +193,8 @@ function ImageGrid({
   );
 }
 
-// ---------- MomentCard ----------
+// ---------- MomentCard 主组件 ----------
+
 interface MomentCardProps {
   moment: {
     id: number;
@@ -212,12 +240,17 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
     : null;
 
   const deviceString = moment.deviceInfo
-    ? [moment.deviceInfo.browser, moment.deviceInfo.os, moment.deviceInfo.device]
+    ? [
+        moment.deviceInfo.browser,
+        moment.deviceInfo.os,
+        moment.deviceInfo.device,
+      ]
         .filter(Boolean)
         .join(" · ")
     : null;
 
   const likePath = `/moment/${moment.id}`;
+
   const images = extractImageSrcs(moment.content);
   const plainText = extractTextWithoutImageAlt(moment.content);
 
@@ -236,7 +269,7 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
           onClick={() => openGallery(0)}
         >
           <img
-            src={images[0]}
+            src={getImageSrc(images[0])}
             alt=""
             className="w-full h-auto max-h-[80vh] object-contain rounded-none"
             loading="lazy"
@@ -244,12 +277,13 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
         </div>
       );
     }
+
     return <ImageGrid images={images} onImageClick={openGallery} />;
   };
 
   return (
     <div className="fuwari-card-base p-4 md:p-6 space-y-4 w-full relative">
-      {/* 管理员按钮 */}
+      {/* 管理员操作按钮 */}
       {isAdmin && (
         <div className="absolute top-3 right-3 flex gap-1 z-10">
           <button
@@ -311,7 +345,9 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
           <>
             {renderImages()}
             {plainText && (
-              <p className="mt-2 whitespace-pre-wrap break-words">{plainText}</p>
+              <p className="mt-2 whitespace-pre-wrap break-words">
+                {plainText}
+              </p>
             )}
           </>
         ) : (
@@ -324,10 +360,10 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
         <LikeButton path={likePath} simple />
       </div>
 
-      {/* 评论区（评论在上，输入框在下） */}
+      {/* 评论区（评论在上，输入框在下，折叠带过渡动画） */}
       <FuwariCommentSection postId={moment.id} collapsed />
 
-      {/* 画廊 */}
+      {/* 画廊灯箱 */}
       {galleryOpen && (
         <GalleryLightbox
           images={images}
