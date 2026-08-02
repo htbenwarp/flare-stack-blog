@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Pencil, Trash2, ChevronLeft, ChevronRight, X } from "lucide-react";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react";
 import { FuwariCommentSection } from "@/features/theme/themes/fuwari/components/comments/view/comment-section";
 import { LikeButton } from "@/features/theme/themes/fuwari/components/like-button";
 import { ContentRenderer } from "@/features/theme/themes/fuwari/components/content/content-renderer";
