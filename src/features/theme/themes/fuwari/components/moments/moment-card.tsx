@@ -79,6 +79,14 @@ function GalleryLightbox({
     return () => window.removeEventListener("keydown", handler);
   }, [onClose, prev, next]);
 
+  // 锁定 body 滚动
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
   // 触摸滑动
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -98,7 +106,7 @@ function GalleryLightbox({
 
   return (
     <div
-      className="fixed inset-0 z-200 bg-black/95 flex items-center justify-center select-none"
+      className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center select-none"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
@@ -108,7 +116,8 @@ function GalleryLightbox({
       {/* 关闭按钮 */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 z-210 p-2 bg-white/10 hover:bg-white/20 rounded-lg transition"
+        className="absolute top-4 right-4 z-[10000] p-2 bg-white/10 hover:bg-white/20 rounded-lg transition"
+        aria-label="关闭"
       >
         <X className="w-6 h-6 text-white" />
       </button>
@@ -117,18 +126,22 @@ function GalleryLightbox({
       {images.length > 1 && (
         <button
           onClick={prev}
-          className="absolute left-4 z-210 p-2 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer"
+          className="absolute left-4 z-[10000] p-2 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer"
+          aria-label="上一张"
         >
           <ChevronLeft className="w-8 h-8 text-white" />
         </button>
       )}
 
       {/* 图片（阻止点击冒泡） */}
-      <div className="relative z-205" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="relative z-[10000]"
+        onClick={(e) => e.stopPropagation()}
+      >
         <img
           src={getImageSrc(images[current])}
           alt=""
-          className="max-w-[90vw] max-h-[90vh] object-contain"
+          className="max-w-[90vw] max-h-[90vh] object-contain select-none"
           draggable={false}
         />
       </div>
@@ -137,19 +150,21 @@ function GalleryLightbox({
       {images.length > 1 && (
         <button
           onClick={next}
-          className="absolute right-4 z-210 p-2 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer"
+          className="absolute right-4 z-[10000] p-2 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer"
+          aria-label="下一张"
         >
           <ChevronRight className="w-8 h-8 text-white" />
         </button>
       )}
 
       {/* 计数指示器 */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 text-white text-sm px-4 py-1.5 rounded-full z-210">
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 text-white text-sm px-4 py-1.5 rounded-full z-[10000]">
         {current + 1} / {images.length}
       </div>
     </div>
   );
 }
+
 
 // ---------- 图片网格 ----------
 
