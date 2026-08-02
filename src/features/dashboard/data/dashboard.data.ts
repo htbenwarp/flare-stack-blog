@@ -1,4 +1,4 @@
-import { count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, ne } from "drizzle-orm";
 import { CommentsTable, PostsTable, user as UserTable } from "@/lib/db/schema";
 
 export async function getPendingCommentsCount(db: DB) {
@@ -13,7 +13,12 @@ export async function getPublishedPostsCount(db: DB) {
   const [result] = await db
     .select({ count: count() })
     .from(PostsTable)
-    .where(eq(PostsTable.status, "published"));
+    .where(
+      and(
+        eq(PostsTable.status, "published"),
+        ne(PostsTable.postType, "moment"),
+      ),
+    );
   return result.count;
 }
 
@@ -35,11 +40,24 @@ export async function getRecentComments(db: DB, limit = 5) {
     .leftJoin(PostsTable, eq(CommentsTable.postId, PostsTable.id));
 }
 
-export async function getRecentPosts(db: DB, limit = 5) {
-  return db
-    .select()
+export async function getRecentPosts(db: DB, limit: number) {
+  return await db
+    .select({
+      id: PostsTable.id,
+      title: PostsTable.title,
+      slug: PostsTable.slug,
+      status: PostsTable.status,
+      publishedAt: PostsTable.publishedAt,
+      createdAt: PostsTable.createdAt,
+      updatedAt: PostsTable.updatedAt,
+    })
     .from(PostsTable)
-    .where(eq(PostsTable.status, "published"))
+    .where(
+      and(
+        eq(PostsTable.status, "published"),
+        ne(PostsTable.postType, "moment"),
+      ),
+    )
     .orderBy(desc(PostsTable.publishedAt))
     .limit(limit);
 }

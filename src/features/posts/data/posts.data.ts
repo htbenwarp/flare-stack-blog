@@ -89,10 +89,16 @@ export async function getPostsCount(
   } = {},
 ) {
   const whereClause = buildPostWhereClause(options);
+  
+  const conditions = [];
+  if (whereClause) conditions.push(whereClause);
+  conditions.push(ne(PostsTable.postType, "moment"));
+
   const totalNumberofPosts = await db
     .select({ count: count() })
     .from(PostsTable)
-    .where(whereClause);
+    .where(and(...conditions));
+    
   return totalNumberofPosts[0].count;
 }
 
