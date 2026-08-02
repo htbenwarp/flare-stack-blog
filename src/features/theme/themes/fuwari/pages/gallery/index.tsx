@@ -1,4 +1,3 @@
-// src/features/theme/themes/fuwari/pages/gallery/index.tsx
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Shuffle } from "lucide-react";
@@ -110,6 +109,7 @@ export function GalleryPage() {
   const [displayItems, setDisplayItems] = useState<GalleryItem[]>([]);
   const [loadedCount, setLoadedCount] = useState(0);
 
+  // 标签统计
   const allTags = useMemo(() => {
     const tagMap = new Map<string, number>();
     (items ?? []).forEach((item) => {
@@ -120,6 +120,7 @@ export function GalleryPage() {
     return Array.from(tagMap.entries()).map(([name, count]) => ({ name, count }));
   }, [items]);
 
+  // 初始化显示数据
   useEffect(() => {
     if (!items) return;
     const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -127,16 +128,19 @@ export function GalleryPage() {
     setLoadedCount(Math.min(BATCH, sorted.length));
   }, [items, activeTag]);
 
+  // 筛选后的数据
   const filteredItems = useMemo(() => {
     return activeTag
       ? displayItems.filter((item) => item.tags.some((t) => t.name === activeTag))
       : displayItems;
   }, [displayItems, activeTag]);
 
+  // 加载更多
   const loadMore = useCallback(() => {
     setLoadedCount((prev) => Math.min(prev + BATCH, filteredItems.length));
   }, [filteredItems.length]);
 
+  // 随机洗牌
   const shuffle = useCallback(() => {
     const target = [...filteredItems];
     for (let i = target.length - 1; i > 0; i--) {
@@ -154,6 +158,7 @@ export function GalleryPage() {
     setLoadedCount((prev) => (prev === 0 ? BATCH : prev));
   }, [filteredItems, displayItems, activeTag]);
 
+  // ---------- 瀑布流布局 ----------
   const masonryRef = useRef<HTMLDivElement>(null);
   const [colCount, setColCount] = useState(() =>
     typeof window !== "undefined" && window.innerWidth >= 1024 ? 3 : 2
@@ -177,40 +182,53 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
+  // ---------- 手动 PhotoSwipe（修复：使用 'fill' 初始缩放，预加载所有尺寸） ----------
   const openPhotoSwipe = useCallback(
     async (index: number) => {
       const images = filteredItems.slice(0, loadedCount);
       if (images.length === 0) return;
 
-      const slides = await Promise.all(
-        images.map(async (item) => {
-          const originalUrl = getOriginalImageUrl(item.imageKey);
-          const thumbUrl = getOptimizedImageUrl(item.imageKey, 800);
-          let size = sizeCache.get(thumbUrl);
-          if (!size) {
-            size = await preloadImageSize(thumbUrl);
+      // 并行获取所有图片尺寸
+      const slidePromises = images.map(async (item) => {
+        const originalUrl = getOriginalImageUrl(item.imageKey);
+        const thumbUrl = getOptimizedImageUrl(item.imageKey, 800);
+        let w = item.imgWidth;
+        let h = item.imgHeight;
+        if (!w || !h) {
+          const cached = sizeCache.get(thumbUrl);
+          if (cached) {
+            w = cached.w;
+            h = cached.h;
+          } else {
+            const size = await preloadImageSize(thumbUrl);
+            w = size.w;
+            h = size.h;
           }
-          return {
-            src: originalUrl,
-            msrc: thumbUrl,
-            w: size.w,
-            h: size.h,
-            title: item.title,
-            description: item.description,
-          };
-        })
-      );
+        }
+        return {
+          src: originalUrl,
+          msrc: thumbUrl,
+          w: w || 1200,
+          h: h || 800,
+          title: item.title,
+          description: item.description,
+        };
+      });
+
+      const slidesData = await Promise.all(slidePromises);
 
       const pswp = new PhotoSwipe({
-        dataSource: slides,
+        dataSource: slidesData,
         index,
-        bgOpacity: 0.95,
+        bgOpacity: 1,                 // 纯黑背景
         wheelToZoom: true,
         zoom: true,
         closeOnVerticalDrag: true,
         showHideAnimationType: "fade",
+        initialZoomLevel: 'fill',     // 关键：让图片填充屏幕（保持比例，可能裁剪）
       });
 
+      // 自定义底部标题
       pswp.on("afterInit", () => {
         if (!pswp.element) return;
         let captionEl = pswp.element.querySelector(".pswp__custom-caption") as HTMLElement;
@@ -251,8 +269,10 @@ export function GalleryPage() {
     [filteredItems, loadedCount]
   );
 
+  // ---------- 骨架屏 ----------
   if (isLoading) return <GallerySkeleton />;
 
+  // ---------- 渲染 ----------
   const visibleItems = filteredItems.slice(0, loadedCount);
   const columns: GalleryItem[][] = Array.from({ length: colCount }, () => []);
   const heights = new Array(colCount).fill(0);
@@ -290,11 +310,13 @@ export function GalleryPage() {
 
   return (
     <div className="flex flex-col gap-4 w-full">
+      {/* 标题 */}
       <div className="fuwari-card-base p-6 md:p-10 space-y-4">
         <h1 className="text-3xl font-bold fuwari-text-90">{m.gallery_title?.() ?? "画廊"}</h1>
         <p className="text-sm fuwari-text-50">{m.gallery_intro?.() ?? "浏览摄影作品"}</p>
       </div>
 
+      {/* 随机排序按钮 */}
       <button
         onClick={shuffle}
         className="fuwari-card-base group flex items-center gap-4 px-6 py-5 text-left w-full cursor-pointer hover:bg-(--fuwari-btn-plain-bg-hover) active:bg-(--fuwari-btn-plain-bg-active)"
@@ -310,6 +332,7 @@ export function GalleryPage() {
         </div>
       </button>
 
+      {/* 标签筛选 */}
       {allTags.length > 0 && (
         <div className="fuwari-card-base p-4">
           <div className="flex flex-wrap gap-2">
@@ -342,6 +365,7 @@ export function GalleryPage() {
         </div>
       )}
 
+      {/* 瀑布流 */}
       <div className="fuwari-card-base p-4 w-full">
         <div id="gallery-masonry" ref={masonryRef} className="flex gap-2 w-full">
           {columns.map((col, colIdx) => (
