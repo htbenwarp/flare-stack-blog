@@ -78,6 +78,7 @@ function GalleryLightbox({
     return () => window.removeEventListener("keydown", handler);
   }, [onClose, prev, next]);
 
+  // 隐藏导航栏（使用 useLayoutEffect 避免闪烁）
   useLayoutEffect(() => {
     const navbar =
       document.getElementById("fuwari-navbar-wrapper") ||
@@ -121,14 +122,19 @@ function GalleryLightbox({
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 背景关闭层 - 降低 z-index，避免遮挡按钮 */}
-      <div className="absolute inset-0 z-[9997] cursor-zoom-out" onClick={onClose} />
+      {/* 背景关闭层（支持触摸关闭） */}
+      <div
+        className="absolute inset-0 z-[9997] cursor-zoom-out"
+        onClick={onClose}
+        onTouchEnd={(e) => { e.preventDefault(); onClose(); }}
+      />
 
-      {/* 关闭按钮 - 提升 z-index，增大点击区域，适配移动端 */}
+      {/* 关闭按钮（z-index 最高，支持触摸） */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 z-[10002] p-3 bg-white/10 hover:bg-white/20 rounded-lg transition active:scale-95"
-        style={{ touchAction: "manipulation" }}
+        onTouchEnd={(e) => { e.preventDefault(); onClose(); }}
+        className="absolute top-4 right-4 z-[10003] p-3 bg-white/10 hover:bg-white/20 rounded-lg transition active:scale-95"
+        style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
         aria-label="关闭"
       >
         <X className="w-6 h-6 text-white" />
@@ -138,7 +144,8 @@ function GalleryLightbox({
       {images.length > 1 && (
         <button
           onClick={prev}
-          className="absolute left-4 z-[10001] p-3 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer active:scale-95"
+          onTouchEnd={(e) => { e.preventDefault(); prev(); }}
+          className="absolute left-4 z-[10001] p-3 bg-white/10 hover:bg-white/20 rounded-full transition active:scale-95"
           style={{ touchAction: "manipulation" }}
           aria-label="上一张"
         >
@@ -146,8 +153,8 @@ function GalleryLightbox({
         </button>
       )}
 
-      {/* 图片容器（z-index 低于按钮） */}
-      <div className="relative z-[9998]" onClick={(e) => e.stopPropagation()}>
+      {/* 图片容器 */}
+      <div className="relative z-[9998]" onClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
         <img
           src={getImageSrc(images[current])}
           alt=""
@@ -160,7 +167,8 @@ function GalleryLightbox({
       {images.length > 1 && (
         <button
           onClick={next}
-          className="absolute right-4 z-[10001] p-3 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer active:scale-95"
+          onTouchEnd={(e) => { e.preventDefault(); next(); }}
+          className="absolute right-4 z-[10001] p-3 bg-white/10 hover:bg-white/20 rounded-full transition active:scale-95"
           style={{ touchAction: "manipulation" }}
           aria-label="下一张"
         >
