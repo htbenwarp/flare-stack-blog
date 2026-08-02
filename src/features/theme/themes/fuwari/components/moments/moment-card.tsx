@@ -47,7 +47,6 @@ function getImageSrc(src: string): string {
 }
 
 // ---------- 画廊灯箱 ----------
-
 function GalleryLightbox({
   images,
   initialIndex,
@@ -79,10 +78,23 @@ function GalleryLightbox({
     return () => window.removeEventListener("keydown", handler);
   }, [onClose, prev, next]);
 
-  // 锁定 body 滚动
+  // ✅ 隐藏导航栏 + 锁定滚动（兼容生产环境）
   useEffect(() => {
+    const navbar =
+      document.getElementById("fuwari-navbar-wrapper") ||
+      document.querySelector('[id*="fuwari-navbar"]');
+
+    if (navbar) {
+      (navbar as HTMLElement).style.visibility = "hidden";
+      (navbar as HTMLElement).style.pointerEvents = "none";
+    }
     document.body.style.overflow = "hidden";
+
     return () => {
+      if (navbar) {
+        (navbar as HTMLElement).style.visibility = "";
+        (navbar as HTMLElement).style.pointerEvents = "";
+      }
       document.body.style.overflow = "";
     };
   }, []);
@@ -116,28 +128,25 @@ function GalleryLightbox({
       {/* 关闭按钮 */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 z-[10000] p-2 bg-white/10 hover:bg-white/20 rounded-lg transition"
+        className="absolute top-4 right-4 z-[10001] p-2 bg-white/10 hover:bg-white/20 rounded-lg transition"
         aria-label="关闭"
       >
         <X className="w-6 h-6 text-white" />
       </button>
 
-      {/* 左箭头 */}
+      {/* 左箭头 - z-index 高于图片容器 */}
       {images.length > 1 && (
         <button
           onClick={prev}
-          className="absolute left-4 z-[10000] p-2 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer"
+          className="absolute left-4 z-[10001] p-2 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer"
           aria-label="上一张"
         >
           <ChevronLeft className="w-8 h-8 text-white" />
         </button>
       )}
 
-      {/* 图片（阻止点击冒泡） */}
-      <div
-        className="relative z-[10000]"
-        onClick={(e) => e.stopPropagation()}
-      >
+      {/* 图片容器 z-index 低于按钮 */}
+      <div className="relative z-[9998]" onClick={(e) => e.stopPropagation()}>
         <img
           src={getImageSrc(images[current])}
           alt=""
@@ -146,19 +155,19 @@ function GalleryLightbox({
         />
       </div>
 
-      {/* 右箭头 */}
+      {/* 右箭头 - z-index 高于图片容器 */}
       {images.length > 1 && (
         <button
           onClick={next}
-          className="absolute right-4 z-[10000] p-2 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer"
+          className="absolute right-4 z-[10001] p-2 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer"
           aria-label="下一张"
         >
           <ChevronRight className="w-8 h-8 text-white" />
         </button>
       )}
 
-      {/* 计数指示器 */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 text-white text-sm px-4 py-1.5 rounded-full z-[10000]">
+      {/* 计数 */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 text-white text-sm px-4 py-1.5 rounded-full z-[10001]">
         {current + 1} / {images.length}
       </div>
     </div>
