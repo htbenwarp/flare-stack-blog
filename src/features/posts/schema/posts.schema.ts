@@ -20,6 +20,8 @@ export const PostSelectSchema = createSelectSchema(PostsTable, {
 }).omit({
   publicContentJson: true,
   passwordHash: true,
+}).extend({
+  userId: z.string().nullable().optional(),
 });
 
 export const PostInsertSchema = createInsertSchema(PostsTable);
@@ -46,6 +48,7 @@ export const PostItemSchema = PostSelectSchema.omit({
   isEncrypted: z.boolean().optional().default(false),
   isGuestPost: z.boolean().optional().default(false),
   guestAuthorId: z.number().nullable().optional(),
+  postType: z.enum(["post", "moment"]).default("post"),
 });
 
 export const PostListResponseSchema = z.object({
@@ -74,9 +77,9 @@ export const PostWithTocSchema = PostSelectSchema.extend({
   isGuestPost: z.boolean().optional().default(false),
   guestAuthorId: z.number().nullable().optional(),
   guestAuthorSlug: z.string().nullable().optional(),
+  postType: z.enum(["post", "moment"]).default("post"),
 }).nullable();
 
-// ✅ 上游新增的工具函数（已合并）
 export function normalizePostTagName(
   tagName: string | undefined,
 ): string | undefined {

@@ -36,6 +36,7 @@ import { Route as AdminGuestAuthorsIndexRouteImport } from './routes/admin/guest
 import { Route as AdminGalleryIndexRouteImport } from './routes/admin/gallery/index'
 import { Route as AdminFriendLinksIndexRouteImport } from './routes/admin/friend-links/index'
 import { Route as AdminCommentsIndexRouteImport } from './routes/admin/comments/index'
+import { Route as PublicMomentsIndexRouteImport } from './routes/_public/moments/index'
 import { Route as PublicGuestbookIndexRouteImport } from './routes/_public/guestbook/index'
 import { Route as PublicGuestHouseIndexRouteImport } from './routes/_public/guest-house/index'
 import { Route as PublicGalleryIndexRouteImport } from './routes/_public/gallery/index'
@@ -175,6 +176,11 @@ const AdminCommentsIndexRoute = AdminCommentsIndexRouteImport.update({
   path: '/comments/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const PublicMomentsIndexRoute = PublicMomentsIndexRouteImport.update({
+  id: '/moments/',
+  path: '/moments/',
+  getParentRoute: () => PublicRouteRoute,
+} as any)
 const PublicGuestbookIndexRoute = PublicGuestbookIndexRouteImport.update({
   id: '/guestbook/',
   path: '/guestbook/',
@@ -228,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/gallery/': typeof PublicGalleryIndexRoute
   '/guest-house/': typeof PublicGuestHouseIndexRoute
   '/guestbook/': typeof PublicGuestbookIndexRoute
+  '/moments/': typeof PublicMomentsIndexRoute
   '/admin/comments/': typeof AdminCommentsIndexRoute
   '/admin/friend-links/': typeof AdminFriendLinksIndexRoute
   '/admin/gallery/': typeof AdminGalleryIndexRoute
@@ -258,6 +265,7 @@ export interface FileRoutesByTo {
   '/gallery': typeof PublicGalleryIndexRoute
   '/guest-house': typeof PublicGuestHouseIndexRoute
   '/guestbook': typeof PublicGuestbookIndexRoute
+  '/moments': typeof PublicMomentsIndexRoute
   '/admin/comments': typeof AdminCommentsIndexRoute
   '/admin/friend-links': typeof AdminFriendLinksIndexRoute
   '/admin/gallery': typeof AdminGalleryIndexRoute
@@ -294,6 +302,7 @@ export interface FileRoutesById {
   '/_public/gallery/': typeof PublicGalleryIndexRoute
   '/_public/guest-house/': typeof PublicGuestHouseIndexRoute
   '/_public/guestbook/': typeof PublicGuestbookIndexRoute
+  '/_public/moments/': typeof PublicMomentsIndexRoute
   '/admin/comments/': typeof AdminCommentsIndexRoute
   '/admin/friend-links/': typeof AdminFriendLinksIndexRoute
   '/admin/gallery/': typeof AdminGalleryIndexRoute
@@ -328,6 +337,7 @@ export interface FileRouteTypes {
     | '/gallery/'
     | '/guest-house/'
     | '/guestbook/'
+    | '/moments/'
     | '/admin/comments/'
     | '/admin/friend-links/'
     | '/admin/gallery/'
@@ -358,6 +368,7 @@ export interface FileRouteTypes {
     | '/gallery'
     | '/guest-house'
     | '/guestbook'
+    | '/moments'
     | '/admin/comments'
     | '/admin/friend-links'
     | '/admin/gallery'
@@ -393,6 +404,7 @@ export interface FileRouteTypes {
     | '/_public/gallery/'
     | '/_public/guest-house/'
     | '/_public/guestbook/'
+    | '/_public/moments/'
     | '/admin/comments/'
     | '/admin/friend-links/'
     | '/admin/gallery/'
@@ -604,6 +616,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCommentsIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/_public/moments/': {
+      id: '/_public/moments/'
+      path: '/moments'
+      fullPath: '/moments/'
+      preLoaderRoute: typeof PublicMomentsIndexRouteImport
+      parentRoute: typeof PublicRouteRoute
+    }
     '/_public/guestbook/': {
       id: '/_public/guestbook/'
       path: '/guestbook'
@@ -679,6 +698,7 @@ interface PublicRouteRouteChildren {
   PublicGalleryIndexRoute: typeof PublicGalleryIndexRoute
   PublicGuestHouseIndexRoute: typeof PublicGuestHouseIndexRoute
   PublicGuestbookIndexRoute: typeof PublicGuestbookIndexRoute
+  PublicMomentsIndexRoute: typeof PublicMomentsIndexRoute
   PublicGuestHouseAuthorSlugRoute: typeof PublicGuestHouseAuthorSlugRoute
 }
 
@@ -692,6 +712,7 @@ const PublicRouteRouteChildren: PublicRouteRouteChildren = {
   PublicGalleryIndexRoute: PublicGalleryIndexRoute,
   PublicGuestHouseIndexRoute: PublicGuestHouseIndexRoute,
   PublicGuestbookIndexRoute: PublicGuestbookIndexRoute,
+  PublicMomentsIndexRoute: PublicMomentsIndexRoute,
   PublicGuestHouseAuthorSlugRoute: PublicGuestHouseAuthorSlugRoute,
 }
 

@@ -256,7 +256,9 @@ export async function getPublishedPostsForSitemapBatch(
         eq(PostsTable.status, "published"),
         isNotNull(PostsTable.publishedAt),
         sql`date(${PostsTable.publishedAt}, 'unixepoch') <= date('now')`,
-        eq(PostsTable.isEncrypted, false), // 加密文章不出现在 sitemap 中
+        eq(PostsTable.isEncrypted, false),
+        ne(PostsTable.postType, "moment"),  
+        ne(PostsTable.slug, "guestbook"),   
         cursor
           ? or(
               lt(PostsTable.publishedAt, cursor.publishedAt),

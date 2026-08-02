@@ -1,6 +1,24 @@
 import type { JSONContent } from "@tiptap/react";
+import { generateHTML } from "@tiptap/html";
+import StarterKit from "@tiptap/starter-kit";
+import { Image } from "@tiptap/extension-image";
+import { Link } from "@tiptap/extension-link";
 import { extractImageKey } from "@/features/media/utils/media.utils";
 import { highlight } from "@/lib/shiki";
+import { CodeBlockExtension } from "@/features/posts/editor/extensions/code-block/index";
+import { DetailsBlock } from "@/features/posts/editor/extensions/details-block/index";
+import { EmphasisCjk } from "@/features/posts/editor/extensions/emphasis-cjk/index";
+import { FootnoteTip } from "@/features/posts/editor/extensions/footnote-tip/index";
+import { GithubCard } from "@/features/posts/editor/extensions/github-card/index";
+import { IframeExtension } from "@/features/posts/editor/extensions/iframe/index";
+import { ImageUpload as UploadImage } from "@/features/posts/editor/extensions/upload-image/index";
+import { BlockQuoteExtension } from "@/features/posts/editor/extensions/typography/block-quote";
+import { HeadingExtension } from "@/features/posts/editor/extensions/typography/heading";
+import { TableBlockExtension } from "@/features/posts/editor/extensions/table/index";
+
+// ============================================================
+// Slug 生成
+// ============================================================
 
 export function slugify(text: string | null | undefined) {
   if (!text) return "untitled-log";
@@ -9,25 +27,18 @@ export function slugify(text: string | null | undefined) {
     .toString()
     .toLowerCase()
     .trim()
-    // 1. 把所有空格 (space) 和下划线 (_) 替换为横杠 (-)
     .replace(/[\s_]+/g, "-")
-
-    // 2. 核心正则：移除所有 "非" 允许字符
-    // ^      : 取反
-    // a-z0-9 : 英文和数字
-    // \-     : 横杠
-    // \u4e00-\u9fa5 : 汉字的标准 Unicode 范围 (基本覆盖所有常用字)
     .replace(/[^a-z0-9\-\u4E00-\u9FA5]+/g, "")
-
-    // 3. 处理连续的横杠 (比如 "Hello... World" 会变成 "hello---world"，这里修正为 "hello-world")
     .replace(/-{2,}/g, "-")
-
-    // 4. 去除开头和结尾的横杠
     .replace(/^-+/, "")
     .replace(/-+$/, "");
 
   return cleaned || "untitled-log";
 }
+
+// ============================================================
+// 图片提取
+// ============================================================
 
 export function extractAllImageKeys(doc: JSONContent | null): Array<string> {
   const keys: Array<string> = [];
@@ -41,8 +52,12 @@ export function extractAllImageKeys(doc: JSONContent | null): Array<string> {
   }
 
   if (doc) traverse(doc);
-  return Array.from(new Set(keys)); // 去重
+  return Array.from(new Set(keys));
 }
+
+// ============================================================
+// 代码高亮
+// ============================================================
 
 export async function highlightCodeBlocks(
   doc: JSONContent,
@@ -75,36 +90,33 @@ export async function highlightCodeBlocks(
   return cloned;
 }
 
+// ============================================================
+// JSON → 纯文本
+// ============================================================
+
 export function convertToPlainText(doc: JSONContent | null): string {
   if (!doc) return "";
   const textParts: Array<string> = [];
 
   function traverse(node: JSONContent) {
-    // 1. 处理普通文本 (包含 Bold, Italic, Link, Code, Strike 等所有 Inline 样式)
     if (node.type === "text" && node.text) {
       textParts.push(node.text);
-    }
-    // 2. 处理图片 (提取 Alt 文本，这很重要！)
-    else if (node.type === "image" && node.attrs?.alt) {
-      // 给图片文本加个空格，防止和前后文粘连
+    } else if (node.type === "image" && node.attrs?.alt) {
       textParts.push(` ${node.attrs.alt} `);
     }
 
-    // 3. 递归遍历子节点 (处理 Heading, Blockquote, List 等容器)
     if (node.content && Array.isArray(node.content)) {
       node.content.forEach(traverse);
     }
 
-    // 4. 处理块级元素换行 (关键步骤)
-    // 你的 Extension 里包含这些块级元素，结束时都应该加换行
     const isBlock = [
       "paragraph",
-      "heading", // h1-h4
-      "codeBlock", // 代码块结束要换行
-      "blockquote", // 引用块
-      "listItem", // 列表项 (li)
-      "bulletList", // ul
-      "orderedList", // ol
+      "heading",
+      "codeBlock",
+      "blockquote",
+      "listItem",
+      "bulletList",
+      "orderedList",
     ].includes(node.type || "");
 
     if (isBlock) {
@@ -113,11 +125,12 @@ export function convertToPlainText(doc: JSONContent | null): string {
   }
 
   traverse(doc);
-
-  // 5. 清理多余空行，整洁输出
-  // 将连续的换行符替换为单个空格或单个换行
   return textParts.join("").replace(/\n+/g, "\n").trim();
 }
+
+// ============================================================
+// 内容预览
+// ============================================================
 
 export function buildContentPreview(
   doc: JSONContent | null,
@@ -126,4 +139,43 @@ export function buildContentPreview(
   const preview = convertToPlainText(doc).trim();
   if (!preview) return "";
   return preview.slice(0, maxLength);
+}
+
+// ============================================================
+// JSON → HTML（用于 RSS 等）
+// ============================================================
+
+function getEditorExtensions() {
+  return [
+    StarterKit.configure({
+      codeBlock: false, // 使用自定义 CodeBlock
+    }),
+    Image,
+    Link.configure({ openOnClick: false }),
+
+    // 表格扩展（自定义组合）
+    ...TableBlockExtension,
+
+    // 其他自定义扩展
+    CodeBlockExtension,
+    DetailsBlock,
+    EmphasisCjk,
+    FootnoteTip,
+    GithubCard,
+    IframeExtension,
+    UploadImage,
+    BlockQuoteExtension,
+    HeadingExtension,
+  ];
+}
+
+export function convertToHtml(doc: JSONContent | null): string {
+  if (!doc) return "";
+  try {
+    const extensions = getEditorExtensions();
+    return generateHTML(doc, extensions);
+  } catch (error) {
+    console.error("Failed to generate HTML from TipTap JSON:", error);
+    return convertToPlainText(doc);
+  }
 }

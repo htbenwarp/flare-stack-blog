@@ -1,3 +1,4 @@
+// src/features/theme/themes/fuwari/components/comments/view/comment-section.tsx
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { JSONContent } from "@tiptap/react";
@@ -16,9 +17,10 @@ import FuwariConfirmationModal from "./confirmation-modal";
 
 interface FuwariCommentSectionProps {
   postId: number;
-  slug?: string;             // 非文章页面传入固定 slug
-  rootId?: number;           // 可选，用于自动展开某个根评论
-  highlightCommentId?: number; // 可选，高亮某个评论
+  slug?: string;
+  rootId?: number;
+  highlightCommentId?: number;
+  collapsed?: boolean;
 }
 
 export function FuwariCommentSection({
@@ -26,10 +28,11 @@ export function FuwariCommentSection({
   slug: _slug,
   rootId,
   highlightCommentId,
+  collapsed = false,
 }: FuwariCommentSectionProps) {
   const { data: session } = authClient.useSession();
+  const [expanded, setExpanded] = useState(!collapsed);
 
-  // 完全不再使用路由 hooks，所有参数从 props 获取
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery(
       rootCommentsByPostIdInfiniteQuery(postId, session?.user.id),
@@ -104,7 +107,7 @@ export function FuwariCommentSection({
     }
   };
 
-  // 锚点滚动功能（保留，但需要 slug 参数支持；留言板不使用）
+  // 锚点滚动功能
   useEffect(() => {
     if (isLoading || !data) return;
 
@@ -140,83 +143,147 @@ export function FuwariCommentSection({
   }, [isLoading, data]);
 
   if (isLoading || !data) {
-    return <FuwariCommentSectionSkeleton />;
+    return <FuwariCommentSectionSkeleton collapsed={collapsed} />;
   }
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold fuwari-text-90">
-        {m.comments_count({ count: totalCount })}
-      </h2>
-
-      {/* Main Editor */}
-      {session ? (
-        <FuwariCommentEditor
-          onSubmit={handleCreateComment}
-          isSubmitting={isCreating && !replyTarget}
-        />
-      ) : (
-        <div className="py-10 flex flex-col items-center justify-center gap-3 text-center">
-          <p className="text-sm fuwari-text-30">
-            {m.comments_join_discussion()}
-          </p>
-          <Link to="/login">
-            <button className="fuwari-btn-primary h-9 px-5 text-sm rounded-lg gap-2">
-              <LogIn size={14} />
-              {m.comments_login()}
-            </button>
-          </Link>
-        </div>
+      {/* 折叠按钮 */}
+      {collapsed && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full text-sm fuwari-text-50 hover:text-(--fuwari-primary) transition-colors text-left"
+        >
+          {expanded ? "收起评论 ▾" : `查看评论 (${totalCount}) ▸`}
+        </button>
       )}
 
-      <div ref={turnstileRef}>
-        <Turnstile {...turnstileProps} />
+      {/* 评论区内容（带动画） */}
+      <div
+        className={`grid transition-all duration-300 ease-in-out ${
+          collapsed
+            ? expanded
+              ? "grid-rows-[1fr] opacity-100"
+              : "grid-rows-[0fr] opacity-0"
+            : "grid-rows-[1fr] opacity-100"
+        }`}
+      >
+        <div className="overflow-hidden min-h-0">
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold fuwari-text-90">
+              {m.comments_count({ count: totalCount })}
+            </h2>
+
+            <div ref={turnstileRef}>
+              <Turnstile {...turnstileProps} />
+            </div>
+
+            {/* 评论列表（在上） */}
+            <FuwariCommentList
+              rootComments={rootComments}
+              postId={postId}
+              onReply={(rootIdArg, commentId, userName) =>
+                setReplyTarget({ rootId: rootIdArg, commentId, userName })
+              }
+              onDelete={(id) => setCommentToDelete(id)}
+              replyTarget={replyTarget}
+              onCancelReply={() => setReplyTarget(null)}
+              onSubmitReply={handleCreateReply}
+              isSubmittingReply={isCreating}
+              initialExpandedRootId={rootId}
+              highlightCommentId={highlightCommentId}
+            />
+
+            {/* Load More Root Comments */}
+            {hasNextPage && (
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                  className="fuwari-btn-regular h-10 px-6 text-sm rounded-lg disabled:opacity-50"
+                >
+                  {isFetchingNextPage
+                    ? m.comments_loading()
+                    : m.comments_load_more()}
+                </button>
+              </div>
+            )}
+
+            {/* 评论输入框（在下） */}
+            {session ? (
+              <FuwariCommentEditor
+                onSubmit={handleCreateComment}
+                isSubmitting={isCreating && !replyTarget}
+              />
+            ) : (
+              <div className="py-10 flex flex-col items-center justify-center gap-3 text-center">
+                <p className="text-sm fuwari-text-30">
+                  {m.comments_join_discussion()}
+                </p>
+                <Link to="/login">
+                  <button className="fuwari-btn-primary h-9 px-5 text-sm rounded-lg gap-2">
+                    <LogIn size={14} />
+                    {m.comments_login()}
+                  </button>
+                </Link>
+              </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            <FuwariConfirmationModal
+              isOpen={!!commentToDelete}
+              onClose={() => setCommentToDelete(null)}
+              onConfirm={handleDelete}
+              title={m.comments_delete_title()}
+              message={m.comments_delete_desc()}
+              confirmLabel={m.comments_delete_confirm()}
+              isDanger={true}
+              isLoading={isDeleting}
+            />
+          </div>
+        </div>
       </div>
-
-      {/* Comments List */}
-      <FuwariCommentList
-        rootComments={rootComments}
-        postId={postId}
-        onReply={(rootIdArg, commentId, userName) =>
-          setReplyTarget({ rootId: rootIdArg, commentId, userName })
-        }
-        onDelete={(id) => setCommentToDelete(id)}
-        replyTarget={replyTarget}
-        onCancelReply={() => setReplyTarget(null)}
-        onSubmitReply={handleCreateReply}
-        isSubmittingReply={isCreating}
-        initialExpandedRootId={rootId}
-        highlightCommentId={highlightCommentId}
-      />
-
-      {/* Load More Root Comments */}
-      {hasNextPage && (
-        <div className="flex justify-center pt-4">
-          <button
-            onClick={() => fetchNextPage()}
-            disabled={isFetchingNextPage}
-            className="fuwari-btn-regular h-10 px-6 text-sm rounded-lg disabled:opacity-50"
-          >
-            {isFetchingNextPage ? m.comments_loading() : m.comments_load_more()}
-          </button>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      <FuwariConfirmationModal
-        isOpen={!!commentToDelete}
-        onClose={() => setCommentToDelete(null)}
-        onConfirm={handleDelete}
-        title={m.comments_delete_title()}
-        message={m.comments_delete_desc()}
-        confirmLabel={m.comments_delete_confirm()}
-        isDanger={true}
-        isLoading={isDeleting}
-      />
     </div>
   );
 }
 
-function FuwariCommentSectionSkeleton() {
-  // ... 保持不变
+function FuwariCommentSectionSkeleton({
+  collapsed = false,
+}: {
+  collapsed?: boolean;
+}) {
+  if (collapsed) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-5 w-32 rounded" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Skeleton className="h-7 w-24 rounded-lg" />
+      <Skeleton className="h-32 w-full rounded-(--fuwari-radius-large)" />
+      <div className="space-y-0">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="py-6 flex gap-4 border-b border-black/5 dark:border-white/5"
+          >
+            <Skeleton className="w-9 h-9 rounded-full shrink-0" />
+            <div className="flex-1 space-y-3">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-20 rounded" />
+                <Skeleton className="h-3 w-16 rounded" />
+              </div>
+              <div className="space-y-1.5">
+                <Skeleton className="h-3.5 w-full rounded" />
+                <Skeleton className="h-3.5 w-3/4 rounded" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

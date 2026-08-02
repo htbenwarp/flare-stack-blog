@@ -37,6 +37,7 @@ function PublicLayout() {
     { label: m.nav_home(), to: "/" as const, id: "home" },
     { label: m.nav_posts(), to: "/posts" as const, id: "posts" },
     { label: m.nav_gallery?.() ?? "画廊", to: "/gallery" as const, id: "gallery" },
+    { label: m.nav_moments?.() ?? "即刻", to: "/moments" as const, id: "moments" },
     { label: m.nav_guest_house?.() ?? "客邸", to: "/guest-house" as const, id: "guest-house" },
     {
       label: m.nav_guestbook?.() ?? "留言板",

@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { createdAt, id, updatedAt } from "./helper";
 import { GuestAuthorsTable } from "./guest-authors.table";
+import { user } from "./auth.table";
 
 export const POST_STATUSES = ["draft", "published"] as const;
 
@@ -30,6 +31,8 @@ export const PostsTable = sqliteTable(
     passwordHash: text("password_hash"),
     isGuestPost: integer("is_guest_post", { mode: "boolean" }).default(false).notNull(),
     guestAuthorId: integer("guest_author_id").references(() => GuestAuthorsTable.id, { onDelete: "set null" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    postType: text("post_type", { enum: ["post", "moment"] }).notNull().default("post"),
     publishedAt: integer("published_at", { mode: "timestamp" }),
     pinnedAt: integer("pinned_at", { mode: "timestamp" }),
     createdAt,
@@ -70,6 +73,10 @@ export const postsRelations = relations(PostsTable, ({ one, many }) => ({
     fields: [PostsTable.guestAuthorId],
     references: [GuestAuthorsTable.id],
   }),
+  author: one(user, {                         
+    fields: [PostsTable.userId],
+    references: [user.id],
+  }),
 }));
 
 export const tagsRelations = relations(TagsTable, ({ many }) => ({
@@ -92,3 +99,5 @@ export const postTagsRelations = relations(PostTagsTable, ({ one }) => ({
 export type Tag = typeof TagsTable.$inferSelect;
 export type Post = typeof PostsTable.$inferSelect;
 export type PostStatus = (typeof POST_STATUSES)[number];
+export const POST_TYPES = ["post", "moment"] as const;
+export type PostType = (typeof POST_TYPES)[number];

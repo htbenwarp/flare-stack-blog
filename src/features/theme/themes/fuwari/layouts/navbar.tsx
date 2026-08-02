@@ -1,5 +1,5 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { Home, Menu, Search, UserIcon, FileText, Users, Link2, MessageSquare, Image } from "lucide-react";
+import { Home, Menu, Search, UserIcon, FileText, Users, Link2, MessageSquare, Image, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,8 +23,9 @@ const iconMap: Record<string, React.ElementType> = {
   "posts": FileText,
   "guest-house": Users,
   "friend-links": Link2,
-  "guestbook": MessageSquare,   // 留言板（预留）
-  "gallery": Image,             // 画廊（预留）
+  "guestbook": MessageSquare,   
+  "gallery": Image,             
+  "moments": Zap,
 };
 
 export function Navbar({

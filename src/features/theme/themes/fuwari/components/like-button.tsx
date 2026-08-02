@@ -1,3 +1,4 @@
+// src/features/theme/themes/fuwari/components/like-button.tsx
 import { useEffect, useRef, useState, useCallback } from "react";
 import { getLikeCountFn, postLikeFn } from "@/features/likes/api/likes.public.api";
 import { m } from "@/paraglide/messages";
@@ -10,7 +11,14 @@ interface Particle {
 const MAX_PARTICLES = 80;
 const CANVAS_HEIGHT = 80;
 
-export function LikeButton() {
+interface LikeButtonProps {
+  /** 自定义路径（用于非文章页面，如动态），若不提供则使用当前页面路径 */
+  path?: string;
+  /** 简洁模式：不显示粒子背景动画，仅保留按钮和计数 */
+  simple?: boolean;
+}
+
+export function LikeButton({ path: customPath, simple = false }: LikeButtonProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [count, setCount] = useState(0);
   const [liked, setLiked] = useState(false);
@@ -26,9 +34,8 @@ export function LikeButton() {
   const cwRef = useRef(280);
   const heartPathRef = useRef<Path2D | null>(null);
 
-  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  const path = customPath || (typeof window !== "undefined" ? window.location.pathname : "");
 
-  // 重置粒子
   const resetParticles = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
     particlesRef.current = [];
@@ -41,16 +48,12 @@ export function LikeButton() {
     }
   }, []);
 
-  // 获取主题色
   const getHeartColor = useCallback((): string => {
     const root = document.documentElement;
-    const color = getComputedStyle(root)
-      .getPropertyValue("--fuwari-primary")
-      .trim();
+    const color = getComputedStyle(root).getPropertyValue("--fuwari-primary").trim();
     return color || "rgb(180,100,160)";
   }, []);
 
-  // 绘制静态帧
   const drawFrame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -74,7 +77,6 @@ export function LikeButton() {
     }
   }, [getHeartColor]);
 
-  // 生成粒子
   const spawnParticle = useCallback(() => {
     const p: Particle = {
       x: cwRef.current / 2 + (Math.random() - 0.5) * cwRef.current * 0.4,
@@ -93,7 +95,6 @@ export function LikeButton() {
     }
   }, []);
 
-  // 动画循环
   const animate = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -128,7 +129,6 @@ export function LikeButton() {
         moving = true;
     }
 
-    // Collisions
     for (let i = 0; i < particles.length - 1; i++) {
       for (let j = i + 1; j < particles.length; j++) {
         const a = particles[i], b = particles[j];
@@ -171,7 +171,6 @@ export function LikeButton() {
     else loopRunningRef.current = false;
   }, [getHeartColor]);
 
-  // 初始化与动态宽度适配
   useEffect(() => {
     resetParticles();
     setCount(0);
@@ -180,66 +179,68 @@ export function LikeButton() {
     setError(false);
 
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    heartPathRef.current = new Path2D(
-      "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-    );
+    if (!canvas || simple) {
+      // 简洁模式跳过 canvas 初始化
+    } else {
+      heartPathRef.current = new Path2D(
+        "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+      );
 
-    const updateSize = () => {
-      const parent = canvasRef.current?.parentElement;
-      const w = parent?.getBoundingClientRect().width || 280;
-      const clampedW = Math.min(w, 600);
+      const updateSize = () => {
+        const parent = canvasRef.current?.parentElement;
+        const w = parent?.getBoundingClientRect().width || 280;
+        const clampedW = Math.min(w, 600);
+        canvas.width = clampedW;
+        canvas.height = CANVAS_HEIGHT;
+        canvas.style.width = `${clampedW}px`;
+        canvas.style.height = `${CANVAS_HEIGHT}px`;
+        cwRef.current = clampedW;
+        drawFrame();
+      };
 
-      // ✅ 关键修复：同步设置内部像素尺寸和 CSS 显示尺寸，避免拉伸
-      canvas.width = clampedW;
-      canvas.height = CANVAS_HEIGHT;
-      canvas.style.width = `${clampedW}px`;
-      canvas.style.height = `${CANVAS_HEIGHT}px`;
+      updateSize();
+      window.addEventListener("resize", updateSize);
 
-      cwRef.current = clampedW;
-      drawFrame();
-    };
+      const observer = new MutationObserver(() => {
+        setTimeout(() => drawFrame(), 50);
+      });
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
 
-    updateSize();
-    window.addEventListener("resize", updateSize);
+      return () => {
+        window.removeEventListener("resize", updateSize);
+        observer.disconnect();
+        resetParticles();
+      };
+    }
+  }, [path, simple]);
 
-    // 主题切换监听
-    const observer = new MutationObserver(() => {
-      setTimeout(() => drawFrame(), 50);
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-
-    // 获取点赞数
+  useEffect(() => {
     getLikeCountFn({ data: { path } })
       .then((res) => {
         const c = res.count ?? 0;
         setCount(c);
         resetParticles();
-        const n = Math.min(c, MAX_PARTICLES);
-        for (let i = 0; i < n; i++) spawnParticle();
+        if (!simple) {
+          const n = Math.min(c, MAX_PARTICLES);
+          for (let i = 0; i < n; i++) spawnParticle();
+        }
       })
       .catch(() => {})
       .finally(() => {
         setLiked(!!localStorage.getItem(`liked:${path}`));
         setLoading(false);
       });
-
-    return () => {
-      window.removeEventListener("resize", updateSize);
-      observer.disconnect();
-      resetParticles();
-    };
-  }, [path]);
+  }, [path, simple]);
 
   const handleLike = async () => {
     if (liked || loading || error || requesting) return;
     setRequesting(true);
     setAnimating(true);
     setTimeout(() => setAnimating(false), 500);
-    spawnParticle();
+    if (!simple) spawnParticle();
     try {
       const res = await postLikeFn({ data: { path } });
       if (res.alreadyLiked) {
@@ -262,11 +263,12 @@ export function LikeButton() {
 
   return (
     <div className="relative flex flex-col items-center justify-center py-2">
-      <canvas
-        ref={canvasRef}
-        className="absolute top-0 left-0 pointer-events-none"
-        // 移除 w-full h-20，完全由 JS 控制尺寸
-      />
+      {!simple && (
+        <canvas
+          ref={canvasRef}
+          className="absolute top-0 left-0 pointer-events-none"
+        />
+      )}
       <button
         className={`relative z-10 inline-flex items-center gap-2 px-4 py-2 border transition-colors duration-200 select-none
           ${liked

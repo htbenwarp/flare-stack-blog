@@ -762,3 +762,17 @@ html:not(.card-opacity-enabled).dark .fuwari-card-base,
   background: var(--fuwari-primary);
 }
 
+.moment-content figcaption {
+  display: none !important;
+}
+
+.moment-content .grid img {
+  font-size: 0;
+  color: transparent;
+}
+
+.moment-content .grid,
+.moment-content .grid > *,
+.moment-content .grid img {
+  border-radius: 0 !important;
+}

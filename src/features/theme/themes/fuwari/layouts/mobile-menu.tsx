@@ -9,6 +9,7 @@ import {
   Link2,
   MessageSquare,
   Image,
+  Zap,
 } from "lucide-react";
 import type { NavOption, UserInfo } from "@/features/theme/contract/layouts";
 import { cn } from "@/lib/utils";
@@ -20,8 +21,9 @@ const iconMap: Record<string, React.ElementType> = {
   posts: FileText,
   "guest-house": Users,
   "friend-links": Link2,
-  guestbook: MessageSquare, // 预留留言板
-  gallery: Image, // 预留画廊
+  guestbook: MessageSquare,
+  gallery: Image,
+  moments: Zap,
 };
 const defaultIcon = Home; // 未匹配时使用的默认图标
 

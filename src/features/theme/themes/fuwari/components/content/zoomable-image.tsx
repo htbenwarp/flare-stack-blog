@@ -1,3 +1,4 @@
+// src/features/theme/themes/fuwari/components/content/zoomable-image.tsx
 import { ClientOnly } from "@tanstack/react-router";
 import type React from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -14,6 +15,8 @@ interface ZoomableImageProps
   alt?: string;
   width?: number;
   height?: number;
+  /** 强制使用 object-cover 并去除默认竖向图逻辑，用于网格等场景 */
+  forceCover?: boolean;
 }
 
 function Lightbox({
@@ -34,7 +37,6 @@ function Lightbox({
   const [isRendered, setIsRendered] = useState(false);
   const [isOpening, setIsOpening] = useState(false);
 
-  // Sync isRendered with isOpen to handle mounting/unmounting
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -44,22 +46,19 @@ function Lightbox({
       setIsOpening(true);
       document.body.style.overflow = "hidden";
 
-      // Trigger opening transition in next frame
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           setIsOpening(false);
         });
       });
     } else if (isRendered) {
-      // Trigger exit animation
       setIsClosing(true);
       document.body.style.overflow = "";
 
-      // Wait for animation to finish before unmounting
       timer = setTimeout(() => {
         setIsRendered(false);
         setIsClosing(false);
-      }, 500); // Wait for the 500ms transition
+      }, 500);
     }
 
     return () => {
@@ -76,7 +75,6 @@ function Lightbox({
     return () => window.removeEventListener("keydown", handleEsc);
   }, [onClose]);
 
-  // FLIP animations (both enter and exit)
   useLayoutEffect(() => {
     if (isRendered && thumbRect && imgRef.current) {
       const img = imgRef.current;
@@ -94,17 +92,15 @@ function Lightbox({
         (finalRect.top + finalRect.height / 2);
 
       if (!isClosing) {
-        // Enter animation
         img.style.transition = "none";
         img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`;
 
-        img.offsetHeight; // Force reflow
+        img.offsetHeight;
 
         img.style.transition =
           "transform 0.5s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.5s ease";
         img.style.transform = "translate(0, 0) scale(1)";
       } else {
-        // Exit animation
         img.style.transition =
           "transform 0.5s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.5s ease";
         img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`;
@@ -121,20 +117,17 @@ function Lightbox({
         isOpening || isClosing ? "opacity-0" : "opacity-100",
       )}
     >
-      {/* Dark Backdrop */}
       <div
         className="absolute inset-0 bg-black/90 cursor-zoom-out"
         onClick={onClose}
       />
 
-      {/* Controls */}
       <div
         className={cn(
           "absolute top-4 right-4 flex gap-2 z-210 p-4 transition-opacity duration-300",
           isOpening || isClosing ? "opacity-0" : "opacity-100",
         )}
       >
-        {/* Close Button */}
         <button
           onClick={onClose}
           className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group"
@@ -152,7 +145,6 @@ function Lightbox({
         </button>
       </div>
 
-      {/* Image Container */}
       <div
         className="relative z-205 flex items-center justify-center max-w-[90vw] max-h-[90vh] cursor-zoom-out"
         onClick={onClose}
@@ -176,6 +168,7 @@ export default function ZoomableImage({
   width,
   height,
   className,
+  forceCover,
   ...props
 }: ZoomableImageProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -196,10 +189,12 @@ export default function ZoomableImage({
   return (
     <>
       <div
-        className={`cursor-zoom-in group select-none overflow-hidden m-0 p-0 rounded-xl ${
-          isPortrait
+        className={`cursor-zoom-in group select-none overflow-hidden m-0 p-0 ${
+          forceCover ? "" : "rounded-xl"
+        } ${
+          isPortrait && !forceCover
             ? "flex items-center justify-center w-full max-h-[70vh]"
-            : "w-full h-auto"
+            : "w-full h-full"
         }`}
         onClick={handleOpen}
       >
@@ -213,9 +208,11 @@ export default function ZoomableImage({
           className={cn(
             className,
             "transition-all duration-500 will-change-transform m-0 p-0",
-            isPortrait
-              ? "h-auto w-auto max-h-[70vh] max-w-full mx-auto block"
-              : "w-full h-auto block max-h-[80vh] object-contain",
+            forceCover
+              ? "object-cover absolute inset-0 w-full h-full"
+              : isPortrait
+                ? "h-auto w-auto max-h-[70vh] max-w-full mx-auto block object-contain"
+                : "w-full h-auto block max-h-[80vh] object-contain",
           )}
           {...props}
         />

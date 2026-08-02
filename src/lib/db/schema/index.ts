@@ -10,3 +10,4 @@ export * from "./guest-authors.table";
 export * from "./page-likes.table";
 export * from "./gallery-items.table";
 export * from "./gallery-items-tags.table";
+export * from "./moments.table";
