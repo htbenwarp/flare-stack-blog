@@ -1,3 +1,4 @@
+// src/features/theme/themes/fuwari/pages/gallery/index.tsx
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Shuffle } from "lucide-react";
@@ -6,7 +7,6 @@ import { getOptimizedImageUrl, getOriginalImageUrl } from "@/features/media/util
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { Skeleton } from "@/components/ui/skeleton";
-import PhotoSwipeLightbox from "photoswipe/lightbox";
 import PhotoSwipe from "photoswipe";
 import "photoswipe/dist/photoswipe.css";
 
@@ -24,17 +24,50 @@ interface GalleryItem {
 const BATCH = 12;
 const GAP = 8;
 
-function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number }) {
+// 全局尺寸缓存（key: 优化图 URL，value: 宽高）
+const sizeCache = new Map<string, { w: number; h: number }>();
+
+function preloadImageSize(src: string): Promise<{ w: number; h: number }> {
+  if (sizeCache.has(src)) return Promise.resolve(sizeCache.get(src)!);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const size = { w: img.naturalWidth, h: img.naturalHeight };
+      sizeCache.set(src, size);
+      resolve(size);
+    };
+    img.onerror = () => {
+      const fallback = { w: 800, h: 600 };
+      sizeCache.set(src, fallback);
+      resolve(fallback);
+    };
+    img.src = src;
+  });
+}
+
+function GalleryImage({
+  item,
+  colWidth,
+  onImageClick,
+}: {
+  item: GalleryItem;
+  colWidth: number;
+  onImageClick: () => void;
+}) {
   const [loaded, setLoaded] = useState(false);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
 
+  const optimizedUrl = getOptimizedImageUrl(item.imageKey, 800);
+
   const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
-    setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
-    setLoaded(true);
-  };
-
-  const handleError = () => {
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    if (w > 0 && h > 0) {
+      setNaturalSize({ w, h });
+      // 同时缓存尺寸，供灯箱使用
+      sizeCache.set(optimizedUrl, { w, h });
+    }
     setLoaded(true);
   };
 
@@ -44,26 +77,20 @@ function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number 
 
   return (
     <div
-      className="gallery-item overflow-hidden cursor-pointer relative group"
+      className="overflow-hidden cursor-pointer relative group"
       style={{
         aspectRatio,
         transition: "aspect-ratio 0.3s ease",
         backgroundColor: "#f0f0f0",
       }}
-      data-title={item.title || undefined}
-      data-description={item.description || undefined}
-      data-pswp-src={getOriginalImageUrl(item.imageKey)}
-      data-pswp-msrc={getOptimizedImageUrl(item.imageKey, 800)}
-      data-pswp-width={naturalSize?.w || item.imgWidth || 1200}
-      data-pswp-height={naturalSize?.h || item.imgHeight || 800}
+      onClick={onImageClick}
     >
       <img
-        src={getOptimizedImageUrl(item.imageKey, 800)}
+        src={optimizedUrl}
         alt={item.title}
         loading="lazy"
         decoding="async"
         onLoad={handleLoad}
-        onError={handleError}
         className={cn(
           "absolute inset-0 w-full h-full object-cover transition duration-300 group-hover:scale-110",
           loaded ? "opacity-100" : "opacity-0"
@@ -115,7 +142,7 @@ export function GalleryPage() {
     setLoadedCount((prev) => Math.min(prev + BATCH, filteredItems.length));
   }, [filteredItems.length]);
 
-  // 随机排序
+  // 随机洗牌
   const shuffle = useCallback(() => {
     const target = [...filteredItems];
     for (let i = target.length - 1; i > 0; i--) {
@@ -157,182 +184,83 @@ export function GalleryPage() {
     return () => window.removeEventListener("resize", updateLayout);
   }, [updateLayout]);
 
-  // ---------- PhotoSwipe 单例管理 ----------
-  const lbRef = useRef<PhotoSwipeLightbox | null>(null);
-  const isInitializedRef = useRef(false);
-  const [needsRefresh, setNeedsRefresh] = useState(0);
+  // ---------- 手动 PhotoSwipe ----------
+  const openPhotoSwipe = useCallback(
+    async (index: number) => {
+      const images = filteredItems.slice(0, loadedCount);
+      if (images.length === 0) return;
 
-  // 当图片列表变化时，标记需要刷新
-  useEffect(() => {
-    setNeedsRefresh((v) => v + 1);
-  }, [displayItems, loadedCount]);
-
-  // PhotoSwipe 初始化与刷新
-  useEffect(() => {
-    if (isLoading || !masonryRef.current) return;
-
-    // 如果实例已存在，直接刷新
-    if (lbRef.current) {
-      try {
-        requestAnimationFrame(() => {
-          if (lbRef.current) {
-            lbRef.current.refresh();
+      // 预加载所有图片尺寸（从缓存或加载），并构建 dataSource
+      const slides = await Promise.all(
+        images.map(async (item) => {
+          const originalUrl = getOriginalImageUrl(item.imageKey);
+          const thumbUrl = getOptimizedImageUrl(item.imageKey, 800);
+          // 优先使用缓存尺寸，若没有则预加载
+          let size = sizeCache.get(thumbUrl);
+          if (!size) {
+            size = await preloadImageSize(thumbUrl);
           }
-        });
-        return;
-      } catch (error) {
-        console.warn("PhotoSwipe refresh 失败，准备重建:", error);
-        try {
-          lbRef.current.destroy();
-        } catch (_) {}
-        lbRef.current = null;
-        isInitializedRef.current = false;
-      }
-    }
-
-    // 防止重复创建
-    if (isInitializedRef.current && !lbRef.current) {
-      isInitializedRef.current = false;
-    }
-
-    // 创建新实例（仅在首次或实例损坏时）
-    if (!lbRef.current && !isInitializedRef.current) {
-      try {
-        const lb = new PhotoSwipeLightbox({
-          gallery: "#gallery-masonry",
-          children: ".gallery-item",
-          pswpModule: PhotoSwipe,
-          imageClickAction: "close",
-          tapAction: "close",
-          bgOpacity: 0.9,
-          wheelToZoom: true,
-          zoom: true,
-          initialZoomLevel: "fit",
-          secondaryZoomLevel: 2,
-          maxZoomLevel: 4,
-          preload: [3, 3],
-        });
-
-        // 自定义底部标题
-        lb.on("afterInit", () => {
-          const pswp = lb.pswp;
-          if (!pswp?.element) return;
-
-          let captionEl = pswp.element.querySelector(".pswp__custom-caption") as HTMLElement;
-          if (!captionEl) {
-            captionEl = document.createElement("div");
-            captionEl.className = "pswp__custom-caption";
-            captionEl.style.cssText = `
-              position: absolute;
-              bottom: 20px;
-              left: 50%;
-              transform: translateX(-50%);
-              background: rgba(0, 0, 0, 0.65);
-              color: #fff;
-              padding: 8px 18px;
-              border-radius: 10px;
-              max-width: 80%;
-              text-align: center;
-              z-index: 20;
-              pointer-events: none;
-              backdrop-filter: blur(4px);
-              box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-            `;
-            pswp.element.appendChild(captionEl);
-          }
-
-          const updateCaption = () => {
-            const slideData = pswp.currSlide?.data;
-            const title = slideData?.element?.dataset?.title || "";
-            const desc = slideData?.element?.dataset?.description || "";
-            if (captionEl) {
-              captionEl.innerHTML = "";
-              if (title) {
-                const titleEl = document.createElement("span");
-                titleEl.textContent = title;
-                titleEl.style.fontWeight = "bold";
-                titleEl.style.fontFamily = 'Georgia, "Times New Roman", serif';
-                titleEl.style.fontSize = "16px";
-                captionEl.appendChild(titleEl);
-              }
-              if (desc) {
-                const descEl = document.createElement("span");
-                descEl.textContent = desc;
-                descEl.style.fontFamily = 'Georgia, "Times New Roman", serif';
-                descEl.style.fontSize = "14px";
-                captionEl.appendChild(descEl);
-              }
-              captionEl.style.display = title || desc ? "flex" : "none";
-            }
+          return {
+            src: originalUrl,
+            msrc: thumbUrl,
+            w: size.w,
+            h: size.h,
+            title: item.title,
+            description: item.description,
           };
+        })
+      );
 
-          pswp.on("change", updateCaption);
-          updateCaption();
+      const pswp = new PhotoSwipe({
+        dataSource: slides,
+        index,
+        bgOpacity: 0.95,
+        wheelToZoom: true,
+        zoom: true,
+        closeOnVerticalDrag: true,
+        showHideAnimationType: "fade",
+      });
 
-          const isMobile = window.innerWidth < 768;
-          const arrowLeft = pswp.element.querySelector(".pswp__button--arrow--left") as HTMLElement;
-          const arrowRight = pswp.element.querySelector(".pswp__button--arrow--right") as HTMLElement;
-          if (arrowLeft) arrowLeft.style.display = isMobile ? "none" : "";
-          if (arrowRight) arrowRight.style.display = isMobile ? "none" : "";
-        });
+      // 可选：自定义底部标题
+      pswp.on("afterInit", () => {
+        if (!pswp.element) return;
+        let captionEl = pswp.element.querySelector(".pswp__custom-caption") as HTMLElement;
+        if (!captionEl) {
+          captionEl = document.createElement("div");
+          captionEl.className = "pswp__custom-caption";
+          captionEl.style.cssText = `
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.65);
+            color: #fff;
+            padding: 8px 18px;
+            border-radius: 10px;
+            max-width: 80%;
+            text-align: center;
+            z-index: 20;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+            font-family: Georgia, "Times New Roman", serif;
+          `;
+          pswp.element.appendChild(captionEl);
+        }
+        const updateCaption = () => {
+          const slideData = pswp.currSlide?.data;
+          const title = slideData?.title || "";
+          const desc = slideData?.description || "";
+          captionEl.textContent = title + (desc ? ` - ${desc}` : "");
+          captionEl.style.display = title || desc ? "block" : "none";
+        };
+        pswp.on("change", updateCaption);
+        updateCaption();
+      });
 
-        lb.on("close", () => {
-          const captionEl = document.querySelector(".pswp__custom-caption");
-          if (captionEl) captionEl.remove();
-        });
-
-        lb.addFilter("domItemData", (itemData: any, element: HTMLElement) => {
-          const originalSrc = element.dataset.pswpSrc;
-          if (originalSrc) itemData.src = originalSrc;
-          const msrc = element.dataset.pswpMsrc;
-          if (msrc) itemData.msrc = msrc;
-          const w = Number(element.dataset.pswpWidth);
-          const h = Number(element.dataset.pswpHeight);
-          if (w > 0 && h > 0) {
-            itemData.w = w;
-            itemData.h = h;
-          }
-          return itemData;
-        });
-
-        lb.init();
-        lbRef.current = lb;
-        isInitializedRef.current = true;
-      } catch (error) {
-        console.error("PhotoSwipe 初始化失败:", error);
-        isInitializedRef.current = false;
-      }
-    }
-
-    return () => {
-      if (lbRef.current) {
-        try {
-          lbRef.current.destroy();
-        } catch (_) {}
-        lbRef.current = null;
-        isInitializedRef.current = false;
-      }
-      document.querySelectorAll(".pswp__custom-caption").forEach((el) => el.remove());
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, needsRefresh]);
-
-  // 组件卸载时额外清理
-  useEffect(() => {
-    return () => {
-      if (lbRef.current) {
-        try {
-          lbRef.current.destroy();
-        } catch (_) {}
-        lbRef.current = null;
-        isInitializedRef.current = false;
-      }
-      document.querySelectorAll(".pswp__custom-caption").forEach((el) => el.remove());
-    };
-  }, []);
+      pswp.init();
+    },
+    [filteredItems, loadedCount]
+  );
 
   // ---------- 骨架屏 ----------
   if (isLoading) return <GallerySkeleton />;
@@ -367,14 +295,7 @@ export function GalleryPage() {
       onMouseDown={(e) => (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-active)")}
       onMouseUp={(e) => (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-hover)")}
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        width="24"
-        height="24"
-        className="rotate-90"
-        aria-hidden="true"
-      >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" className="rotate-90" aria-hidden="true">
         <path fill="currentColor" d="M12.6 12L8 7.4L9.4 6l6 6l-6 6L8 16.6z" />
       </svg>
     </button>
@@ -384,12 +305,8 @@ export function GalleryPage() {
     <div className="flex flex-col gap-4 w-full">
       {/* 标题 */}
       <div className="fuwari-card-base p-6 md:p-10 space-y-4">
-        <h1 className="text-3xl font-bold fuwari-text-90">
-          {m.gallery_title?.() ?? "画廊"}
-        </h1>
-        <p className="text-sm fuwari-text-50">
-          {m.gallery_intro?.() ?? "浏览摄影作品"}
-        </p>
+        <h1 className="text-3xl font-bold fuwari-text-90">{m.gallery_title?.() ?? "画廊"}</h1>
+        <p className="text-sm fuwari-text-50">{m.gallery_intro?.() ?? "浏览摄影作品"}</p>
       </div>
 
       {/* 随机排序按钮 */}
@@ -418,7 +335,7 @@ export function GalleryPage() {
                 "text-xs px-3 py-1 rounded-full border transition-colors",
                 !activeTag
                   ? "bg-(--fuwari-primary) text-white border-(--fuwari-primary)"
-                  : "fuwari-text-50 border-border hover:border-(--fuwari-primary)",
+                  : "fuwari-text-50 border-border hover:border-(--fuwari-primary)"
               )}
             >
               {m.gallery_all?.() ?? "全部"} ({items?.length ?? 0})
@@ -431,7 +348,7 @@ export function GalleryPage() {
                   "text-xs px-3 py-1 rounded-full border transition-colors",
                   activeTag === tag.name
                     ? "bg-(--fuwari-primary) text-white border-(--fuwari-primary)"
-                    : "fuwari-text-50 border-border hover:border-(--fuwari-primary)",
+                    : "fuwari-text-50 border-border hover:border-(--fuwari-primary)"
                 )}
               >
                 {tag.name} ({tag.count})
@@ -446,9 +363,18 @@ export function GalleryPage() {
         <div id="gallery-masonry" ref={masonryRef} className="flex gap-2 w-full">
           {columns.map((col, colIdx) => (
             <div key={colIdx} className="flex-1 flex flex-col gap-2">
-              {col.map((item) => (
-                <GalleryImage key={item.id} item={item} colWidth={colWidth} />
-              ))}
+              {col.map((item) => {
+                // 计算该图片在 visibleItems 中的索引
+                const globalIndex = visibleItems.indexOf(item);
+                return (
+                  <GalleryImage
+                    key={item.id}
+                    item={item}
+                    colWidth={colWidth}
+                    onImageClick={() => openPhotoSwipe(globalIndex)}
+                  />
+                );
+              })}
               {colIdx === columns.length - 1 && hasMore && <LoadMoreBtn />}
             </div>
           ))}
