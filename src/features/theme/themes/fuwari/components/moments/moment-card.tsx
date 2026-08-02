@@ -78,8 +78,7 @@ function GalleryLightbox({
     return () => window.removeEventListener("keydown", handler);
   }, [onClose, prev, next]);
 
-  // ✅ 隐藏导航栏 + 锁定滚动（兼容生产环境）
-  useEffect(() => {
+  useLayoutEffect(() => {
     const navbar =
       document.getElementById("fuwari-navbar-wrapper") ||
       document.querySelector('[id*="fuwari-navbar"]');
@@ -122,30 +121,32 @@ function GalleryLightbox({
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 点击背景关闭 */}
-      <div className="absolute inset-0 cursor-zoom-out" onClick={onClose} />
+      {/* 背景关闭层 - 降低 z-index，避免遮挡按钮 */}
+      <div className="absolute inset-0 z-[9997] cursor-zoom-out" onClick={onClose} />
 
-      {/* 关闭按钮 */}
+      {/* 关闭按钮 - 提升 z-index，增大点击区域，适配移动端 */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 z-[10001] p-2 bg-white/10 hover:bg-white/20 rounded-lg transition"
+        className="absolute top-4 right-4 z-[10002] p-3 bg-white/10 hover:bg-white/20 rounded-lg transition active:scale-95"
+        style={{ touchAction: "manipulation" }}
         aria-label="关闭"
       >
         <X className="w-6 h-6 text-white" />
       </button>
 
-      {/* 左箭头 - z-index 高于图片容器 */}
+      {/* 左箭头 */}
       {images.length > 1 && (
         <button
           onClick={prev}
-          className="absolute left-4 z-[10001] p-2 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer"
+          className="absolute left-4 z-[10001] p-3 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer active:scale-95"
+          style={{ touchAction: "manipulation" }}
           aria-label="上一张"
         >
           <ChevronLeft className="w-8 h-8 text-white" />
         </button>
       )}
 
-      {/* 图片容器 z-index 低于按钮 */}
+      {/* 图片容器（z-index 低于按钮） */}
       <div className="relative z-[9998]" onClick={(e) => e.stopPropagation()}>
         <img
           src={getImageSrc(images[current])}
@@ -155,11 +156,12 @@ function GalleryLightbox({
         />
       </div>
 
-      {/* 右箭头 - z-index 高于图片容器 */}
+      {/* 右箭头 */}
       {images.length > 1 && (
         <button
           onClick={next}
-          className="absolute right-4 z-[10001] p-2 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer"
+          className="absolute right-4 z-[10001] p-3 bg-white/10 hover:bg-white/20 rounded-full transition cursor-pointer active:scale-95"
+          style={{ touchAction: "manipulation" }}
           aria-label="下一张"
         >
           <ChevronRight className="w-8 h-8 text-white" />
@@ -173,7 +175,6 @@ function GalleryLightbox({
     </div>
   );
 }
-
 
 // ---------- 图片网格 ----------
 
