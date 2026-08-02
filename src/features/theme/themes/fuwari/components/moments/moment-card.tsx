@@ -201,8 +201,8 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
       <div className="fuwari-custom-md text-sm moment-content">
         {images.length > 0 ? (
           <>
-            {renderImages()}
             {plainText && <p className="mt-2 whitespace-pre-wrap break-words">{plainText}</p>}
+            {renderImages()}
           </>
         ) : (
           <ContentRenderer content={moment.content} />
