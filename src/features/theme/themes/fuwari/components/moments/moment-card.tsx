@@ -68,6 +68,7 @@ function GalleryLightbox({
     setCurrent((prev) => (prev - 1 + images.length) % images.length);
   }, [images.length]);
 
+  // 键盘事件
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -78,24 +79,39 @@ function GalleryLightbox({
     return () => window.removeEventListener("keydown", handler);
   }, [onClose, prev, next]);
 
+  // 隐藏导航栏 & 禁止滚动（使用 useLayoutEffect 确保在绘制前执行）
   useLayoutEffect(() => {
+    // 查找导航栏元素
     const navbar =
       document.getElementById("fuwari-navbar-wrapper") ||
       document.querySelector('[id*="fuwari-navbar"]');
+
     if (navbar) {
-      (navbar as HTMLElement).style.visibility = "hidden";
-      (navbar as HTMLElement).style.pointerEvents = "none";
+      // 强制隐藏并禁用过渡/动画，避免闪烁
+      const el = navbar as HTMLElement;
+      el.style.setProperty("visibility", "hidden", "important");
+      el.style.setProperty("pointer-events", "none", "important");
+      el.style.setProperty("transition", "none", "important");
+      el.style.setProperty("animation", "none", "important");
     }
+
+    // 禁止页面滚动
     document.body.style.overflow = "hidden";
+
+    // 恢复样式
     return () => {
       if (navbar) {
-        (navbar as HTMLElement).style.visibility = "";
-        (navbar as HTMLElement).style.pointerEvents = "";
+        const el = navbar as HTMLElement;
+        el.style.visibility = "";
+        el.style.pointerEvents = "";
+        el.style.transition = "";
+        el.style.animation = "";
       }
       document.body.style.overflow = "";
     };
   }, []);
 
+  // 触摸滑动
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
   };
@@ -118,7 +134,7 @@ function GalleryLightbox({
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 背景关闭层（保留，但避免干扰按钮） */}
+      {/* 背景关闭层 */}
       <div
         className="absolute inset-0 z-[9997] cursor-zoom-out"
         onClick={onClose}
@@ -170,7 +186,7 @@ function GalleryLightbox({
         {current + 1} / {images.length}
       </div>
 
-      {/* ========== 使用 Portal 渲染关闭按钮 ========== */}
+      {/* Portal 关闭按钮（确保可点击） */}
       {createPortal(
         <button
           onMouseDown={(e) => {
@@ -204,6 +220,7 @@ function GalleryLightbox({
     </div>
   );
 }
+
 // ---------- 图片网格 ----------
 
 function ImageGrid({
