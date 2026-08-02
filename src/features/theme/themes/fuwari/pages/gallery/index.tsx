@@ -24,27 +24,6 @@ interface GalleryItem {
 const BATCH = 12;
 const GAP = 8;
 
-// 全局尺寸缓存（key: 优化图 URL，value: 宽高）
-const sizeCache = new Map<string, { w: number; h: number }>();
-
-function preloadImageSize(src: string): Promise<{ w: number; h: number }> {
-  if (sizeCache.has(src)) return Promise.resolve(sizeCache.get(src)!);
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const size = { w: img.naturalWidth, h: img.naturalHeight };
-      sizeCache.set(src, size);
-      resolve(size);
-    };
-    img.onerror = () => {
-      const fallback = { w: 800, h: 600 };
-      sizeCache.set(src, fallback);
-      resolve(fallback);
-    };
-    img.src = src;
-  });
-}
-
 function GalleryImage({
   item,
   colWidth,
@@ -65,8 +44,6 @@ function GalleryImage({
     const h = img.naturalHeight;
     if (w > 0 && h > 0) {
       setNaturalSize({ w, h });
-      // 同时缓存尺寸，供灯箱使用
-      sizeCache.set(optimizedUrl, { w, h });
     }
     setLoaded(true);
   };
@@ -186,30 +163,16 @@ export function GalleryPage() {
 
   // ---------- 手动 PhotoSwipe ----------
   const openPhotoSwipe = useCallback(
-    async (index: number) => {
+    (index: number) => {
       const images = filteredItems.slice(0, loadedCount);
       if (images.length === 0) return;
 
-      // 预加载所有图片尺寸（从缓存或加载），并构建 dataSource
-      const slides = await Promise.all(
-        images.map(async (item) => {
-          const originalUrl = getOriginalImageUrl(item.imageKey);
-          const thumbUrl = getOptimizedImageUrl(item.imageKey, 800);
-          // 优先使用缓存尺寸，若没有则预加载
-          let size = sizeCache.get(thumbUrl);
-          if (!size) {
-            size = await preloadImageSize(thumbUrl);
-          }
-          return {
-            src: originalUrl,
-            msrc: thumbUrl,
-            w: size.w,
-            h: size.h,
-            title: item.title,
-            description: item.description,
-          };
-        })
-      );
+      const slides = images.map((item) => ({
+        src: getOriginalImageUrl(item.imageKey),
+        msrc: getOptimizedImageUrl(item.imageKey, 800),
+        title: item.title,
+        description: item.description,
+      }));
 
       const pswp = new PhotoSwipe({
         dataSource: slides,
@@ -221,7 +184,7 @@ export function GalleryPage() {
         showHideAnimationType: "fade",
       });
 
-      // 可选：自定义底部标题
+      // 自定义底部标题
       pswp.on("afterInit", () => {
         if (!pswp.element) return;
         let captionEl = pswp.element.querySelector(".pswp__custom-caption") as HTMLElement;
@@ -289,13 +252,31 @@ export function GalleryPage() {
     <button
       onClick={loadMore}
       className="w-full aspect-[4/3] flex items-center justify-center rounded-xl transition-all"
-      style={{ backgroundColor: "var(--fuwari-btn-regular-bg)", color: "var(--fuwari-btn-content)" }}
-      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-hover)")}
-      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg)")}
-      onMouseDown={(e) => (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-active)")}
-      onMouseUp={(e) => (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-hover)")}
+      style={{
+        backgroundColor: "var(--fuwari-btn-regular-bg)",
+        color: "var(--fuwari-btn-content)",
+      }}
+      onMouseEnter={(e) =>
+        (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-hover)")
+      }
+      onMouseLeave={(e) =>
+        (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg)")
+      }
+      onMouseDown={(e) =>
+        (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-active)")
+      }
+      onMouseUp={(e) =>
+        (e.currentTarget.style.backgroundColor = "var(--fuwari-btn-regular-bg-hover)")
+      }
     >
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" className="rotate-90" aria-hidden="true">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        width="24"
+        height="24"
+        className="rotate-90"
+        aria-hidden="true"
+      >
         <path fill="currentColor" d="M12.6 12L8 7.4L9.4 6l6 6l-6 6L8 16.6z" />
       </svg>
     </button>
@@ -305,8 +286,12 @@ export function GalleryPage() {
     <div className="flex flex-col gap-4 w-full">
       {/* 标题 */}
       <div className="fuwari-card-base p-6 md:p-10 space-y-4">
-        <h1 className="text-3xl font-bold fuwari-text-90">{m.gallery_title?.() ?? "画廊"}</h1>
-        <p className="text-sm fuwari-text-50">{m.gallery_intro?.() ?? "浏览摄影作品"}</p>
+        <h1 className="text-3xl font-bold fuwari-text-90">
+          {m.gallery_title?.() ?? "画廊"}
+        </h1>
+        <p className="text-sm fuwari-text-50">
+          {m.gallery_intro?.() ?? "浏览摄影作品"}
+        </p>
       </div>
 
       {/* 随机排序按钮 */}
@@ -364,7 +349,6 @@ export function GalleryPage() {
           {columns.map((col, colIdx) => (
             <div key={colIdx} className="flex-1 flex flex-col gap-2">
               {col.map((item) => {
-                // 计算该图片在 visibleItems 中的索引
                 const globalIndex = visibleItems.indexOf(item);
                 return (
                   <GalleryImage
