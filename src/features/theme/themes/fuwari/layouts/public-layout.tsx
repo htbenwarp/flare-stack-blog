@@ -155,7 +155,7 @@ export function PublicLayout({
             className="relative mx-auto px-0 md:px-4 pb-8 grid grid-cols-1 lg:grid-cols-[17.5rem_1fr] gap-4 pt-4 md:pt-6 items-start"
             style={{ maxWidth: "var(--fuwari-page-width)" }}
           >
-            <Sidebar className="order-2 lg:order-1" />
+            <Sidebar className="order-2 lg:order-1 lg:self-stretch" />
             <main className="order-1 lg:order-2 flex flex-col gap-4 min-w-0 relative z-0">
               {children}
             </main>

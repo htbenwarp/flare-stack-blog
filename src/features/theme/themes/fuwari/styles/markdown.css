@@ -776,3 +776,49 @@ html:not(.card-opacity-enabled).dark .fuwari-card-base,
 .moment-content .grid img {
   border-radius: 0 !important;
 }
+
+.moment-content img {
+  display: block;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+
+.block-image-wrapper {
+  display: block;
+  margin: 0.5em 0;
+  line-height: 0;
+}
+
+.block-image-wrapper img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* 编辑器外部容器 */
+.minimal-editor-flex {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 文本区域（可编辑部分） */
+.minimal-editor-flex .text-area {
+  order: 1;
+}
+
+/* 图片区域（只读，不可编辑） */
+.minimal-editor-flex .image-area {
+  order: 2;
+  pointer-events: none;  /* 禁止点击，防止焦点落入 */
+}
+
+/* 可选：让图片区域内的图片正常显示 */
+.minimal-editor-flex .image-area img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* 图片区域动画 */
+.image-area .group:hover .opacity-0 {
+  opacity: 1;
+}

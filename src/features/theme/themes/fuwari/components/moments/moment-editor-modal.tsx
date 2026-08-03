@@ -1,13 +1,16 @@
 // src/features/theme/themes/fuwari/components/moments/moment-editor-modal.tsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { X, MapPin } from "lucide-react";
-import { createMomentFn, updateMomentFn } from "@/features/moments/api/moments.api";
+import {
+  createMomentFn,
+  updateMomentFn,
+} from "@/features/moments/api/moments.api";
 import { MinimalEditor } from "./minimal-editor";
 import type { JSONContent } from "@tiptap/react";
 
-// 设备信息解析（保持不变）
+// ---------- 设备信息解析 ----------
 function parseDeviceInfo() {
   const ua = navigator.userAgent;
   let browser = "Unknown";
@@ -29,12 +32,12 @@ function parseDeviceInfo() {
   return { browser, os, device };
 }
 
-// 逆地理编码（保持不变）
+// ---------- 逆地理编码 ----------
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-      { headers: { "Accept-Language": "zh" } }
+      { headers: { "Accept-Language": "zh" } },
     );
     const data = await res.json();
     if (data?.display_name) {
@@ -72,33 +75,35 @@ export function MomentEditorModal({
   const queryClient = useQueryClient();
   const isEdit = !!initialData;
 
-  const [content, setContent] = useState<JSONContent | null>(null);
+  // 存储编辑器分离后的数据：{ json: 纯文本JSON, images: 图片URL数组 }
+  const [editorData, setEditorData] = useState<{
+    json: JSONContent;
+    images: string[];
+  } | null>(null);
   const [location, setLocation] = useState("");
   const [publishedAt, setPublishedAt] = useState(
-    new Date().toISOString().slice(0, 16)
+    new Date().toISOString().slice(0, 16),
   );
   const [isLocating, setIsLocating] = useState(false);
 
   // 动画状态
   const [isRendered, setIsRendered] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const submittingRef = useRef(false);
 
-  // 控制动画：当 isOpen 变化时触发
+  // 动画控制
   useEffect(() => {
     if (isOpen) {
       setIsRendered(true);
-      // 下一帧触发进场动画
+      submittingRef.current = false;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           setIsAnimating(false);
         });
       });
     } else if (isRendered) {
-      // 触发退场动画
       setIsAnimating(true);
-      const timer = setTimeout(() => {
-        setIsRendered(false);
-      }, 300); // 与 CSS transition 时长一致
+      const timer = setTimeout(() => setIsRendered(false), 300);
       return () => clearTimeout(timer);
     }
   }, [isOpen, isRendered]);
@@ -106,21 +111,38 @@ export function MomentEditorModal({
   // 回填编辑数据
   useEffect(() => {
     if (initialData) {
-      setContent(initialData.content);
       setLocation(initialData.location ?? "");
       setPublishedAt(
-        new Date(initialData.publishedAt).toISOString().slice(0, 16)
+        new Date(initialData.publishedAt).toISOString().slice(0, 16),
       );
+      // 编辑器会自行从 initialContent 中分离图片，此处无需额外操作
     } else {
-      setContent(null);
+      setEditorData(null);
       setLocation("");
       setPublishedAt(new Date().toISOString().slice(0, 16));
     }
   }, [initialData]);
 
+  // 合并图片到文本 JSON 中（用于提交）
+  const buildFullContent = useCallback((): JSONContent => {
+    if (!editorData) return {};
+    return {
+      ...editorData.json,
+      content: [
+        ...(editorData.json.content || []),
+        ...editorData.images.map((src) => ({
+          type: "image",
+          attrs: { src, alt: "", title: null },
+        })),
+      ],
+    };
+  }, [editorData]);
+
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!content) throw new Error("请输入内容");
+      const content = buildFullContent();
+      if (!content.content || content.content.length === 0)
+        throw new Error("请输入内容");
       const deviceInfo = parseDeviceInfo();
       return createMomentFn({
         data: {
@@ -142,7 +164,8 @@ export function MomentEditorModal({
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      if (!content || !initialData) return;
+      if (!initialData) return;
+      const content = buildFullContent();
       return updateMomentFn({
         data: {
           id: initialData.id,
@@ -161,13 +184,20 @@ export function MomentEditorModal({
     onError: () => toast.error("更新失败"),
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
+    if (submittingRef.current) return;
+    const content = buildFullContent();
+    if (!content.content || content.content.length === 0) {
+      toast.error("请输入内容");
+      return;
+    }
+    submittingRef.current = true;
     if (isEdit) {
       updateMutation.mutate();
     } else {
       createMutation.mutate();
     }
-  };
+  }, [buildFullContent, isEdit, updateMutation, createMutation]);
 
   const handleGetLocation = async () => {
     if (!navigator.geolocation) {
@@ -186,7 +216,7 @@ export function MomentEditorModal({
         toast.error(`定位失败：${err.message}`);
         setIsLocating(false);
       },
-      { timeout: 10000, enableHighAccuracy: true }
+      { timeout: 10000, enableHighAccuracy: true },
     );
   };
 
@@ -195,7 +225,6 @@ export function MomentEditorModal({
     : createMutation.isPending;
   const submitLabel = isEdit ? "保存" : "发布";
 
-  // 不渲染时返回 null
   if (!isRendered) return null;
 
   return (
@@ -204,10 +233,8 @@ export function MomentEditorModal({
         isAnimating ? "opacity-0" : "opacity-100"
       }`}
     >
-      {/* 背景点击关闭 */}
       <div className="absolute inset-0" onClick={onClose} />
 
-      {/* 弹窗主体 */}
       <div
         className={`relative bg-(--fuwari-card-bg) rounded-(--fuwari-radius-large) shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col transition-all duration-300 transform ${
           isAnimating
@@ -215,7 +242,7 @@ export function MomentEditorModal({
             : "scale-100 opacity-100 translate-y-0"
         }`}
       >
-        {/* Header */}
+        {/* 头部 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5">
           <h2 className="text-lg font-bold fuwari-text-90">
             {isEdit ? "编辑动态" : "发布动态"}
@@ -228,14 +255,16 @@ export function MomentEditorModal({
           </button>
         </div>
 
-        {/* Body */}
+        {/* 内容区域 */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           <MinimalEditor
-            onChange={(json) => setContent(json)}
-            initialContent={content || undefined}
+            onChange={(data) => setEditorData(data)}
+            // 编辑器会从 initialContent 中自动分离图片，所以直接传入原始内容即可
+            initialContent={initialData?.content}
             placeholder="此刻的想法..."
           />
 
+          {/* 定位与时间 */}
           <div className="flex gap-2 items-center">
             <button
               type="button"
@@ -268,7 +297,7 @@ export function MomentEditorModal({
           </div>
         </div>
 
-        {/* Footer */}
+        {/* 底部按钮 */}
         <div className="flex justify-end gap-3 px-5 py-4 border-t border-black/5 dark:border-white/5">
           <button
             onClick={onClose}
@@ -278,7 +307,7 @@ export function MomentEditorModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!content || isSubmitting}
+            disabled={!editorData || isSubmitting}
             className="fuwari-btn-primary h-9 px-5 text-sm rounded-lg disabled:opacity-50"
           >
             {isSubmitting ? "处理中..." : submitLabel}

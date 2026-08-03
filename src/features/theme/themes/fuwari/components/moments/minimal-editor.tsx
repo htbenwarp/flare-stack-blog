@@ -2,41 +2,37 @@
 import { useEffect, useCallback, useState, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Image from "@tiptap/extension-image";
-import { ImageUpload } from "@/features/posts/editor/extensions/upload-image/index";
 import { IframeExtension } from "@/features/posts/editor/extensions/iframe/index";
 import { uploadMomentImage } from "@/features/moments/utils";
-import { normalizeLinkHref } from "@/lib/links/normalize-link-href";
+import { toast } from "sonner";
 import type { JSONContent } from "@tiptap/react";
 import {
-  Bold, Italic, Strikethrough, LinkIcon, ImageIcon, Upload, Globe, Smile,
+  Bold, Italic, Strikethrough, LinkIcon, ImageIcon, Upload, Globe, Smile, X,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { EmojiPickerPopover } from "@/features/theme/themes/fuwari/components/comments/editor/emoji-picker-popover";
+import { normalizeLinkHref } from "@/lib/links/normalize-link-href";
 
-// ---------- 解析 iframe 代码 ----------
-function parseIframeCode(code: string): Record<string, any> | null {
-  try {
-    const div = document.createElement("div");
-    div.innerHTML = code.trim();
-    const iframe = div.querySelector("iframe");
-    if (!iframe) return null;
-    const attrs: Record<string, any> = {};
-    for (const attr of iframe.attributes) {
-      attrs[attr.name] = attr.value;
-    }
-    // 标准化 allowfullscreen
-    if (
-      attrs.allowfullscreen === "" ||
-      attrs.allowfullscreen === "true" ||
-      attrs.allowfullscreen === "allowfullscreen"
-    ) {
-      attrs.allowFullscreen = true;
-    }
-    return attrs;
-  } catch {
-    return null;
-  }
+// ---------- 工具函数：从 JSON 中分离图片和文本 ----------
+function extractImagesFromJSON(json?: JSONContent): {
+  images: string[];
+  contentWithoutImages: JSONContent;
+} {
+  const images: string[] = [];
+  if (!json || !json.content) return { images, contentWithoutImages: json || {} };
+
+  const contentWithoutImages = {
+    ...json,
+    content: json.content.filter((node: any) => {
+      if (node.type === "image") {
+        images.push(node.attrs?.src || "");
+        return false;
+      }
+      return true;
+    }),
+  };
+
+  return { images, contentWithoutImages };
 }
 
 // ---------- 插入模态框 ----------
@@ -53,7 +49,6 @@ function InsertModal({
   const [alt, setAlt] = useState("");
   const [width, setWidth] = useState("100%");
   const [height, setHeight] = useState("400");
-  const [iframeCode, setIframeCode] = useState("");
 
   const handleSubmit = () => {
     if (type === "link") {
@@ -62,13 +57,7 @@ function InsertModal({
     } else if (type === "image") {
       onSubmit(url, { alt });
     } else if (type === "iframe") {
-      const attrs = parseIframeCode(iframeCode);
-      if (!attrs || !attrs.src) {
-        // 简单提示错误
-        alert("请粘贴有效的 iframe 代码，且必须包含 src 属性");
-        return;
-      }
-      onSubmit(attrs.src, attrs);
+      onSubmit(url, { width, height });
     }
     onClose();
   };
@@ -81,28 +70,16 @@ function InsertModal({
             ? "插入链接"
             : type === "image"
               ? "插入图片 URL"
-              : "插入嵌入代码"}
+              : "插入嵌入页面"}
         </h3>
-
-        {type === "iframe" ? (
-          <textarea
-            placeholder="粘贴完整的 iframe 标签代码"
-            value={iframeCode}
-            onChange={(e) => setIframeCode(e.target.value)}
-            className="w-full h-32 text-sm border rounded px-2 py-1 resize-none"
-            autoFocus
-          />
-        ) : (
-          <input
-            type="text"
-            placeholder="URL"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            className="w-full text-sm border rounded px-2 py-1"
-            autoFocus
-          />
-        )}
-
+        <input
+          type="text"
+          placeholder="URL"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          className="w-full text-sm border rounded px-2 py-1"
+          autoFocus
+        />
         {type === "image" && (
           <input
             type="text"
@@ -112,13 +89,35 @@ function InsertModal({
             className="w-full text-sm border rounded px-2 py-1"
           />
         )}
-
-        {/* 链接/图片时不显示宽高，iframe 已不需要宽高输入，因为代码自带 */}
+        {type === "iframe" && (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="宽度 (如 100%)"
+              value={width}
+              onChange={(e) => setWidth(e.target.value)}
+              className="w-1/2 text-sm border rounded px-2 py-1"
+            />
+            <input
+              type="text"
+              placeholder="高度 (如 400)"
+              value={height}
+              onChange={(e) => setHeight(e.target.value)}
+              className="w-1/2 text-sm border rounded px-2 py-1"
+            />
+          </div>
+        )}
         <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} className="px-3 py-1 text-sm rounded border">
+          <button
+            onClick={onClose}
+            className="px-3 py-1 text-sm rounded border"
+          >
             取消
           </button>
-          <button onClick={handleSubmit} className="px-3 py-1 text-sm rounded bg-blue-500 text-white">
+          <button
+            onClick={handleSubmit}
+            className="px-3 py-1 text-sm rounded bg-blue-500 text-white"
+          >
             确定
           </button>
         </div>
@@ -144,7 +143,9 @@ function Toolbar({
   onUploadImage: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   if (!editor) return null;
-  const btnClass = "p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-sm";
+  const btnClass =
+    "p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-sm";
+
   return (
     <div className="flex flex-wrap gap-1 px-2 py-1 border-b border-black/5 dark:border-white/5">
       <button
@@ -174,7 +175,12 @@ function Toolbar({
       </button>
       <label className={`${btnClass} cursor-pointer`}>
         <Upload size={16} />
-        <input type="file" accept="image/*" className="hidden" onChange={onUploadImage} />
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={onUploadImage}
+        />
       </label>
       <button onClick={onIframe} className={btnClass}>
         <Globe size={16} />
@@ -188,53 +194,81 @@ function Toolbar({
 
 // ---------- 主编辑器 ----------
 interface MinimalEditorProps {
-  onChange: (json: JSONContent) => void;
+  onChange: (data: { json: JSONContent; images: string[] }) => void;
   placeholder?: string;
   initialContent?: JSONContent;
 }
 
-export function MinimalEditor({ onChange, placeholder, initialContent }: MinimalEditorProps) {
-  const [modal, setModal] = useState<{ type: "link" | "image" | "iframe" } | null>(null);
+export function MinimalEditor({
+  onChange,
+  placeholder,
+  initialContent,
+}: MinimalEditorProps) {
+  const [modal, setModal] = useState<{
+    type: "link" | "image" | "iframe";
+  } | null>(null);
   const [showEmoji, setShowEmoji] = useState(false);
   const [emojiPos, setEmojiPos] = useState({ top: 0, left: 0 });
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const isInitializedRef = useRef(false);
+
+  // 图片状态：完全独立于编辑器
+  const [images, setImages] = useState<string[]>(() => {
+    if (!initialContent) return [];
+    const { images: initImages } = extractImagesFromJSON(initialContent);
+    return initImages;
+  });
+
+  // 编辑器初始内容（去除图片）
+  const initialEditorContent = initialContent
+    ? extractImagesFromJSON(initialContent).contentWithoutImages
+    : "";
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: false,
         codeBlock: false,
+        image: false, // 完全禁用图片节点
         link: { openOnClick: false },
-      }),
-      Image.configure({ HTMLAttributes: { alt: "", title: "" } }),
-      ImageUpload.configure({
-        onUpload: async (file: File) => {
-          const { url } = await uploadMomentImage(file);
-          return { url };
-        },
       }),
       IframeExtension,
     ],
     editorProps: {
       attributes: {
         class:
-          "prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[120px] p-3",
+          "max-w-none focus:outline-none text-base leading-relaxed min-h-[120px] p-3",
         "data-placeholder": placeholder || "此刻的想法...",
       },
     },
+    immediatelyRender: false,
     onUpdate: ({ editor }) => {
-      onChange(editor.getJSON());
+      const json = editor.getJSON();
+      onChange({ json, images });
     },
-    content: initialContent || "",
+    content: initialEditorContent,
   });
 
-  // 当 initialContent 变化时，动态更新编辑器内容（用于编辑回填）
+  // 初始化标记（防止重复初始化）
   useEffect(() => {
-    if (editor && initialContent) {
-      editor.commands.setContent(initialContent);
+    if (!isInitializedRef.current && editor && initialContent) {
+      isInitializedRef.current = true;
     }
   }, [editor, initialContent]);
 
+  // 图片变化时同步通知父组件
+  useEffect(() => {
+    if (editor) {
+      onChange({ json: editor.getJSON(), images });
+    }
+  }, [images, editor, onChange]);
+
+  // 删除图片
+  const handleRemoveImage = useCallback((index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // 表情处理
   const handleEmojiClick = useCallback((e: React.MouseEvent) => {
     if (toolbarRef.current) {
       const rect = toolbarRef.current.getBoundingClientRect();
@@ -251,20 +285,31 @@ export function MinimalEditor({ onChange, placeholder, initialContent }: Minimal
     [editor],
   );
 
+  // 图片上传
   const handleUploadImage = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (!file || !editor) return;
-      editor.commands.uploadImage(file);
-      e.target.value = "";
+      if (!file) return;
+
+      try {
+        const { url } = await uploadMomentImage(file);
+        setImages((prev) => [...prev, url]);
+        toast.success("图片上传成功");
+      } catch (err) {
+        console.error("Upload failed", err);
+        toast.error("图片上传失败");
+      } finally {
+        e.target.value = "";
+      }
     },
-    [editor],
+    [],
   );
 
   if (!editor) return <div className="min-h-[120px] border rounded" />;
 
   return (
     <div className="border border-black/10 dark:border-white/10 rounded-lg overflow-hidden bg-(--fuwari-card-bg)">
+      {/* 工具栏 */}
       <div ref={toolbarRef}>
         <Toolbar
           editor={editor}
@@ -276,32 +321,73 @@ export function MinimalEditor({ onChange, placeholder, initialContent }: Minimal
         />
       </div>
 
-      <EditorContent editor={editor} />
+      {/* 编辑区域 */}
+      <div className="flex flex-col">
+        {/* 文本编辑区 */}
+        <div>
+          <EditorContent editor={editor} />
+        </div>
 
+        {/* 图片展示区（带删除功能） */}
+        {images.length > 0 && (
+          <div className="p-3 border-t border-black/5 dark:border-white/5 space-y-3">
+            {images.map((src, idx) => (
+              <div
+                key={`${idx}-${src.slice(-20)}`}
+                className="relative group rounded-lg overflow-hidden"
+              >
+                <img
+                  src={src}
+                  alt={`图片 ${idx + 1}`}
+                  className="w-full h-auto max-h-96 object-contain bg-black/5 dark:bg-white/5"
+                />
+                {/* 删除按钮 */}
+                <button
+                  onClick={() => handleRemoveImage(idx)}
+                  className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110"
+                  title="删除图片"
+                >
+                  <X size={14} />
+                </button>
+                {/* 图片序号 */}
+                <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/60 text-white text-xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                  {idx + 1}/{images.length}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 插入模态框 */}
       {modal && (
         <InsertModal
           type={modal.type}
           onClose={() => setModal(null)}
           onSubmit={(url, extra) => {
             if (modal.type === "link") {
-              if (url === "") {
-                editor.chain().focus().extendMarkRange("link").unsetLink().run();
-              } else {
-                editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
-              }
+              if (url === "")
+                editor
+                  .chain()
+                  .focus()
+                  .extendMarkRange("link")
+                  .unsetLink()
+                  .run();
+              else
+                editor
+                  .chain()
+                  .focus()
+                  .extendMarkRange("link")
+                  .setLink({ href: url })
+                  .run();
             } else if (modal.type === "image") {
-              editor.chain().focus().setImage({ src: url, alt: extra?.alt || "" }).run();
+              setImages((prev) => [...prev, url]);
+              toast.success("图片已添加");
             } else if (modal.type === "iframe") {
-              // 传递解析后的所有属性给 insertIframe 命令
               editor.commands.insertIframe({
-                src: url,                    // url 此时为 src
+                src: url,
                 width: extra?.width || "100%",
                 height: extra?.height || "400",
-                allowFullscreen: extra?.allowFullscreen !== undefined ? extra.allowFullscreen : true,
-                title: extra?.title || "",
-                loading: extra?.loading || "lazy",
-                frameborder: extra?.frameborder || "0",
-                ...extra,                   // 其他属性一并传入
               });
             }
             setModal(null);
@@ -309,6 +395,7 @@ export function MinimalEditor({ onChange, placeholder, initialContent }: Minimal
         />
       )}
 
+      {/* 表情选择器 */}
       {showEmoji &&
         createPortal(
           <div
