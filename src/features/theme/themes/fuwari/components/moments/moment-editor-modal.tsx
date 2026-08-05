@@ -6,6 +6,7 @@ import { X, MapPin } from "lucide-react";
 import {
   createMomentFn,
   updateMomentFn,
+  reverseGeocodeFn,
 } from "@/features/moments/api/moments.api";
 import { MinimalEditor } from "./minimal-editor";
 import type { JSONContent } from "@tiptap/react";
@@ -32,25 +33,14 @@ function parseDeviceInfo() {
   return { browser, os, device };
 }
 
-// ---------- 逆地理编码 ----------
+// ---------- 逆地理编码（通过 Server Function 代理） ----------
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-      { headers: { "Accept-Language": "zh" } },
-    );
-    const data = await res.json();
-    if (data?.display_name) {
-      const address = data.address || {};
-      const parts: string[] = [];
-      if (address.city || address.town || address.village)
-        parts.push(address.city || address.town || address.village);
-      if (address.road) parts.push(address.road);
-      if (address.suburb) parts.push(address.suburb);
-      if (parts.length === 0) {
-        return data.display_name.split(",").slice(0, 3).join(", ");
-      }
-      return parts.join(", ");
+    const result = await reverseGeocodeFn({
+      data: { lat, lng },
+    });
+    if (result.success && result.address) {
+      return result.address;
     }
   } catch {}
   return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
@@ -115,7 +105,7 @@ export function MomentEditorModal({
       setPublishedAt(
         new Date(initialData.publishedAt).toISOString().slice(0, 16),
       );
-      // 编辑器会自行从 initialContent 中分离图片，此处无需额外操作
+      // 编辑器会自行从 initialContent 中分离图片
     } else {
       setEditorData(null);
       setLocation("");
@@ -259,7 +249,6 @@ export function MomentEditorModal({
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           <MinimalEditor
             onChange={(data) => setEditorData(data)}
-            // 编辑器会从 initialContent 中自动分离图片，所以直接传入原始内容即可
             initialContent={initialData?.content}
             placeholder="此刻的想法..."
           />

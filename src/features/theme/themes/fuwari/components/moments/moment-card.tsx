@@ -2,6 +2,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Pencil, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { FuwariCommentSection } from "@/features/theme/themes/fuwari/components/comments/view/comment-section";
 import { LikeButton } from "@/features/theme/themes/fuwari/components/like-button";
 import { ContentRenderer } from "@/features/theme/themes/fuwari/components/content/content-renderer";
@@ -12,6 +13,7 @@ import "photoswipe/dist/photoswipe.css";
 
 // ---------- 工具函数 ----------
 
+/** 提取所有图片 src */
 function extractImageSrcs(doc: JSONContent | null): string[] {
   if (!doc) return [];
   const srcs: string[] = [];
@@ -23,6 +25,7 @@ function extractImageSrcs(doc: JSONContent | null): string[] {
   return srcs;
 }
 
+/** 提取纯文本并保留段落换行 */
 function extractTextWithLineBreaks(doc: JSONContent | null): string {
   if (!doc) return "";
   const lines: string[] = [];
@@ -41,10 +44,12 @@ function extractTextWithLineBreaks(doc: JSONContent | null): string {
   return lines.join("").trim();
 }
 
+/** GIF 图片添加 no-transform 参数，避免 Cloudflare 转换失败 */
 function getImageSrc(src: string): string {
   return src.toLowerCase().endsWith(".gif") ? `${src}?no-transform=1` : src;
 }
 
+// 图片尺寸缓存
 const sizeCache = new Map<string, { w: number; h: number }>();
 
 function preloadImageSize(src: string): Promise<{ w: number; h: number }> {
@@ -65,7 +70,8 @@ function preloadImageSize(src: string): Promise<{ w: number; h: number }> {
   });
 }
 
-// ---------- 图片网格（修复外边距 + 背景色） ----------
+// ---------- 图片网格 ----------
+
 function ImageGrid({
   images,
   onImageClick,
@@ -103,7 +109,8 @@ function ImageGrid({
   );
 }
 
-// ---------- MomentCard ----------
+// ---------- MomentCard 主组件 ----------
+
 interface MomentCardProps {
   moment: {
     id: number;
@@ -160,6 +167,20 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
   const images = extractImageSrcs(moment.content);
   const plainText = extractTextWithLineBreaks(moment.content);
 
+  // 文本折叠相关
+  const [textExpanded, setTextExpanded] = useState(false);
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  useEffect(() => {
+    if (textRef.current) {
+      const lineHeight = 1.25 * 16; // 1.25rem ≈ 20px
+      const maxHeight = 6 * lineHeight;
+      setIsOverflowing(textRef.current.scrollHeight > maxHeight);
+    }
+  }, [plainText]);
+
+  // 手动 PhotoSwipe（预加载尺寸）
   const openGallery = async (index: number) => {
     if (images.length === 0) return;
     const slides = await Promise.all(
@@ -186,7 +207,7 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
       const originalUrl = getImageSrc(images[0]);
       return (
         <div
-          className="cursor-pointer overflow-hidden rounded-none block"  // 让单张图片块级显示
+          className="cursor-pointer overflow-hidden rounded-none block"
           onClick={() => openGallery(0)}
         >
           <img
@@ -203,6 +224,7 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
 
   return (
     <div className="fuwari-card-base p-4 md:p-6 space-y-4 w-full relative">
+      {/* 管理员操作按钮 */}
       {isAdmin && (
         <div className="absolute top-3 right-3 flex gap-1 z-10">
           <button
@@ -223,30 +245,72 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
         </div>
       )}
 
+      {/* 作者信息 */}
       <div className="flex items-center gap-3">
         {moment.author?.image ? (
-          <img src={moment.author.image} alt={moment.author.name} className="w-8 h-8 rounded-full object-cover" />
+          <img
+            src={moment.author.image}
+            alt={moment.author.name}
+            className="w-8 h-8 rounded-full object-cover"
+          />
         ) : (
           <div className="w-8 h-8 rounded-full bg-(--fuwari-primary) flex items-center justify-center text-white text-xs font-bold">
             {(moment.author?.name ?? "博主").charAt(0)}
           </div>
         )}
         <div className="flex-1">
-          <p className="text-sm font-medium fuwari-text-90">{moment.author?.name ?? "博主"}</p>
+          <p className="text-sm font-medium fuwari-text-90">
+            {moment.author?.name ?? "博主"}
+          </p>
           <div className="flex items-center gap-2 text-xs fuwari-text-50">
             {timeString && <span>{timeString}</span>}
-            {moment.location && <><span>·</span><span>{moment.location}</span></>}
-            {deviceString && <><span>·</span><span>{deviceString}</span></>}
+            {moment.location && (
+              <>
+                <span>·</span>
+                <span>{moment.location}</span>
+              </>
+            )}
+            {deviceString && (
+              <>
+                <span>·</span>
+                <span>{deviceString}</span>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* 内容区域（初版逻辑：文字在上，图片在下） */}
+      {/* 内容区域（文字在上，图片在下，支持折叠） */}
       <div className="fuwari-custom-md text-sm moment-content whitespace-pre-wrap">
         {images.length > 0 ? (
           <>
             {plainText && (
-              <p className="mb-2 whitespace-pre-wrap break-words">{plainText}</p>
+              <div>
+                <p
+                  ref={textRef}
+                  className={`mb-2 whitespace-pre-wrap break-words ${
+                    !textExpanded ? "line-clamp-6" : ""
+                  }`}
+                >
+                  {plainText}
+                </p>
+                {isOverflowing && !textExpanded && (
+                  <button
+                    onClick={() => setTextExpanded(true)}
+                    className="text-xs text-(--fuwari-primary) hover:underline mt-1"
+                  >
+                    展开更多
+                  </button>
+                )}
+                {textExpanded && (
+                  <button
+                    onClick={() => setTextExpanded(false)}
+                    className="text-xs text-(--fuwari-primary) hover:underline mt-1"
+                  >
+                    收起
+                  </button>
+                )}
+              </div>
             )}
             {renderImages()}
           </>
@@ -255,10 +319,12 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
         )}
       </div>
 
+      {/* 互动栏 */}
       <div className="flex items-center gap-4 pt-2 border-t border-black/5 dark:border-white/5">
         <LikeButton path={likePath} simple />
       </div>
 
+      {/* 评论区（折叠） */}
       <FuwariCommentSection postId={moment.id} collapsed />
     </div>
   );

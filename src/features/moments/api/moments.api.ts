@@ -93,3 +93,47 @@ export const deleteMomentFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     return await MomentsData.deleteMoment(context.db, data.id);
   });
+
+
+export const reverseGeocodeFn = createServerFn()
+  .middleware([dbMiddleware])
+  .inputValidator(
+    z.object({
+      lat: z.number(),
+      lng: z.number(),
+    })
+  )
+  .handler(async ({ data }) => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${data.lat}&lon=${data.lng}&zoom=18&addressdetails=1`,
+        {
+          headers: {
+            "Accept-Language": "zh",
+            "User-Agent": "FlareStackBlog/1.0",
+          },
+        }
+      );
+      if (!res.ok) return { success: false, address: null };
+      const result = await res.json();
+      if (result?.display_name) {
+        // 提取简短地址
+        const address = result.address || {};
+        const parts: string[] = [];
+        if (address.city || address.town || address.village)
+          parts.push(address.city || address.town || address.village);
+        if (address.road) parts.push(address.road);
+        if (address.suburb) parts.push(address.suburb);
+        if (parts.length === 0) {
+          return {
+            success: true,
+            address: result.display_name.split(",").slice(0, 3).join(", "),
+          };
+        }
+        return { success: true, address: parts.join(", ") };
+      }
+      return { success: false, address: null };
+    } catch {
+      return { success: false, address: null };
+    }
+  });
