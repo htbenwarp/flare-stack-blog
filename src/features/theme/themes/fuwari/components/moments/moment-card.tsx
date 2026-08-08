@@ -2,7 +2,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Pencil, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { FuwariCommentSection } from "@/features/theme/themes/fuwari/components/comments/view/comment-section";
 import { LikeButton } from "@/features/theme/themes/fuwari/components/like-button";
 import { ContentRenderer } from "@/features/theme/themes/fuwari/components/content/content-renderer";
@@ -11,7 +11,7 @@ import type { JSONContent } from "@tiptap/react";
 import PhotoSwipe from "photoswipe";
 import "photoswipe/dist/photoswipe.css";
 
-// ---------- 工具函数（保持不变） ----------
+// ---------- 工具函数 ----------
 function extractImageSrcs(doc: JSONContent | null): string[] {
   if (!doc) return [];
   const srcs: string[] = [];
@@ -41,6 +41,7 @@ function getImageSrc(src: string): string {
   return src.toLowerCase().endsWith(".gif") ? `${src}?no-transform=1` : src;
 }
 
+// 保留预加载尺寸缓存（用于 DOM 中不存在的图片）
 const sizeCache = new Map<string, { w: number; h: number }>();
 function preloadImageSize(src: string): Promise<{ w: number; h: number }> {
   if (sizeCache.has(src)) return Promise.resolve(sizeCache.get(src)!);
@@ -85,7 +86,7 @@ function ImageGrid({ images, onImageClick }: { images: string[]; onImageClick: (
   );
 }
 
-// ---------- 文本折叠组件（通用） ----------
+// ---------- 文本折叠组件 ----------
 function CollapsibleText({
   text,
   maxLines = 6,
@@ -103,17 +104,14 @@ function CollapsibleText({
     const el = containerRef.current;
     if (!el) return;
 
-    // 临时取消高度限制，获取完整高度
     el.style.maxHeight = "none";
     const fullHeight = el.scrollHeight;
-
-    const lineHeight = 1.25 * 16; // 1.25rem ≈ 20px
+    const lineHeight = 1.25 * 16;
     const maxHeight = maxLines * lineHeight;
 
     const shouldCollapse = fullHeight > maxHeight;
     setNeedsCollapse(shouldCollapse);
 
-    // 根据展开状态应用高度
     if (shouldCollapse && !expanded) {
       el.style.maxHeight = `${maxHeight}px`;
     } else {
@@ -143,7 +141,7 @@ function CollapsibleText({
   );
 }
 
-// ---------- MomentCard 主组件 ----------
+// ---------- MomentCard ----------
 interface MomentCardProps {
   moment: {
     id: number;
@@ -192,56 +190,96 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
   const images = extractImageSrcs(moment.content);
   const plainText = extractTextWithLineBreaks(moment.content);
 
-  const openGallery = async (index: number) => {
-    if (images.length === 0) return;
-    const slides = await Promise.all(
-      images.map(async (src) => {
-        const url = getImageSrc(src);
+  // 灯箱单例与 DOM 尺寸提取优化
+  const galleryRef = useRef<PhotoSwipe | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  // 从已渲染的 img 元素中读取尺寸，不在 DOM 中的降级处理
+  const getSlidesFromDOM = useCallback(async (imgs: string[]) => {
+    const slides: any[] = [];
+    if (!gridRef.current) return slides;
+
+    const imgElements = gridRef.current.querySelectorAll('img');
+    const imgMap = new Map<string, HTMLImageElement>();
+    imgElements.forEach((img) => {
+      const src = img.src.split('?')[0]; // 去掉 query 参数
+      imgMap.set(src, img);
+    });
+
+    const slidePromises = imgs.map(async (src) => {
+      const url = getImageSrc(src);
+      const cleanSrc = src.split('?')[0];
+      const imgEl = imgMap.get(cleanSrc);
+      // 已加载完成的图片直接复用尺寸
+      if (imgEl && imgEl.complete && imgEl.naturalWidth) {
+        return { src: url, msrc: url, w: imgEl.naturalWidth, h: imgEl.naturalHeight };
+      }
+      // 否则尝试预加载（或者不设尺寸，让 PhotoSwipe 自适应）
+      try {
         const size = await preloadImageSize(url);
         return { src: url, msrc: url, w: size.w, h: size.h };
-      }),
-    );
-    new PhotoSwipe({
+      } catch {
+        return { src: url, msrc: url };
+      }
+    });
+
+    return await Promise.all(slidePromises);
+  }, []);
+
+  const openGallery = useCallback(async (index: number) => {
+    if (images.length === 0) return;
+
+    // 单例灯箱：关闭已有实例
+    if (galleryRef.current) {
+      galleryRef.current.destroy();
+      galleryRef.current = null;
+    }
+
+    const slides = await getSlidesFromDOM(images);
+
+    const pswp = new PhotoSwipe({
       dataSource: slides,
       index,
       bgOpacity: 0.95,
       wheelToZoom: true,
       zoom: true,
       closeOnVerticalDrag: true,
-      showHideAnimationType: "fade",
-    }).init();
-  };
+      showHideAnimationType: 'fade',
+    });
+
+    pswp.on('destroy', () => {
+      galleryRef.current = null;
+    });
+
+    pswp.init();
+    galleryRef.current = pswp;
+  }, [images, getSlidesFromDOM]);
 
   const renderImages = () => {
     if (images.length === 0) return null;
     if (images.length === 1) {
       const originalUrl = getImageSrc(images[0]);
       return (
-        <div className="cursor-pointer overflow-hidden rounded-none" onClick={() => openGallery(0)}>
+        <div ref={gridRef} className="cursor-pointer overflow-hidden rounded-none" onClick={() => openGallery(0)}>
           <img src={originalUrl} alt="" className="w-full h-auto max-h-[80vh] object-contain rounded-none !m-0" loading="lazy" />
         </div>
       );
     }
-    return <ImageGrid images={images} onImageClick={openGallery} />;
+    return (
+      <div ref={gridRef}>
+        <ImageGrid images={images} onImageClick={openGallery} />
+      </div>
+    );
   };
 
   return (
     <div className="fuwari-card-base p-4 md:p-6 space-y-4 w-full relative">
       {isAdmin && (
         <div className="absolute top-3 right-3 flex gap-1 z-10">
-          <button
-            onClick={() => onEdit?.(moment)}
-            className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground transition"
-            title="编辑"
-          >
+          <button onClick={() => onEdit?.(moment)} className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground transition" title="编辑">
             <Pencil size={15} />
           </button>
-          <button
-            onClick={handleDelete}
-            disabled={deleteMutation.isPending}
-            className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition disabled:opacity-50"
-            title="删除"
-          >
+          <button onClick={handleDelete} disabled={deleteMutation.isPending} className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition disabled:opacity-50" title="删除">
             <Trash2 size={15} />
           </button>
         </div>
@@ -251,9 +289,7 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
         {moment.author?.image ? (
           <img src={moment.author.image} alt={moment.author.name} className="w-8 h-8 rounded-full object-cover" />
         ) : (
-          <div className="w-8 h-8 rounded-full bg-(--fuwari-primary) flex items-center justify-center text-white text-xs font-bold">
-            {(moment.author?.name ?? "博主").charAt(0)}
-          </div>
+          <div className="w-8 h-8 rounded-full bg-(--fuwari-primary) flex items-center justify-center text-white text-xs font-bold">{(moment.author?.name ?? "博主").charAt(0)}</div>
         )}
         <div className="flex-1">
           <p className="text-sm font-medium fuwari-text-90">{moment.author?.name ?? "博主"}</p>
@@ -275,16 +311,10 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
         </div>
       </div>
 
-      {/* 内容区域：统一使用纯文本折叠（不再依赖 ContentRenderer，避免 Unknown node type 错误） */}
       <div className="fuwari-custom-md text-sm moment-content whitespace-pre-wrap">
-        {plainText && (
-          <CollapsibleText text={plainText} maxLines={6} className="mb-2" />
-        )}
+        {plainText && <CollapsibleText text={plainText} maxLines={6} className="mb-2" />}
         {renderImages()}
-        {/* 如果没有任何内容（既无文本也无图片）才显示 ContentRenderer，但这种情况极少 */}
-        {!plainText && images.length === 0 && (
-          <ContentRenderer content={moment.content} />
-        )}
+        {!plainText && images.length === 0 && <ContentRenderer content={moment.content} />}
       </div>
 
       <div className="flex items-center gap-4 pt-2 border-t border-black/5 dark:border-white/5">
