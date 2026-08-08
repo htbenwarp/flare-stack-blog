@@ -1,7 +1,7 @@
 // src/features/theme/themes/fuwari/components/moments/moment-card.tsx
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { FuwariCommentSection } from "@/features/theme/themes/fuwari/components/comments/view/comment-section";
 import { LikeButton } from "@/features/theme/themes/fuwari/components/like-button";
@@ -41,28 +41,25 @@ function getImageSrc(src: string): string {
   return src.toLowerCase().endsWith(".gif") ? `${src}?no-transform=1` : src;
 }
 
-// 保留预加载尺寸缓存（用于 DOM 中不存在的图片）
+// 全局尺寸缓存（跨组件实例共享）
 const sizeCache = new Map<string, { w: number; h: number }>();
-function preloadImageSize(src: string): Promise<{ w: number; h: number }> {
-  if (sizeCache.has(src)) return Promise.resolve(sizeCache.get(src)!);
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const size = { w: img.naturalWidth, h: img.naturalHeight };
-      sizeCache.set(src, size);
-      resolve(size);
-    };
-    img.onerror = () => {
-      const fallback = { w: 800, h: 600 };
-      sizeCache.set(src, fallback);
-      resolve(fallback);
-    };
-    img.src = src;
-  });
+
+// 图片加载时自动缓存尺寸
+function cacheImageSize(img: HTMLImageElement) {
+  const key = img.src.split('?')[0];
+  if (!sizeCache.has(key) && img.naturalWidth && img.naturalHeight) {
+    sizeCache.set(key, { w: img.naturalWidth, h: img.naturalHeight });
+  }
 }
 
 // ---------- 图片网格 ----------
-function ImageGrid({ images, onImageClick }: { images: string[]; onImageClick: (index: number) => void }) {
+function ImageGrid({
+  images,
+  onImageClick,
+}: {
+  images: string[];
+  onImageClick: (index: number) => void;
+}) {
   return (
     <div className="grid grid-cols-3 gap-1 rounded-none">
       {images.slice(0, 9).map((src, idx) => {
@@ -73,7 +70,13 @@ function ImageGrid({ images, onImageClick }: { images: string[]; onImageClick: (
             className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-800 rounded-none cursor-pointer"
             onClick={() => onImageClick(idx)}
           >
-            <img src={getImageSrc(src)} alt="" className="absolute inset-0 w-full h-full object-cover rounded-none !m-0" loading="lazy" />
+            <img
+              src={getImageSrc(src)}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover rounded-none !m-0"
+              loading="lazy"
+              onLoad={(e) => cacheImageSize(e.currentTarget)}
+            />
             {isLast && (
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none rounded-none">
                 <span className="text-white text-lg font-bold">+{images.length - 9}</span>
@@ -141,7 +144,7 @@ function CollapsibleText({
   );
 }
 
-// ---------- MomentCard ----------
+// ---------- MomentCard 主组件 ----------
 interface MomentCardProps {
   moment: {
     id: number;
@@ -183,85 +186,251 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
     : null;
 
   const deviceString = moment.deviceInfo
-    ? [moment.deviceInfo.browser, moment.deviceInfo.os, moment.deviceInfo.device].filter(Boolean).join(" · ")
+    ? [moment.deviceInfo.browser, moment.deviceInfo.os, moment.deviceInfo.device]
+        .filter(Boolean)
+        .join(" · ")
     : null;
 
   const likePath = `/moment/${moment.id}`;
   const images = extractImageSrcs(moment.content);
   const plainText = extractTextWithLineBreaks(moment.content);
 
-  // 灯箱单例与 DOM 尺寸提取优化
+  // 灯箱相关
   const galleryRef = useRef<PhotoSwipe | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const [galleryLoading, setGalleryLoading] = useState(false);
 
-  // 从已渲染的 img 元素中读取尺寸，不在 DOM 中的降级处理
-  const getSlidesFromDOM = useCallback(async (imgs: string[]) => {
-    const slides: any[] = [];
-    if (!gridRef.current) return slides;
+  // 异步获取单张图片尺寸（带超时和取消）
+  const getImageSize = useCallback(
+    async (src: string, signal?: AbortSignal): Promise<{ w: number; h: number } | null> => {
+      if (signal?.aborted) return null;
 
-    const imgElements = gridRef.current.querySelectorAll('img');
-    const imgMap = new Map<string, HTMLImageElement>();
-    imgElements.forEach((img) => {
-      const src = img.src.split('?')[0]; // 去掉 query 参数
-      imgMap.set(src, img);
-    });
-
-    const slidePromises = imgs.map(async (src) => {
       const url = getImageSrc(src);
-      const cleanSrc = src.split('?')[0];
-      const imgEl = imgMap.get(cleanSrc);
-      // 已加载完成的图片直接复用尺寸
-      if (imgEl && imgEl.complete && imgEl.naturalWidth) {
-        return { src: url, msrc: url, w: imgEl.naturalWidth, h: imgEl.naturalHeight };
+      const key = src.split('?')[0];
+
+      // 1. 全局缓存
+      if (sizeCache.has(key)) return sizeCache.get(key)!;
+
+      // 2. 从 DOM 中查找
+      if (gridRef.current) {
+        const imgs = gridRef.current.querySelectorAll('img');
+        for (const img of imgs) {
+          if (signal?.aborted) return null;
+
+          if (img.src.split('?')[0] === key) {
+            // 已加载完成
+            if (img.complete && img.naturalWidth) {
+              const size = { w: img.naturalWidth, h: img.naturalHeight };
+              sizeCache.set(key, size);
+              return size;
+            }
+            // 正在加载中，等待完成（支持取消）
+            if (!img.complete) {
+              try {
+                await new Promise<void>((resolve, reject) => {
+                  if (signal?.aborted) {
+                    reject(new Error('aborted'));
+                    return;
+                  }
+
+                  const timeout = setTimeout(() => reject(new Error('timeout')), 3000);
+
+                  const onAbort = () => {
+                    clearTimeout(timeout);
+                    img.removeEventListener('load', onLoad);
+                    img.removeEventListener('error', onError);
+                    reject(new Error('aborted'));
+                  };
+
+                  const onLoad = () => {
+                    clearTimeout(timeout);
+                    signal?.removeEventListener('abort', onAbort);
+                    img.removeEventListener('load', onLoad);
+                    img.removeEventListener('error', onError);
+                    resolve();
+                  };
+
+                  const onError = () => {
+                    clearTimeout(timeout);
+                    signal?.removeEventListener('abort', onAbort);
+                    img.removeEventListener('load', onLoad);
+                    img.removeEventListener('error', onError);
+                    reject(new Error('error'));
+                  };
+
+                  signal?.addEventListener('abort', onAbort, { once: true });
+                  img.addEventListener('load', onLoad, { once: true });
+                  img.addEventListener('error', onError, { once: true });
+                });
+
+                if (img.naturalWidth) {
+                  const size = { w: img.naturalWidth, h: img.naturalHeight };
+                  sizeCache.set(key, size);
+                  return size;
+                }
+              } catch {
+                // 失败或取消，降级
+              }
+            }
+            break;
+          }
+        }
       }
-      // 否则尝试预加载（或者不设尺寸，让 PhotoSwipe 自适应）
+
+      // 3. new Image 预加载（支持取消）
+      return new Promise((resolve) => {
+        if (signal?.aborted) {
+          resolve(null);
+          return;
+        }
+
+        const img = new Image();
+        let settled = false;
+
+        const timeout = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            img.src = '';
+            signal?.removeEventListener('abort', onAbort);
+            resolve(null);
+          }
+        }, 5000);
+
+        const onAbort = () => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timeout);
+            img.src = '';
+            resolve(null);
+          }
+        };
+
+        img.onload = () => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timeout);
+            signal?.removeEventListener('abort', onAbort);
+            const size = { w: img.naturalWidth, h: img.naturalHeight };
+            sizeCache.set(key, size);
+            resolve(size);
+          }
+        };
+
+        img.onerror = () => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timeout);
+            signal?.removeEventListener('abort', onAbort);
+            resolve(null);
+          }
+        };
+
+        signal?.addEventListener('abort', onAbort, { once: true });
+        img.src = url;
+      });
+    },
+    [],
+  );
+
+  // 批量获取图片尺寸（支持取消，并发限制）
+  const getSlidesData = useCallback(
+    async (imgs: string[], signal?: AbortSignal) => {
+      const concurrency = 3;
+      const results: { src: string; msrc: string; w?: number; h?: number }[] = [];
+
+      for (let i = 0; i < imgs.length; i += concurrency) {
+        if (signal?.aborted) break;
+
+        const batch = imgs.slice(i, i + concurrency);
+        const batchResults = await Promise.all(
+          batch.map(async (src) => {
+            if (signal?.aborted) return { src: getImageSrc(src), msrc: getImageSrc(src) };
+
+            const url = getImageSrc(src);
+            const size = await getImageSize(src, signal);
+            return size
+              ? { src: url, msrc: url, w: size.w, h: size.h }
+              : { src: url, msrc: url };
+          }),
+        );
+        results.push(...batchResults);
+      }
+
+      return results;
+    },
+    [getImageSize],
+  );
+
+  // 打开灯箱（带请求取消和加载状态）
+  const openGallery = useCallback(
+    async (index: number) => {
+      if (images.length === 0) return;
+
+      // 取消上一次未完成的请求
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      // 创建新的 AbortController
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      // 关闭已有实例
+      if (galleryRef.current) {
+        galleryRef.current.destroy();
+        galleryRef.current = null;
+      }
+
+      setGalleryLoading(true);
+
       try {
-        const size = await preloadImageSize(url);
-        return { src: url, msrc: url, w: size.w, h: size.h };
-      } catch {
-        return { src: url, msrc: url };
+        const slides = await getSlidesData(images, abortController.signal);
+
+        if (abortController.signal.aborted) return;
+
+        const pswp = new PhotoSwipe({
+          dataSource: slides,
+          index,
+          bgOpacity: 0.95,
+          wheelToZoom: true,
+          zoom: true,
+          closeOnVerticalDrag: true,
+          showHideAnimationType: 'fade',
+        });
+
+        pswp.on('destroy', () => {
+          galleryRef.current = null;
+        });
+
+        pswp.init();
+        galleryRef.current = pswp;
+      } catch (error) {
+        if (error instanceof Error && error.message !== 'aborted') {
+          console.error('Failed to open gallery:', error);
+          toast.error('打开图片浏览器失败');
+        }
+      } finally {
+        setGalleryLoading(false);
       }
-    });
+    },
+    [images, getSlidesData],
+  );
 
-    return await Promise.all(slidePromises);
-  }, []);
-
-  const openGallery = useCallback(async (index: number) => {
-    if (images.length === 0) return;
-
-    // 单例灯箱：关闭已有实例
-    if (galleryRef.current) {
-      galleryRef.current.destroy();
-      galleryRef.current = null;
-    }
-
-    const slides = await getSlidesFromDOM(images);
-
-    const pswp = new PhotoSwipe({
-      dataSource: slides,
-      index,
-      bgOpacity: 0.95,
-      wheelToZoom: true,
-      zoom: true,
-      closeOnVerticalDrag: true,
-      showHideAnimationType: 'fade',
-    });
-
-    pswp.on('destroy', () => {
-      galleryRef.current = null;
-    });
-
-    pswp.init();
-    galleryRef.current = pswp;
-  }, [images, getSlidesFromDOM]);
-
+  // 渲染图片
   const renderImages = () => {
     if (images.length === 0) return null;
     if (images.length === 1) {
       const originalUrl = getImageSrc(images[0]);
       return (
         <div ref={gridRef} className="cursor-pointer overflow-hidden rounded-none" onClick={() => openGallery(0)}>
-          <img src={originalUrl} alt="" className="w-full h-auto max-h-[80vh] object-contain rounded-none !m-0" loading="lazy" />
+          <img
+            src={originalUrl}
+            alt=""
+            className="w-full h-auto max-h-[80vh] object-contain rounded-none !m-0"
+            loading="lazy"
+            onLoad={(e) => cacheImageSize(e.currentTarget)}
+          />
         </div>
       );
     }
@@ -274,12 +443,31 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
 
   return (
     <div className="fuwari-card-base p-4 md:p-6 space-y-4 w-full relative">
+      {/* 加载遮罩 */}
+      {galleryLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+          <div className="bg-(--fuwari-card-bg) rounded-(--fuwari-radius-large) p-6 flex items-center gap-3 shadow-xl">
+            <Loader2 className="animate-spin text-(--fuwari-primary)" size={24} />
+            <span className="text-sm fuwari-text-75">准备图片中...</span>
+          </div>
+        </div>
+      )}
+
       {isAdmin && (
         <div className="absolute top-3 right-3 flex gap-1 z-10">
-          <button onClick={() => onEdit?.(moment)} className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground transition" title="编辑">
+          <button
+            onClick={() => onEdit?.(moment)}
+            className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground transition"
+            title="编辑"
+          >
             <Pencil size={15} />
           </button>
-          <button onClick={handleDelete} disabled={deleteMutation.isPending} className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition disabled:opacity-50" title="删除">
+          <button
+            onClick={handleDelete}
+            disabled={deleteMutation.isPending}
+            className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition disabled:opacity-50"
+            title="删除"
+          >
             <Trash2 size={15} />
           </button>
         </div>
@@ -289,7 +477,9 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
         {moment.author?.image ? (
           <img src={moment.author.image} alt={moment.author.name} className="w-8 h-8 rounded-full object-cover" />
         ) : (
-          <div className="w-8 h-8 rounded-full bg-(--fuwari-primary) flex items-center justify-center text-white text-xs font-bold">{(moment.author?.name ?? "博主").charAt(0)}</div>
+          <div className="w-8 h-8 rounded-full bg-(--fuwari-primary) flex items-center justify-center text-white text-xs font-bold">
+            {(moment.author?.name ?? "博主").charAt(0)}
+          </div>
         )}
         <div className="flex-1">
           <p className="text-sm font-medium fuwari-text-90">{moment.author?.name ?? "博主"}</p>
