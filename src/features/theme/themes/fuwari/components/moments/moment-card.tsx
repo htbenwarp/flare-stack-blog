@@ -185,7 +185,7 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
   });
 
   const handleDelete = () => {
-    if (window.confirm("确定删除这条动态吗？此操作不可撤销。")) deleteMutation.mutate();
+    if (window.confirm("确定删除这条动态吗？此操作不可撤销。" )) deleteMutation.mutate();
   };
 
   const timeString = moment.publishedAt
@@ -455,12 +455,13 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
           const heightStyle = typeof height === 'number' ? `${height}px` : height;
 
           return (
-            <div key={idx} className="iframe-wrapper relative my-2" style={{ maxWidth: '100%' }}>
+            <div key={idx} style={{ maxWidth: '100%', margin: 0 }}>
               <iframe
                 src={attrs.src}
                 style={{
                   width: widthStyle,
                   height: heightStyle,
+                  display: 'block',
                 }}
                 allowFullscreen={attrs.allowFullscreen !== false}
                 title={attrs.title || ""}
