@@ -443,28 +443,40 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
     );
   };
 
+  // 渲染 iframe 列表 - 修正版本
   const renderIframes = () => {
     if (iframes.length === 0) return null;
     return (
       <div className="space-y-4 mt-2">
-        {iframes.map((attrs, idx) => (
-          <div key={idx} className="iframe-wrapper relative my-2">
-            <iframe
-              src={attrs.src}
-              width={attrs.width || "100%"}
-              height={attrs.height || "400"}
-              allowFullscreen={attrs.allowFullscreen !== false}
-              title={attrs.title || ""}
-              loading={attrs.loading || "lazy"}
-              frameBorder={attrs.frameborder || "0"}
-              className="w-full rounded-lg border border-border"
-              {...(attrs.sandbox && { sandbox: attrs.sandbox })}
-              {...(attrs.allow && { allow: attrs.allow })}
-              {...(attrs.scrolling && { scrolling: attrs.scrolling })}
-              {...(attrs.referrerpolicy && { referrerpolicy: attrs.referrerpolicy })}
-            />
-          </div>
-        ))}
+        {iframes.map((attrs, idx) => {
+          // 处理宽度：如果是数字加 px，否则保留原值（可能是百分比）
+          const width = attrs.width || '100%';
+          const height = attrs.height || '400';
+          const widthStyle = typeof width === 'number' ? `${width}px` : width;
+          const heightStyle = typeof height === 'number' ? `${height}px` : height;
+
+          return (
+            <div key={idx} className="iframe-wrapper relative my-2" style={{ maxWidth: '100%' }}>
+              <iframe
+                src={attrs.src}
+                style={{
+                  width: widthStyle,
+                  height: heightStyle,
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '0.5rem',
+                }}
+                allowFullscreen={attrs.allowFullscreen !== false}
+                title={attrs.title || ""}
+                loading={attrs.loading || "lazy"}
+                frameBorder="0"
+                {...(attrs.sandbox && { sandbox: attrs.sandbox })}
+                {...(attrs.allow && { allow: attrs.allow })}
+                {...(attrs.scrolling && { scrolling: attrs.scrolling })}
+                {...(attrs.referrerpolicy && { referrerpolicy: attrs.referrerpolicy })}
+              />
+            </div>
+          );
+        })}
       </div>
     );
   };
