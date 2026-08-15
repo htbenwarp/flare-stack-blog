@@ -2,7 +2,7 @@
 import { useEffect, useCallback, useState, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { IframeExtension } from "@/features/posts/editor/extensions/iframe/index";
+import { IframeExtension, IframeAttributes } from "@/features/posts/editor/extensions/iframe/index";
 import { uploadMomentImage } from "@/features/moments/utils";
 import { toast } from "sonner";
 import type { JSONContent } from "@tiptap/react";
@@ -35,6 +35,76 @@ function extractImagesFromJSON(json?: JSONContent): {
   return { images, contentWithoutImages };
 }
 
+// ---------- 解析 iframe HTML 代码 ----------
+function parseIframeHtml(html: string): Partial<IframeAttributes> | null {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const iframe = doc.querySelector("iframe");
+    if (!iframe) return null;
+
+    const attrs: Partial<IframeAttributes> = {};
+    
+    // 复制所有属性到 attrs
+    for (const attr of iframe.attributes) {
+      const name = attr.name;
+      const value = attr.value;
+      
+      switch (name) {
+        case "src":
+          attrs.src = value;
+          break;
+        case "width":
+          attrs.width = value;
+          break;
+        case "height":
+          attrs.height = value;
+          break;
+        case "allowfullscreen":
+          attrs.allowFullscreen = true;
+          break;
+        case "title":
+          attrs.title = value;
+          break;
+        case "loading":
+          attrs.loading = value as "lazy" | "eager";
+          break;
+        case "frameborder":
+          attrs.frameborder = value;
+          break;
+        case "border":
+          attrs.border = value;
+          break;
+        case "marginwidth":
+          attrs.marginwidth = value;
+          break;
+        case "marginheight":
+          attrs.marginheight = value;
+          break;
+        case "allow":
+          attrs.allow = value;
+          break;
+        case "sandbox":
+          attrs.sandbox = value;
+          break;
+        case "scrolling":
+          attrs.scrolling = value;
+          break;
+        case "referrerpolicy":
+          attrs.referrerpolicy = value;
+          break;
+        default:
+          break;
+      }
+    }
+    
+    return attrs;
+  } catch (error) {
+    console.error("Error parsing iframe HTML:", error);
+    return null;
+  }
+}
+
 // ---------- 插入模态框 ----------
 function InsertModal({
   type, onClose, onSubmit,
@@ -45,8 +115,7 @@ function InsertModal({
 }) {
   const [url, setUrl] = useState("");
   const [alt, setAlt] = useState("");
-  const [width, setWidth] = useState("100%");
-  const [height, setHeight] = useState("400");
+  const [iframeCode, setIframeCode] = useState("");
 
   const handleSubmit = () => {
     if (type === "link") {
@@ -55,32 +124,96 @@ function InsertModal({
     } else if (type === "image") {
       onSubmit(url, { alt });
     } else if (type === "iframe") {
-      onSubmit(url, { width, height });
+      // 直接提交 iframe 代码
+      onSubmit(iframeCode);
     }
     onClose();
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      handleSubmit();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-(--fuwari-card-bg) p-5 rounded-lg shadow-xl w-80 space-y-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div 
+        className="bg-(--fuwari-card-bg) p-5 rounded-lg shadow-xl w-[520px] space-y-3 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="font-bold text-sm">
           {type === "link"
             ? "插入链接"
             : type === "image"
               ? "插入图片 URL"
-              : "插入嵌入页面"}
+              : "插入嵌入代码"}
         </h3>
-        <input type="text" placeholder="URL" value={url} onChange={(e) => setUrl(e.target.value)} className="w-full text-sm border rounded px-2 py-1" autoFocus />
-        {type === "image" && <input type="text" placeholder="替代文本（可选）" value={alt} onChange={(e) => setAlt(e.target.value)} className="w-full text-sm border rounded px-2 py-1" />}
-        {type === "iframe" && (
-          <div className="flex gap-2">
-            <input type="text" placeholder="宽度" value={width} onChange={(e) => setWidth(e.target.value)} className="w-1/2 text-sm border rounded px-2 py-1" />
-            <input type="text" placeholder="高度" value={height} onChange={(e) => setHeight(e.target.value)} className="w-1/2 text-sm border rounded px-2 py-1" />
-          </div>
+        
+        {type === "link" && (
+          <input 
+            type="text" 
+            placeholder="URL" 
+            value={url} 
+            onChange={(e) => setUrl(e.target.value)} 
+            className="w-full text-sm border rounded px-2 py-1 dark:bg-gray-800 dark:border-gray-700" 
+            autoFocus 
+            onKeyDown={handleKeyDown}
+          />
         )}
+        
+        {type === "image" && (
+          <>
+            <input 
+              type="text" 
+              placeholder="图片 URL" 
+              value={url} 
+              onChange={(e) => setUrl(e.target.value)} 
+              className="w-full text-sm border rounded px-2 py-1 dark:bg-gray-800 dark:border-gray-700" 
+              autoFocus 
+              onKeyDown={handleKeyDown}
+            />
+            <input 
+              type="text" 
+              placeholder="替代文本（可选）" 
+              value={alt} 
+              onChange={(e) => setAlt(e.target.value)} 
+              className="w-full text-sm border rounded px-2 py-1 dark:bg-gray-800 dark:border-gray-700" 
+              onKeyDown={handleKeyDown}
+            />
+          </>
+        )}
+        
+        {type === "iframe" && (
+          <>
+            <textarea
+              placeholder='粘贴完整的 iframe 代码，例如：&#10;&lt;iframe src="https://example.com" width="100%" height="400" allowfullscreen&gt;&lt;/iframe&gt;'
+              value={iframeCode}
+              onChange={(e) => setIframeCode(e.target.value)}
+              className="w-full text-sm border rounded px-2 py-1 min-h-[120px] font-mono dark:bg-gray-800 dark:border-gray-700"
+              autoFocus
+              onKeyDown={handleKeyDown}
+            />
+            <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+              <div>💡 直接粘贴 iframe 标签，系统将自动提取属性</div>
+              <div className="font-mono text-[10px] text-gray-400">支持属性: src, width, height, allowfullscreen, title, loading, frameborder, border, marginwidth, marginheight, allow, sandbox, scrolling, referrerpolicy</div>
+            </div>
+          </>
+        )}
+        
         <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} className="px-3 py-1 text-sm rounded border">取消</button>
-          <button onClick={handleSubmit} className="px-3 py-1 text-sm rounded bg-blue-500 text-white">确定</button>
+          <button 
+            onClick={onClose} 
+            className="px-3 py-1.5 text-sm rounded border dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          >
+            取消
+          </button>
+          <button 
+            onClick={handleSubmit} 
+            className="px-3 py-1.5 text-sm rounded bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+          >
+            确定
+          </button>
         </div>
       </div>
     </div>
@@ -97,19 +230,50 @@ function Toolbar({ editor, onLink, onImageUrl, onIframe, onEmoji, onUploadImage 
   onUploadImage: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   if (!editor) return null;
-  const btnClass = "p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-sm";
+  const btnClass = "p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-sm";
 
   return (
-    <div className="flex flex-wrap gap-1 px-2 py-1 border-b border-black/5 dark:border-white/5">
-      <button onClick={() => editor.chain().focus().toggleBold().run()} className={`${btnClass} ${editor.isActive("bold") ? "bg-black/10 dark:bg-white/10" : ""}`}><Bold size={16} /></button>
-      <button onClick={() => editor.chain().focus().toggleItalic().run()} className={`${btnClass} ${editor.isActive("italic") ? "bg-black/10 dark:bg-white/10" : ""}`}><Italic size={16} /></button>
-      <button onClick={() => editor.chain().focus().toggleStrike().run()} className={`${btnClass} ${editor.isActive("strike") ? "bg-black/10 dark:bg-white/10" : ""}`}><Strikethrough size={16} /></button>
+    <div className="flex flex-wrap gap-0.5 px-2 py-1 border-b border-black/5 dark:border-white/5">
+      <button 
+        onClick={() => editor.chain().focus().toggleBold().run()} 
+        className={`${btnClass} ${editor.isActive("bold") ? "bg-black/10 dark:bg-white/10" : ""}`}
+        title="加粗 (Ctrl+B)"
+      >
+        <Bold size={16} />
+      </button>
+      <button 
+        onClick={() => editor.chain().focus().toggleItalic().run()} 
+        className={`${btnClass} ${editor.isActive("italic") ? "bg-black/10 dark:bg-white/10" : ""}`}
+        title="斜体 (Ctrl+I)"
+      >
+        <Italic size={16} />
+      </button>
+      <button 
+        onClick={() => editor.chain().focus().toggleStrike().run()} 
+        className={`${btnClass} ${editor.isActive("strike") ? "bg-black/10 dark:bg-white/10" : ""}`}
+        title="删除线"
+      >
+        <Strikethrough size={16} />
+      </button>
+      
       <span className="w-px bg-black/20 dark:bg-white/20 mx-1" />
-      <button onClick={onLink} className={btnClass}><LinkIcon size={16} /></button>
-      <button onClick={onImageUrl} className={btnClass}><ImageIcon size={16} /></button>
-      <label className={`${btnClass} cursor-pointer`}><Upload size={16} /><input type="file" accept="image/*" className="hidden" onChange={onUploadImage} /></label>
-      <button onClick={onIframe} className={btnClass}><Globe size={16} /></button>
-      <button onClick={onEmoji} className={btnClass}><Smile size={16} /></button>
+      
+      <button onClick={onLink} className={btnClass} title="插入链接 (Ctrl+K)">
+        <LinkIcon size={16} />
+      </button>
+      <button onClick={onImageUrl} className={btnClass} title="插入图片 URL">
+        <ImageIcon size={16} />
+      </button>
+      <label className={`${btnClass} cursor-pointer`} title="上传图片">
+        <Upload size={16} />
+        <input type="file" accept="image/*" className="hidden" onChange={onUploadImage} />
+      </label>
+      <button onClick={onIframe} className={btnClass} title="插入嵌入代码">
+        <Globe size={16} />
+      </button>
+      <button onClick={onEmoji} className={btnClass} title="插入表情">
+        <Smile size={16} />
+      </button>
     </div>
   );
 }
@@ -163,12 +327,11 @@ export function MinimalEditor({ onChange, placeholder, initialContent }: Minimal
     immediatelyRender: false,
     content: initialEditorContent,
     onUpdate: ({ editor }) => {
-      // 直接调用稳定化的回调
       onChangeRef.current?.({ json: editor.getJSON(), images });
     },
   });
 
-  // 当图片变化时通知父组件（仅在 images 变化时执行，不会循环）
+  // 当图片变化时通知父组件
   useEffect(() => {
     if (editor) {
       onChangeRef.current?.({ json: editor.getJSON(), images });
@@ -194,7 +357,7 @@ export function MinimalEditor({ onChange, placeholder, initialContent }: Minimal
     setShowEmoji(false);
   }, [editor]);
 
-  // 本地上传图片（直接添加到 images 数组，不进入编辑器）
+  // 本地上传图片
   const handleUploadImage = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -227,16 +390,25 @@ export function MinimalEditor({ onChange, placeholder, initialContent }: Minimal
       </div>
 
       <div className="flex flex-col">
-        <div>
+        <div className="min-h-[120px]">
           <EditorContent editor={editor} />
         </div>
 
         {images.length > 0 && (
           <div className="p-3 border-t border-black/5 dark:border-white/5 space-y-3">
             {images.map((src, idx) => (
-              <div key={`${idx}-${src.slice(-20)}`} className="relative group rounded-lg overflow-hidden">
-                <img src={src} alt={`图片 ${idx + 1}`} className="w-full h-auto max-h-96 object-contain bg-black/5 dark:bg-white/5" />
-                <button onClick={() => handleRemoveImage(idx)} className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110" title="删除图片">
+              <div key={`${idx}-${src.slice(-20)}`} className="relative group rounded-lg overflow-hidden bg-black/5 dark:bg-white/5">
+                <img 
+                  src={src} 
+                  alt={`图片 ${idx + 1}`} 
+                  className="w-full h-auto max-h-96 object-contain" 
+                  loading="lazy"
+                />
+                <button 
+                  onClick={() => handleRemoveImage(idx)} 
+                  className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110"
+                  title="删除图片"
+                >
                   <X size={14} />
                 </button>
                 <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/60 text-white text-xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
@@ -254,13 +426,28 @@ export function MinimalEditor({ onChange, placeholder, initialContent }: Minimal
           onClose={() => setModal(null)}
           onSubmit={(url, extra) => {
             if (modal.type === "link") {
-              if (url === "") editor.chain().focus().extendMarkRange("link").unsetLink().run();
-              else editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+              if (!url || url.trim() === "") {
+                editor.chain().focus().extendMarkRange("link").unsetLink().run();
+              } else {
+                const href = normalizeLinkHref(url);
+                editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+              }
             } else if (modal.type === "image") {
-              setImages((prev) => [...prev, url]);
-              toast.success("图片已添加");
+              if (url && url.trim() !== "") {
+                setImages((prev) => [...prev, url]);
+                toast.success("图片已添加");
+              } else {
+                toast.error("请输入图片 URL");
+              }
             } else if (modal.type === "iframe") {
-              editor.commands.insertIframe({ src: url, width: extra?.width || "100%", height: extra?.height || "400" });
+              // 解析用户输入的 iframe HTML 代码
+              const attrs = parseIframeHtml(url);
+              if (attrs && attrs.src) {
+                editor.commands.insertIframe(attrs);
+                toast.success("嵌入内容已添加");
+              } else {
+                toast.error("无法解析 iframe 代码，请检查格式是否正确");
+              }
             }
             setModal(null);
           }}
@@ -268,8 +455,18 @@ export function MinimalEditor({ onChange, placeholder, initialContent }: Minimal
       )}
 
       {showEmoji && createPortal(
-        <div style={{ position: "fixed", top: emojiPos.top, left: emojiPos.left, zIndex: 9999 }}>
-          <EmojiPickerPopover onEmojiSelect={handleEmojiSelect} onClose={() => setShowEmoji(false)} />
+        <div 
+          style={{ 
+            position: "fixed", 
+            top: emojiPos.top, 
+            left: Math.min(emojiPos.left, window.innerWidth - 320),
+            zIndex: 9999,
+          }}
+        >
+          <EmojiPickerPopover 
+            onEmojiSelect={handleEmojiSelect} 
+            onClose={() => setShowEmoji(false)} 
+          />
         </div>,
         document.body,
       )}
