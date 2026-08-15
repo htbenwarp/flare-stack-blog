@@ -443,13 +443,12 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
     );
   };
 
-  // 渲染 iframe 列表 - 修正版本
+  // ---------- 渲染 iframe ----------
   const renderIframes = () => {
     if (iframes.length === 0) return null;
     return (
       <div className="space-y-4 mt-2">
         {iframes.map((attrs, idx) => {
-          // 处理宽度：如果是数字加 px，否则保留原值（可能是百分比）
           const width = attrs.width || '100%';
           const height = attrs.height || '400';
           const widthStyle = typeof width === 'number' ? `${width}px` : width;
@@ -462,17 +461,16 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
                 style={{
                   width: widthStyle,
                   height: heightStyle,
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '0.5rem',
                 }}
                 allowFullscreen={attrs.allowFullscreen !== false}
                 title={attrs.title || ""}
                 loading={attrs.loading || "lazy"}
-                frameBorder="0"
                 {...(attrs.sandbox && { sandbox: attrs.sandbox })}
                 {...(attrs.allow && { allow: attrs.allow })}
                 {...(attrs.scrolling && { scrolling: attrs.scrolling })}
                 {...(attrs.referrerpolicy && { referrerpolicy: attrs.referrerpolicy })}
+                {...(attrs.frameborder !== undefined && { frameBorder: attrs.frameborder })}
+                {...(attrs.border !== undefined && { border: attrs.border })}
               />
             </div>
           );
