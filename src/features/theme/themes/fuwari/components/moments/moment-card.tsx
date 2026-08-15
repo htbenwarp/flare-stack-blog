@@ -446,26 +446,47 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
   // ---------- 渲染 iframe ----------
   const renderIframes = () => {
     if (iframes.length === 0) return null;
+
+    const normalizeSize = (value: string | number | undefined, fallback: string) => {
+      if (value === undefined || value === null || value === '') return fallback;
+      const str = String(value).trim();
+      if (/^\d+(\.\d+)?$/.test(str)) return `${str}px`;
+      return str;
+    };
+
     return (
-      <div className="space-y-4 mt-2">
+      <div className="mt-2 space-y-0">
         {iframes.map((attrs, idx) => {
-          const width = attrs.width || '100%';
-          const height = attrs.height || '400';
-          const widthStyle = typeof width === 'number' ? `${width}px` : width;
-          const heightStyle = typeof height === 'number' ? `${height}px` : height;
+          const width = normalizeSize(attrs.width, '100%');
+          const height = normalizeSize(attrs.height, '400px');
 
           return (
-            <div key={idx} style={{ maxWidth: '100%', margin: 0 }}>
+            <div
+              key={idx}
+              style={{
+                maxWidth: '100%',
+                margin: 0,
+                padding: 0,
+                lineHeight: 0,
+                fontSize: 0,
+              }}
+            >
               <iframe
                 src={attrs.src}
+                width={width}
+                height={height}
                 style={{
-                  width: widthStyle,
-                  height: heightStyle,
+                  width,
+                  height,
                   display: 'block',
+                  verticalAlign: 'bottom',
+                  margin: 0,
+                  padding: 0,
+                  border: 'none',
                 }}
-                allowFullscreen={attrs.allowFullscreen !== false}
-                title={attrs.title || ""}
-                loading={attrs.loading || "lazy"}
+                allowFullScreen={attrs.allowFullscreen !== false}
+                title={attrs.title || ''}
+                loading={attrs.loading || 'lazy'}
                 {...(attrs.sandbox && { sandbox: attrs.sandbox })}
                 {...(attrs.allow && { allow: attrs.allow })}
                 {...(attrs.scrolling && { scrolling: attrs.scrolling })}
