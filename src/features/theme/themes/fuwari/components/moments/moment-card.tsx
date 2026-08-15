@@ -37,14 +37,27 @@ function extractTextWithLineBreaks(doc: JSONContent | null): string {
   return lines.join("").trim();
 }
 
+// 提取 iframe 节点属性
+function extractIframes(doc: JSONContent | null): Array<Record<string, any>> {
+  if (!doc) return [];
+  const iframes: any[] = [];
+  const walk = (node: JSONContent) => {
+    if (node.type === "iframe" && node.attrs) {
+      iframes.push(node.attrs);
+    }
+    if (node.content) node.content.forEach(walk);
+  };
+  walk(doc);
+  return iframes;
+}
+
 function getImageSrc(src: string): string {
   return src.toLowerCase().endsWith(".gif") ? `${src}?no-transform=1` : src;
 }
 
-// 全局尺寸缓存（跨组件实例共享）
+// 全局尺寸缓存
 const sizeCache = new Map<string, { w: number; h: number }>();
 
-// 图片加载时自动缓存尺寸
 function cacheImageSize(img: HTMLImageElement) {
   const key = img.src.split('?')[0];
   if (!sizeCache.has(key) && img.naturalWidth && img.naturalHeight) {
@@ -89,7 +102,7 @@ function ImageGrid({
   );
 }
 
-// ---------- 文本折叠组件 ----------
+// ---------- 文本折叠 ----------
 function CollapsibleText({
   text,
   maxLines = 6,
@@ -194,6 +207,7 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
   const likePath = `/moment/${moment.id}`;
   const images = extractImageSrcs(moment.content);
   const plainText = extractTextWithLineBreaks(moment.content);
+  const iframes = extractIframes(moment.content);
 
   // 灯箱相关
   const galleryRef = useRef<PhotoSwipe | null>(null);
@@ -201,7 +215,6 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const [galleryLoading, setGalleryLoading] = useState(false);
 
-  // 异步获取单张图片尺寸（带超时和取消）
   const getImageSize = useCallback(
     async (src: string, signal?: AbortSignal): Promise<{ w: number; h: number } | null> => {
       if (signal?.aborted) return null;
@@ -209,23 +222,19 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
       const url = getImageSrc(src);
       const key = src.split('?')[0];
 
-      // 1. 全局缓存
       if (sizeCache.has(key)) return sizeCache.get(key)!;
 
-      // 2. 从 DOM 中查找
       if (gridRef.current) {
         const imgs = gridRef.current.querySelectorAll('img');
         for (const img of imgs) {
           if (signal?.aborted) return null;
 
           if (img.src.split('?')[0] === key) {
-            // 已加载完成
             if (img.complete && img.naturalWidth) {
               const size = { w: img.naturalWidth, h: img.naturalHeight };
               sizeCache.set(key, size);
               return size;
             }
-            // 正在加载中，等待完成（支持取消）
             if (!img.complete) {
               try {
                 await new Promise<void>((resolve, reject) => {
@@ -270,7 +279,7 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
                   return size;
                 }
               } catch {
-                // 失败或取消，降级
+                // ignore
               }
             }
             break;
@@ -278,7 +287,6 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
         }
       }
 
-      // 3. new Image 预加载（支持取消）
       return new Promise((resolve) => {
         if (signal?.aborted) {
           resolve(null);
@@ -333,7 +341,6 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
     [],
   );
 
-  // 批量获取图片尺寸（支持取消，并发限制）
   const getSlidesData = useCallback(
     async (imgs: string[], signal?: AbortSignal) => {
       const concurrency = 3;
@@ -362,21 +369,17 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
     [getImageSize],
   );
 
-  // 打开灯箱（带请求取消和加载状态）
   const openGallery = useCallback(
     async (index: number) => {
       if (images.length === 0) return;
 
-      // 取消上一次未完成的请求
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
 
-      // 创建新的 AbortController
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
-      // 关闭已有实例
       if (galleryRef.current) {
         galleryRef.current.destroy();
         galleryRef.current = null;
@@ -417,7 +420,6 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
     [images, getSlidesData],
   );
 
-  // 渲染图片
   const renderImages = () => {
     if (images.length === 0) return null;
     if (images.length === 1) {
@@ -441,9 +443,34 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
     );
   };
 
+  const renderIframes = () => {
+    if (iframes.length === 0) return null;
+    return (
+      <div className="space-y-4 mt-2">
+        {iframes.map((attrs, idx) => (
+          <div key={idx} className="iframe-wrapper relative my-2">
+            <iframe
+              src={attrs.src}
+              width={attrs.width || "100%"}
+              height={attrs.height || "400"}
+              allowFullscreen={attrs.allowFullscreen !== false}
+              title={attrs.title || ""}
+              loading={attrs.loading || "lazy"}
+              frameBorder={attrs.frameborder || "0"}
+              className="w-full rounded-lg border border-border"
+              {...(attrs.sandbox && { sandbox: attrs.sandbox })}
+              {...(attrs.allow && { allow: attrs.allow })}
+              {...(attrs.scrolling && { scrolling: attrs.scrolling })}
+              {...(attrs.referrerpolicy && { referrerpolicy: attrs.referrerpolicy })}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="fuwari-card-base p-4 md:p-6 space-y-4 w-full relative">
-      {/* 加载遮罩 */}
       {galleryLoading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
           <div className="bg-(--fuwari-card-bg) rounded-(--fuwari-radius-large) p-6 flex items-center gap-3 shadow-xl">
@@ -503,8 +530,11 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
 
       <div className="fuwari-custom-md text-sm moment-content whitespace-pre-wrap">
         {plainText && <CollapsibleText text={plainText} maxLines={6} className="mb-2" />}
+        {renderIframes()}
         {renderImages()}
-        {!plainText && images.length === 0 && <ContentRenderer content={moment.content} />}
+        {!plainText && images.length === 0 && iframes.length === 0 && (
+          <ContentRenderer content={moment.content} />
+        )}
       </div>
 
       <div className="flex items-center gap-4 pt-2 border-t border-black/5 dark:border-white/5">
