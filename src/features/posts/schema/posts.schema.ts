@@ -116,6 +116,28 @@ export const GenerateSlugInputSchema = z.object({
   excludeId: z.number().optional(),
 });
 
+export const GetPublicPostsPageInputSchema = z.object({
+  offset: z.number().int().min(0).optional(),
+  limit: z.number().int().min(1).max(50).optional(),
+  excludeIds: z.array(z.number()).optional(),
+});
+
+export const PublicPostsPageResponseSchema = z.object({
+  items: z.array(PostItemSchema),
+  total: z.number(),
+  offset: z.number(),
+  limit: z.number(),
+  hasNextPage: z.boolean(),
+  hasPrevPage: z.boolean(),
+});
+
+export type GetPublicPostsPageInput = z.infer<
+  typeof GetPublicPostsPageInputSchema
+>;
+export type PublicPostsPageResponse = z.infer<
+  typeof PublicPostsPageResponseSchema
+>;
+
 export const GetPostsInputSchema = z.object({
   offset: z.number().optional(),
   limit: z.number().optional(),
@@ -177,4 +199,10 @@ export const POSTS_CACHE_KEYS = {
     ["posts", "related-ids", slug, limit] as const,
   syncHash: (id: number) => `post_hash:${id}` as const,
   pinned: (version: string) => [version, "posts", "pinned"] as const,
+  publicPage: (
+    version: string,
+    offset: number,
+    limit: number,
+    excludeIds: number[],
+  ) => [version, "posts", "page", offset, limit, excludeIds] as const,
 } as const;

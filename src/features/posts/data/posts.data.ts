@@ -462,7 +462,6 @@ export async function findSimilarSlugs(
 ) {
   const conditions = [like(PostsTable.slug, `${baseSlug}-%`)];
 
-  // 如果是编辑文章，要排除掉自己，防止把自己算作冲突
   if (options.excludeId) {
     conditions.push(ne(PostsTable.id, options.excludeId));
   }
@@ -537,8 +536,8 @@ export async function getPublicPostsByIds(db: DB, ids: Array<number>) {
       pinnedAt: PostsTable.pinnedAt,
       createdAt: PostsTable.createdAt,
       updatedAt: PostsTable.updatedAt,
-      isGuestPost: PostsTable.isGuestPost,       // 新增
-      guestAuthorId: PostsTable.guestAuthorId,   // 新增
+      isGuestPost: PostsTable.isGuestPost,
+      guestAuthorId: PostsTable.guestAuthorId,
     })
     .from(PostsTable)
     .where(and(inArray(PostsTable.id, ids), whereClause));
@@ -546,13 +545,6 @@ export async function getPublicPostsByIds(db: DB, ids: Array<number>) {
   return posts;
 }
 
-/**
- * Fetch full post data (including tags and content) for export or other detailed use cases.
- * Uses Drizzle relational queries for efficiency.
- *
- * 注意：此函数返回的 post.tags 数组中，每个 tag 对象应包含 createdAt 字段（如果数据库表有的话）。
- * Drizzle 的 with 关系会自动获取 tag 的所有列，因此无需额外选择。
- */
 export async function findFullPosts(
   db: DB,
   options: {
@@ -575,7 +567,7 @@ export async function findFullPosts(
     with: {
       postTags: {
         with: {
-          tag: true, // 自动包含 tag 的全部字段，包括 createdAt, updatedAt 等
+          tag: true,
         },
       },
     },
@@ -609,4 +601,90 @@ export async function getPostGuestAuthorSlug(db: DB, slug: string) {
     isGuestPost: post.isGuestPost ?? false,
     guestAuthorSlug: post.guestAuthor?.slug ?? null,
   };
+}
+
+const PUBLIC_PAGE_COLUMNS = {
+  id: PostsTable.id,
+  title: PostsTable.title,
+  summary: PostsTable.summary,
+  readTimeInMinutes: PostsTable.readTimeInMinutes,
+  slug: PostsTable.slug,
+  status: PostsTable.status,
+  publishedAt: PostsTable.publishedAt,
+  pinnedAt: PostsTable.pinnedAt,
+  createdAt: PostsTable.createdAt,
+  updatedAt: PostsTable.updatedAt,
+  isGuestPost: PostsTable.isGuestPost,
+  guestAuthorId: PostsTable.guestAuthorId,
+  postType: PostsTable.postType,
+} as const;
+
+/**
+ * Offset-based pagination for public posts (home page).
+ * Pinned posts are excluded so they can be rendered separately on top.
+ * Popular posts can be excluded via excludeIds.
+ */
+export async function getPublicPostsPage(
+  db: DB,
+  options: {
+    offset?: number;
+    limit?: number;
+    excludeIds?: number[];
+  } = {},
+): Promise<{ items: PostListItem[]; total: number }> {
+  const offset = options.offset ?? 0;
+  const limit = Math.min(options.limit ?? 10, 50);
+  const excludeIds = options.excludeIds ?? [];
+
+  const whereClause = and(
+    buildPostWhereClause({ publicOnly: true }),
+    sql`${PostsTable.pinnedAt} IS NULL`,
+    ne(PostsTable.postType, "moment"),
+    ne(PostsTable.slug, "guestbook"),
+    excludeIds.length > 0
+      ? sql`${PostsTable.id} NOT IN (${sql.join(excludeIds.map(id => sql`${id}`), sql`, `)})`
+      : undefined,
+  );
+
+  const [posts, totalRows] = await Promise.all([
+    db
+      .select(PUBLIC_PAGE_COLUMNS)
+      .from(PostsTable)
+      .where(whereClause)
+      .orderBy(desc(PostsTable.publishedAt), desc(PostsTable.id))
+      .limit(limit)
+      .offset(offset),
+    db.select({ count: count() }).from(PostsTable).where(whereClause),
+  ]);
+
+  const items = posts as PostListItem[];
+  const total = totalRows[0]?.count ?? 0;
+
+  if (items.length > 0) {
+    const postIds = items.map((p) => p.id);
+    const tagsResults = await db
+      .select({
+        postId: PostTagsTable.postId,
+        tag: {
+          id: TagsTable.id,
+          name: TagsTable.name,
+          createdAt: TagsTable.createdAt,
+        },
+      })
+      .from(PostTagsTable)
+      .innerJoin(TagsTable, eq(PostTagsTable.tagId, TagsTable.id))
+      .where(inArray(PostTagsTable.postId, postIds));
+
+    const tagsByPostId = new Map<number, Tag[]>();
+    for (const result of tagsResults) {
+      const existing = tagsByPostId.get(result.postId) ?? [];
+      existing.push(result.tag);
+      tagsByPostId.set(result.postId, existing);
+    }
+    items.forEach((item) => {
+      item.tags = tagsByPostId.get(item.id) ?? [];
+    });
+  }
+
+  return { items, total };
 }

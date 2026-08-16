@@ -6,6 +6,7 @@ import { exportDownloadRoute } from "@/features/import-export/api/hono/download.
 import { handleImageRequest } from "@/features/media/service/media.service";
 import postsDetailRoute from "@/features/posts/api/hono/posts.detail.route";
 import postsListRoute from "@/features/posts/api/hono/posts.list.route";
+import postsPageRoute from "@/features/posts/api/hono/posts.page.route";
 import postsRelatedRoute from "@/features/posts/api/hono/posts.related.route";
 import verifyPasswordRoute from "@/features/posts/api/hono/verify-password.route";   
 import searchRoute from "@/features/search/api/hono/search.route";
@@ -36,6 +37,7 @@ async function forwardAuthRequest(c: Context<{ Bindings: Env }>) {
 // Public API routes with RPC support - 链式调用保留类型推断
 const publicApi = new Hono<{ Bindings: Env }>()
   .route("/posts", postsListRoute)
+  .route("/posts", postsPageRoute)
   .route("/post", postsDetailRoute)
   .route("/post", postsRelatedRoute)
   .route("/posts/verify-password", verifyPasswordRoute)

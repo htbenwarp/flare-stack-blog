@@ -5,6 +5,7 @@ import {
   FindPostBySlugInputSchema,
   FindRelatedPostsInputSchema,
   GetPostsCursorInputSchema,
+  GetPublicPostsPageInputSchema,
 } from "@/features/posts/schema/posts.schema";
 import * as PostService from "@/features/posts/services/posts.service";
 import { dbMiddleware, sessionMiddleware } from "@/lib/middlewares";
@@ -29,7 +30,6 @@ export const findPostBySlugFn = createServerFn()
       context.session?.user?.role === "admin" ||
       context.session?.user?.role === "manager";
 
-    // 管理员：直接从数据层获取原始文章，完全避免服务层的加密占位逻辑
     const rawPost = isAdmin
       ? await PostRepo.findPostBySlug(context.db, slug, {
           publicOnly: true,
@@ -37,17 +37,14 @@ export const findPostBySlugFn = createServerFn()
         })
       : null;
 
-    // 普通用户或管理员未获取到数据时，走服务层（安全兜底）
     const post = rawPost || await PostService.findPostBySlug(context, { slug });
     if (!post) throw new Error("Post not found");
 
-    // 管理员或非加密文章 → 返回完整内容
     if (isAdmin || !post.isEncrypted) {
       const { passwordHash, ...safePost } = post;
       return safePost;
     }
 
-    // 加密占位（仅普通用户会走到这里）
     return {
       id: post.id,
       title: post.title,
@@ -113,7 +110,7 @@ export const getPostGuestAuthorSlugFn = createServerFn()
   });
 
 export const getPublicPostBySlugFn = createServerFn()
-  .middleware([dbMiddleware]) // 无需 sessionMiddleware
+  .middleware([dbMiddleware])
   .inputValidator(z.object({ slug: z.string() }))
   .handler(async ({ data, context }) => {
     const post = await PostRepo.findPostBySlug(context.db, data.slug, {
@@ -122,7 +119,6 @@ export const getPublicPostBySlugFn = createServerFn()
     });
     if (!post) return null;
 
-    // 加密文章返回占位信息，防止正文泄露
     if (post.isEncrypted) {
       return {
         id: post.id,
@@ -130,7 +126,6 @@ export const getPublicPostBySlugFn = createServerFn()
         slug: post.slug,
         contentJson: { type: "doc", content: [] },
         isEncrypted: true,
-        // 补充必要字段，防止前端崩溃
         publishedAt: post.publishedAt,
         updatedAt: post.updatedAt,
         tags: post.tags ?? [],
@@ -141,7 +136,6 @@ export const getPublicPostBySlugFn = createServerFn()
       };
     }
 
-    // 非加密文章返回完整内容（移除 passwordHash）
     const { passwordHash, ...safePost } = post;
     return safePost;
   });
@@ -150,7 +144,6 @@ export const getPublicPostBySlugFn = createServerFn()
 export const getGuestbookPostFn = createServerFn()
   .middleware([dbMiddleware])
   .handler(async ({ context }) => {
-    // 直接查询，不使用 publicOnly，避免被 ne(slug, 'guestbook') 排除
     const post = await context.db.query.PostsTable.findFirst({
       where: and(
         eq(PostsTable.slug, "guestbook"),
@@ -164,4 +157,11 @@ export const getGuestbookPostFn = createServerFn()
       title: post.title,
       contentJson: post.contentJson,
     };
+  });
+
+export const getPublicPostsPageFn = createServerFn()
+  .middleware([dbMiddleware])
+  .inputValidator(GetPublicPostsPageInputSchema)
+  .handler(async ({ data, context }) => {
+    return await PostService.getPublicPostsPage(context, data);
   });

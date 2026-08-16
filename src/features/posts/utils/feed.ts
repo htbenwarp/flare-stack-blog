@@ -27,76 +27,48 @@ function getPublicFeedEmail(social: SiteConfig["social"]) {
 // RSS 内容预处理
 // ============================================================
 
-/**
- * 将 TipTap JSON 转为适合 RSS 的 HTML：
- * 1. 图片路径 → 绝对路径
- * 2. 脚注 tooltip → 内联括号注释
- * 3. 表格添加基础属性
- */
 function prepareRssContent(contentJson: any, domain: string): string {
   let html = convertToHtml(contentJson);
 
-  // 图片相对路径 → 绝对路径
   html = html.replace(
-    /<img([^>]*?)src="(\/[^"]*)"/g,
-    `<img$1src="https://${domain}$2"`
+    /<img([^>]*?)src="(\/+[^"]*)"/g,
+    (_, attrs, src) => {
+      const resolved = src.startsWith("//") ? `https:${src}` : `https://${domain}${src}`;
+      return `<img${attrs}src="${resolved}"`;
+    }
   );
 
-  // 脚注展开
   html = expandFootnotes(html);
 
-  // 表格添加基础属性（RSS 阅读器忽略 CSS）
   html = html.replace(
-    /<table>/g,
+    /<table[^>]*>/gi,
     '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; width:100%">'
   );
+  html = html.replace(
+    /<th[^>]*>/gi,
+    '<th style="padding:6px; border:1px solid #ccc; background:#f5f5f5; font-weight:bold">'
+  );
+  html = html.replace(
+    /<td[^>]*>/gi,
+    '<td style="padding:6px; border:1px solid #ccc">'
+  );
+
+  html = html.replace(/<colgroup>[\s\S]*?<\/colgroup>/gi, "");
 
   return html;
 }
 
-/**
- * 将脚注 tooltip 展开为 RSS 可读的内联文本
- *
- * 原始：
- *   <sup class="fn-tip-wrap"><a href="#fn-1">[1]</a><span class="fn-tip">内容</span></sup>
- *
- * 转换后：
- *   <sup>[1]</sup><small>（内容）</small>
- *
- * 同时移除文末脚注列表区
- */
+
 function expandFootnotes(html: string): string {
-  const footnoteDefs = new Map<string, string>();
-  const defRegex = /<li\s+id="fn-(\d+)"[^>]*>([\s\S]*?)<\/li>/gi;
-  let match: RegExpExecArray | null;
-
-  // 1. 收集脚注定义
-  while ((match = defRegex.exec(html)) !== null) {
-    const num = match[1];
-    const content = match[2].replace(/<[^>]*>/g, "").trim();
-    footnoteDefs.set(num, content);
-  }
-
-  // 2. 替换内文脚注引用
-  const refRegex =
-    /<sup[^>]*class="[^"]*fn-tip-wrap[^"]*"[^>]*>([\s\S]*?)<\/sup>/gi;
-  html = html.replace(refRegex, (full, inner) => {
-    const numMatch = inner.match(/#fn-(\d+)/);
-    if (numMatch) {
-      const num = numMatch[1];
-      const text = footnoteDefs.get(num);
-      if (text) {
-        return ` <sup>[${num}]</sup><small>（${text}）</small>`;
-      }
+  html = html.replace(
+    /<span class="fn-tip-wrap">([^<]*)<span class="fn-tip">([\s\S]*?)<\/span><\/span>/gi,
+    (_, text, note) => {
+      return `<sup>${text}</sup><small>（${note}）</small>`;
     }
-    return full;
-  });
-
-  // 3. 移除文末脚注列表
-  html = html.replace(/<div\s+class="footnotes"[^>]*>[\s\S]*?<\/div>/gi, "");
-
+  );
   return html;
 }
+
 
 // ============================================================
 // 主函数

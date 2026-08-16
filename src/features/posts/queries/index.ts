@@ -8,6 +8,7 @@ import {
   PostItemSchema,
   PostListResponseSchema,
   PostWithTocSchema,
+  PublicPostsPageResponseSchema,
 } from "@/features/posts/schema/posts.schema";
 import { apiClient } from "@/lib/api-client";
 import { isSSR } from "@/lib/utils";
@@ -21,6 +22,7 @@ import {
   getPinnedPostsFn,
   getPopularPostsFn,
   getPostsCursorFn,
+  getPublicPostsPageFn,
   getRelatedPostsFn,
 } from "../api/posts.public.api";
 import { getPostGuestAuthorSlugFn } from "../api/posts.public.api";
@@ -34,6 +36,7 @@ export const POSTS_KEYS = {
   details: ["posts", "detail"] as const,
   recent: ["posts", "recent"] as const,
   popular: ["posts", "popular"] as const,
+  publicPage: ["posts", "public-page"] as const,
   adminLists: ["posts", "admin-list"] as const,
   counts: ["posts", "count"] as const,
   revisions: ["posts", "revisions"] as const,
@@ -60,6 +63,28 @@ export const POSTS_KEYS = {
     ["posts", "revision-detail", postId, revisionId] as const,
 };
 
+// ============ 公开文章分页查询 ============
+export function publicPostsPageQuery(
+  filters: { offset?: number; limit?: number; excludeIds?: number[] } = {},
+) {
+  const rawOffset = filters.offset ?? 0;
+  const offset = Number.isFinite(rawOffset) ? Math.floor(rawOffset) : 0;
+  const rawLimit = filters.limit ?? 10;
+  const limit = Number.isFinite(rawLimit)
+    ? Math.min(Math.floor(rawLimit), 50)
+    : 10;
+  const excludeIds = filters.excludeIds ?? [];
+
+  return queryOptions({
+    queryKey: [...POSTS_KEYS.publicPage, offset, limit, excludeIds],
+    queryFn: async () => {
+      return await getPublicPostsPageFn({ data: { offset, limit, excludeIds } });
+    },
+  });
+}
+
+// ============ 最近文章查询 ============
+
 export function recentPostsQuery(limit: number) {
   return queryOptions({
     queryKey: [...POSTS_KEYS.recent, limit],
@@ -76,6 +101,8 @@ export function recentPostsQuery(limit: number) {
     },
   });
 }
+
+// ============ 无限滚动查询（游标分页） ============
 
 export function postsInfiniteQueryOptions(
   filters: { tagName?: string; limit?: number } = {},
@@ -109,6 +136,8 @@ export function postsInfiniteQueryOptions(
   });
 }
 
+// ============ 文章详情查询 ============
+
 export function postBySlugQuery(slug: string) {
   return queryOptions({
     queryKey: POSTS_KEYS.detail(slug),
@@ -129,7 +158,7 @@ export function postBySlugQuery(slug: string) {
         // 确保返回对象包含必要字段，避免组件崩溃
         return {
           ...json,
-          slug: slug, // 强制设置 slug
+          slug: slug,
           contentJson: json.contentJson ?? { type: "doc", content: [] },
           toc: json.toc ?? [],
           tags: json.tags ?? [],
@@ -141,13 +170,14 @@ export function postBySlugQuery(slug: string) {
   });
 }
 
+// ============ 文章 ID 查询（管理后台） ============
+
 export function postByIdQuery(id: number) {
   return queryOptions({
     queryKey: POSTS_KEYS.detail(id),
     queryFn: async () => {
       const post = await findPostByIdFn({ data: { id } });
       if (!post) throw new Error("Post not found");
-      // ✅ 强制默认值，确保前端回显正常
       return {
         ...post,
         isGuestPost: post.isGuestPost ?? false,
@@ -157,6 +187,8 @@ export function postByIdQuery(id: number) {
     staleTime: 0,
   });
 }
+
+// ============ 相关文章查询 ============
 
 export function relatedPostsQuery(slug: string, limit?: number) {
   return queryOptions({
@@ -187,6 +219,8 @@ export function relatedPostsQuery(slug: string, limit?: number) {
   });
 }
 
+// ============ 文章版本查询 ============
+
 export function postRevisionListQuery(postId: number) {
   return queryOptions({
     queryKey: POSTS_KEYS.revisionList(postId),
@@ -202,10 +236,14 @@ export function postRevisionDetailQuery(postId: number, revisionId: number) {
   });
 }
 
+// ============ 置顶文章查询 ============
+
 export const pinnedPostsQuery = queryOptions({
   queryKey: POSTS_KEYS.pinned,
   queryFn: () => getPinnedPostsFn(),
 });
+
+// ============ 热门文章查询 ============
 
 export function popularPostsQuery(limit?: number) {
   return queryOptions({
@@ -214,10 +252,12 @@ export function popularPostsQuery(limit?: number) {
   });
 }
 
+// ============ 客邸作者 Slug 查询 ============
+
 export function postGuestAuthorSlugQuery(slug: string) {
   return queryOptions({
     queryKey: ["posts", "guest-author-slug", slug],
     queryFn: () => getPostGuestAuthorSlugFn({ data: { slug } }),
-    staleTime: 0, // 强制实时
+    staleTime: 0,
   });
 }

@@ -1611,5 +1611,12 @@
   "settings_fullscreen_enabled": "启用全屏背景",
   "settings_fullscreen_light": "亮色模式背景图",
   "settings_fullscreen_dark": "暗色模式背景图",
-  "settings_fullscreen_hint": "建议宽高比 16:9 以上"
+  "settings_fullscreen_hint": "建议宽高比 16:9 以上",
+  "pagination_page_prefix": "第",
+  "pagination_page_suffix": "页",
+  "pagination_page_input": "输入页码跳转",
+  "pagination_page_input_hint": "点击输入页码 (1 - {pages})，回车跳转",
+  "pagination_page": "第 {page} / {pages} 页",
+  "pagination_prev": "上一页",
+  "pagination_next": "下一页"
 }

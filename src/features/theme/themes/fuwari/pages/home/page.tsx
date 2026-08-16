@@ -5,6 +5,7 @@ import { useViewCounts } from "@/features/pageview/queries";
 import type { PostItem } from "@/features/posts/schema/posts.schema";
 import type { HomePageProps } from "@/features/theme/contract/pages";
 import { m } from "@/paraglide/messages";
+import { Pagination } from "../../components/pagination";
 import { PostCard } from "../../components/post-card";
 import { getLikeCountFn } from "@/features/likes/api/likes.public.api";
 
@@ -14,10 +15,24 @@ interface MergedPost {
   popular: boolean;
 }
 
-export function HomePage({ posts, pinnedPosts, popularPosts }: HomePageProps) {
+export function HomePage({
+  posts,
+  pinnedPosts,
+  popularPosts,
+  page,
+  pageSize,
+  total,
+  hasPrevPage,
+  hasNextPage,
+  onPageChange,
+}: HomePageProps) {
   const delayOffset = 50;
 
   const mergedPosts = useMemo(() => {
+    if (page !== 1) {
+      return posts.map((p) => ({ post: p, pinned: false, popular: false }));
+    }
+
     const seen = new Set<string>();
     const result: MergedPost[] = [];
     const popularSlugs = new Set((popularPosts ?? []).map((p) => p.slug));
@@ -41,7 +56,7 @@ export function HomePage({ posts, pinnedPosts, popularPosts }: HomePageProps) {
     }
 
     return result;
-  }, [posts, pinnedPosts, popularPosts]);
+  }, [posts, pinnedPosts, popularPosts, page]);
 
   const allSlugs = useMemo(
     () => mergedPosts.map((m) => m.post.slug),
@@ -102,19 +117,17 @@ export function HomePage({ posts, pinnedPosts, popularPosts }: HomePageProps) {
             <div className="border-t border-dashed mx-6 border-black/10 dark:border-white/15 last:border-t-0 md:hidden" />
           </div>
         ))}
-        <div
-          className="fuwari-onload-animation"
-          style={{
-            animationDelay: `calc(var(--fuwari-content-delay) + ${mergedPosts.length * delayOffset}ms)`,
-          }}
-        >
-          <Link
-            to="/posts"
-            className="fuwari-btn-regular mx-6 rounded-lg h-10 px-6 mt-4 flex items-center justify-center mb-4 md:mb-0 md:mx-auto"
-          >
-            {m.home_view_all_posts()}
-          </Link>
-        </div>
+      </div>
+
+      <div className="fuwari-card-base fuwari-onload-animation px-5 py-4 md:px-6 md:py-5">
+        <Pagination
+          page={page}
+          total={total}
+          pageSize={pageSize}
+          hasPrevPage={hasPrevPage}
+          hasNextPage={hasNextPage}
+          onPageChange={onPageChange}
+        />
       </div>
     </div>
   );

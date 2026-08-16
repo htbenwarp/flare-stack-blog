@@ -243,7 +243,7 @@ export function MomentCard({ moment, isAdmin, onEdit }: MomentCardProps) {
                     return;
                   }
 
-                  const timeout = setTimeout(() => reject(new Error('timeout')), 3000);
+                  const timeout = setTimeout(() => reject(new Error('timeout')), 15000);
 
                   const onAbort = () => {
                     clearTimeout(timeout);

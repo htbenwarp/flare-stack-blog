@@ -1605,5 +1605,12 @@
   "settings_fullscreen_enabled": "Enable Fullscreen",
   "settings_fullscreen_light": "Light mode background",
   "settings_fullscreen_dark": "Dark mode background",
-  "settings_fullscreen_hint": "Recommended aspect ratio 16:9 or higher"
+  "settings_fullscreen_hint": "Recommended aspect ratio 16:9 or higher",
+  "pagination_page_prefix": "Page",
+  "pagination_page_suffix": "",
+  "pagination_page_input": "Enter page number",
+  "pagination_page_input_hint": "Click to type a page number (1 - {pages}), press Enter to jump",
+  "pagination_page": "Page {page} / {pages}",
+  "pagination_prev": "Prev",
+  "pagination_next": "Next"
 }

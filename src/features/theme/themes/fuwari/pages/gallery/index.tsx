@@ -26,36 +26,46 @@ const GAP = 8;
 
 function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number }) {
   const [loaded, setLoaded] = useState(false);
-  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
+  const [originalSize, setOriginalSize] = useState<{ w: number; h: number } | null>(
+    item.imgWidth && item.imgHeight ? { w: item.imgWidth, h: item.imgHeight } : null
+  );
 
-  const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget;
-    setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
-    setLoaded(true);
-  };
+  const loadOriginalSize = useCallback(() => {
+    if (item.imgWidth && item.imgHeight) return;
+    const originalUrl = getOriginalImageUrl(item.imageKey);
+    const img = new Image();
+    img.onload = () => {
+      setOriginalSize({ w: img.naturalWidth, h: img.naturalHeight });
+    };
+    img.src = originalUrl;
+  }, [item.imageKey, item.imgWidth, item.imgHeight]);
 
-  const handleError = () => {
-    setLoaded(true);
-  };
+  const handleLoad = () => setLoaded(true);
+  const handleError = () => setLoaded(true);
 
-  const aspectRatio = naturalSize
-    ? `${naturalSize.w} / ${naturalSize.h}`
-    : `${item.imgWidth || 1200} / ${item.imgHeight || 800}`;
+  // 固定容器比例：数据库比例优先，否则 fallback 4:3
+  const containerAspectRatio = item.imgWidth && item.imgHeight
+    ? `${item.imgWidth} / ${item.imgHeight}`
+    : "4 / 3";
+
+  // 灯箱尺寸：优先原图真实尺寸，否则数据库尺寸，否则 fallback
+  const pswpWidth = originalSize?.w ?? item.imgWidth ?? 1200;
+  const pswpHeight = originalSize?.h ?? item.imgHeight ?? 800;
 
   return (
     <div
       className="gallery-item overflow-hidden cursor-pointer relative group"
       style={{
-        aspectRatio,
-        transition: "aspect-ratio 0.3s ease",
+        aspectRatio: containerAspectRatio,
         backgroundColor: "#f0f0f0",
       }}
+      onMouseEnter={loadOriginalSize}
       data-title={item.title || undefined}
       data-description={item.description || undefined}
       data-pswp-src={getOriginalImageUrl(item.imageKey)}
       data-pswp-msrc={getOptimizedImageUrl(item.imageKey, 800)}
-      data-pswp-width={naturalSize?.w || item.imgWidth || 1200}
-      data-pswp-height={naturalSize?.h || item.imgHeight || 800}
+      data-pswp-width={pswpWidth}
+      data-pswp-height={pswpHeight}
     >
       <img
         src={getOptimizedImageUrl(item.imageKey, 800)}
@@ -65,9 +75,12 @@ function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number 
         onLoad={handleLoad}
         onError={handleError}
         className={cn(
-          "absolute inset-0 w-full h-full object-cover transition duration-300 group-hover:scale-110",
-          loaded ? "opacity-100" : "opacity-0"
+          "absolute inset-0 w-full h-full object-cover transition-all duration-500 ease-out",
+          loaded
+            ? "opacity-100 scale-100 blur-0 group-hover:scale-110"
+            : "opacity-0 scale-110 blur-sm"
         )}
+        style={{ willChange: "transform, opacity, filter" }}
       />
     </div>
   );

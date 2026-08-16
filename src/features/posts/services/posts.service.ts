@@ -14,6 +14,8 @@ import type {
   GetPostsCountInput,
   GetPostsCursorInput,
   GetPostsInput,
+  GetPublicPostsPageInput,
+  PublicPostsPageResponse,
   PreviewSummaryInput,
   StartPostProcessInput,
   UpdatePostInput,
@@ -23,6 +25,7 @@ import {
   POSTS_CACHE_KEYS,
   PostItemSchema,
   PostListResponseSchema,
+  PublicPostsPageResponseSchema,
   PostWithTocSchema,
 } from "@/features/posts/schema/posts.schema";
 import { logPostAutoSnapshot } from "@/features/posts/services/post-auto-snapshot.logging";
@@ -491,7 +494,8 @@ export async function getAdjacentPosts(context: DbContext, slug: string) {
     where: and(
       eq(PostsTable.status, "published"),
       eq(PostsTable.isGuestPost, false),
-      ne(PostsTable.slug, "guestbook"), // 排除留言板
+      eq(PostsTable.postType, "post"),
+      ne(PostsTable.slug, "guestbook"),
       ne(PostsTable.slug, slug),
       or(
         lt(PostsTable.publishedAt, post.publishedAt),
@@ -509,7 +513,8 @@ export async function getAdjacentPosts(context: DbContext, slug: string) {
     where: and(
       eq(PostsTable.status, "published"),
       eq(PostsTable.isGuestPost, false),
-      ne(PostsTable.slug, "guestbook"), // 排除留言板
+      eq(PostsTable.postType, "post"),
+      ne(PostsTable.slug, "guestbook"),
       ne(PostsTable.slug, slug),
       or(
         gt(PostsTable.publishedAt, post.publishedAt),
@@ -581,4 +586,37 @@ export async function getAdjacentGuestPosts(context: DbContext, slug: string) {
   });
 
   return { prev: prevPost ?? null, next: nextPost ?? null };
+}
+
+export async function getPublicPostsPage(
+  context: DbContext & { executionCtx: ExecutionContext },
+  data: GetPublicPostsPageInput,
+): Promise<PublicPostsPageResponse> {
+  const offset = data.offset ?? 0;
+  const limit = Math.min(data.limit ?? 10, 50);
+  const excludeIds = data.excludeIds ?? [];
+
+  const result = await CacheService.getVersioned(
+    context,
+    "posts:list",
+    (version) => POSTS_CACHE_KEYS.publicPage(version, offset, limit, excludeIds),
+    PublicPostsPageResponseSchema,
+    async () => {
+      const { items, total } = await PostRepo.getPublicPostsPage(context.db, {
+        offset,
+        limit,
+        excludeIds,
+      });
+      return {
+        items,
+        total,
+        offset,
+        limit,
+        hasNextPage: offset + items.length < total,
+        hasPrevPage: offset > 0,
+      };
+    },
+    { ttl: "7d" },
+  );
+  return result;
 }
