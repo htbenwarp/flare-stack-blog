@@ -26,46 +26,36 @@ const GAP = 8;
 
 function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number }) {
   const [loaded, setLoaded] = useState(false);
-  const [originalSize, setOriginalSize] = useState<{ w: number; h: number } | null>(
-    item.imgWidth && item.imgHeight ? { w: item.imgWidth, h: item.imgHeight } : null
-  );
+  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
 
-  const loadOriginalSize = useCallback(() => {
-    if (item.imgWidth && item.imgHeight) return;
-    const originalUrl = getOriginalImageUrl(item.imageKey);
-    const img = new Image();
-    img.onload = () => {
-      setOriginalSize({ w: img.naturalWidth, h: img.naturalHeight });
-    };
-    img.src = originalUrl;
-  }, [item.imageKey, item.imgWidth, item.imgHeight]);
+  const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+    setLoaded(true);
+  };
 
-  const handleLoad = () => setLoaded(true);
-  const handleError = () => setLoaded(true);
+  const handleError = () => {
+    setLoaded(true);
+  };
 
-  // 固定容器比例：数据库比例优先，否则 fallback 4:3
-  const containerAspectRatio = item.imgWidth && item.imgHeight
-    ? `${item.imgWidth} / ${item.imgHeight}`
-    : "4 / 3";
-
-  // 灯箱尺寸：优先原图真实尺寸，否则数据库尺寸，否则 fallback
-  const pswpWidth = originalSize?.w ?? item.imgWidth ?? 1200;
-  const pswpHeight = originalSize?.h ?? item.imgHeight ?? 800;
+  const aspectRatio = naturalSize
+    ? `${naturalSize.w} / ${naturalSize.h}`
+    : `${item.imgWidth || 1200} / ${item.imgHeight || 800}`;
 
   return (
     <div
       className="gallery-item overflow-hidden cursor-pointer relative group"
       style={{
-        aspectRatio: containerAspectRatio,
+        aspectRatio,
+        transition: "aspect-ratio 0.3s ease",
         backgroundColor: "#f0f0f0",
       }}
-      onMouseEnter={loadOriginalSize}
       data-title={item.title || undefined}
       data-description={item.description || undefined}
       data-pswp-src={getOriginalImageUrl(item.imageKey)}
       data-pswp-msrc={getOptimizedImageUrl(item.imageKey, 800)}
-      data-pswp-width={pswpWidth}
-      data-pswp-height={pswpHeight}
+      data-pswp-width={naturalSize?.w || item.imgWidth || 1200}
+      data-pswp-height={naturalSize?.h || item.imgHeight || 800}
     >
       <img
         src={getOptimizedImageUrl(item.imageKey, 800)}
@@ -75,12 +65,9 @@ function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number 
         onLoad={handleLoad}
         onError={handleError}
         className={cn(
-          "absolute inset-0 w-full h-full object-cover transition-all duration-500 ease-out",
-          loaded
-            ? "opacity-100 scale-100 blur-0 group-hover:scale-110"
-            : "opacity-0 scale-110 blur-sm"
+          "absolute inset-0 w-full h-full object-cover transition duration-300 group-hover:scale-110",
+          loaded ? "opacity-100" : "opacity-0"
         )}
-        style={{ willChange: "transform, opacity, filter" }}
       />
     </div>
   );
@@ -97,7 +84,6 @@ export function GalleryPage() {
   const [displayItems, setDisplayItems] = useState<GalleryItem[]>([]);
   const [loadedCount, setLoadedCount] = useState(0);
 
-  // 标签统计
   const allTags = useMemo(() => {
     const tagMap = new Map<string, number>();
     (items ?? []).forEach((item) => {
@@ -108,7 +94,6 @@ export function GalleryPage() {
     return Array.from(tagMap.entries()).map(([name, count]) => ({ name, count }));
   }, [items]);
 
-  // 初始化显示数据
   useEffect(() => {
     if (!items) return;
     const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -116,19 +101,16 @@ export function GalleryPage() {
     setLoadedCount(Math.min(BATCH, sorted.length));
   }, [items, activeTag]);
 
-  // 筛选后的数据
   const filteredItems = useMemo(() => {
     return activeTag
       ? displayItems.filter((item) => item.tags.some((t) => t.name === activeTag))
       : displayItems;
   }, [displayItems, activeTag]);
 
-  // 加载更多
   const loadMore = useCallback(() => {
     setLoadedCount((prev) => Math.min(prev + BATCH, filteredItems.length));
   }, [filteredItems.length]);
 
-  // 随机排序
   const shuffle = useCallback(() => {
     const target = [...filteredItems];
     for (let i = target.length - 1; i > 0; i--) {
@@ -175,16 +157,13 @@ export function GalleryPage() {
   const isInitializedRef = useRef(false);
   const [needsRefresh, setNeedsRefresh] = useState(0);
 
-  // 当图片列表变化时，标记需要刷新
   useEffect(() => {
     setNeedsRefresh((v) => v + 1);
   }, [displayItems, loadedCount]);
 
-  // PhotoSwipe 初始化与刷新
   useEffect(() => {
     if (isLoading || !masonryRef.current) return;
 
-    // 如果实例已存在，直接刷新
     if (lbRef.current) {
       try {
         requestAnimationFrame(() => {
@@ -203,12 +182,10 @@ export function GalleryPage() {
       }
     }
 
-    // 防止重复创建
     if (isInitializedRef.current && !lbRef.current) {
       isInitializedRef.current = false;
     }
 
-    // 创建新实例（仅在首次或实例损坏时）
     if (!lbRef.current && !isInitializedRef.current) {
       try {
         const lb = new PhotoSwipeLightbox({
@@ -226,7 +203,6 @@ export function GalleryPage() {
           preload: [3, 3],
         });
 
-        // 自定义底部标题
         lb.on("afterInit", () => {
           const pswp = lb.pswp;
           if (!pswp?.element) return;
