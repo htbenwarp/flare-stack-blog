@@ -1,3 +1,7 @@
+import { createServerFn } from "@tanstack/react-start";
+import { dbMiddleware } from "@/lib/middlewares";
+import { GalleryItemsTable } from "@/lib/db/schema";
+
 export const getGalleryItemsFn = createServerFn()
   .middleware([dbMiddleware])
   .handler(async ({ context }) => {
