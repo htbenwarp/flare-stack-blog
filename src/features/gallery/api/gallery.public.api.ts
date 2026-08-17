@@ -2,7 +2,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 import { dbMiddleware } from "@/lib/middlewares";
-import { GalleryItemsTable, MediaTable } from "@/lib/db/schema";
+import { GalleryItemsTable, MediaTable, GalleryItemTagsTable, TagsTable } from "@/lib/db/schema";
 
 export const getGalleryItemsFn = createServerFn()
   .middleware([dbMiddleware])
@@ -21,16 +21,24 @@ export const getGalleryItemsFn = createServerFn()
       .leftJoin(MediaTable, eq(GalleryItemsTable.imageKey, MediaTable.key))
       .orderBy(GalleryItemsTable.sortOrder);
     
+    // 获取标签
     const itemsWithTags = await Promise.all(
       items.map(async (item) => {
-        const itemTags = await context.db.query.GalleryItemTagsTable.findMany({
-          where: eq(GalleryItemTagsTable.galleryItemId, item.id),
-          with: { tag: true },
-        });
+        const itemTags = await context.db
+          .select({
+            tagId: TagsTable.id,
+            tagName: TagsTable.name,
+          })
+          .from(GalleryItemTagsTable)
+          .innerJoin(TagsTable, eq(GalleryItemTagsTable.tagId, TagsTable.id))
+          .where(eq(GalleryItemTagsTable.galleryItemId, item.id));
         
         return {
           ...item,
-          tags: itemTags.map(it => it.tag).filter(Boolean),
+          tags: itemTags.map(it => ({ 
+            id: it.tagId, 
+            name: it.tagName 
+          })),
         };
       })
     );
