@@ -1,26 +1,39 @@
+// src/features/gallery/api/gallery.public.api.ts
 import { createServerFn } from "@tanstack/react-start";
+import { eq } from "drizzle-orm";
 import { dbMiddleware } from "@/lib/middlewares";
-import { GalleryItemsTable } from "@/lib/db/schema";
+import { GalleryItemsTable, MediaTable } from "@/lib/db/schema";
 
 export const getGalleryItemsFn = createServerFn()
   .middleware([dbMiddleware])
   .handler(async ({ context }) => {
-    const items = await context.db.query.GalleryItemsTable.findMany({
-      with: {
-        itemTags: {
+    const items = await context.db
+      .select({
+        id: GalleryItemsTable.id,
+        title: GalleryItemsTable.title,
+        description: GalleryItemsTable.description,
+        imageKey: GalleryItemsTable.imageKey,
+        sortOrder: GalleryItemsTable.sortOrder,
+        imgWidth: MediaTable.width,
+        imgHeight: MediaTable.height,
+      })
+      .from(GalleryItemsTable)
+      .leftJoin(MediaTable, eq(GalleryItemsTable.imageKey, MediaTable.key))
+      .orderBy(GalleryItemsTable.sortOrder);
+    
+    const itemsWithTags = await Promise.all(
+      items.map(async (item) => {
+        const itemTags = await context.db.query.GalleryItemTagsTable.findMany({
+          where: eq(GalleryItemTagsTable.galleryItemId, item.id),
           with: { tag: true },
-        },
-      },
-      orderBy: GalleryItemsTable.sortOrder,
-    });
-    return items.map((item) => ({
-      id: item.id,
-      title: item.title,
-      description: item.description,
-      imageKey: item.imageKey,
-      imgWidth: item.imgWidth,
-      imgHeight: item.imgHeight,
-      tags: item.itemTags.map((it) => it.tag).filter(Boolean),
-      sortOrder: item.sortOrder,
-    }));
+        });
+        
+        return {
+          ...item,
+          tags: itemTags.map(it => it.tag).filter(Boolean),
+        };
+      })
+    );
+    
+    return itemsWithTags;
   });
