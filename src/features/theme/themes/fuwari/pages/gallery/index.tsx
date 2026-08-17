@@ -54,8 +54,8 @@ function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number 
       data-description={item.description || undefined}
       data-pswp-src={getOriginalImageUrl(item.imageKey)}
       data-pswp-msrc={getOptimizedImageUrl(item.imageKey, 800)}
-      data-pswp-width={naturalSize?.w || item.imgWidth || 1200}
-      data-pswp-height={naturalSize?.h || item.imgHeight || 800}
+      data-pswp-width={item.imgWidth || naturalSize?.w || 1200}
+      data-pswp-height={item.imgHeight || naturalSize?.h || 800}
     >
       <img
         src={getOptimizedImageUrl(item.imageKey, 800)}
