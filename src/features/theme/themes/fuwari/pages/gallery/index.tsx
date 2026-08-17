@@ -40,7 +40,7 @@ function GalleryImage({ item, colWidth }: { item: GalleryItem; colWidth: number 
 
   const aspectRatio = naturalSize
     ? `${naturalSize.w} / ${naturalSize.h}`
-    : `${item.imgWidth || 1200} / ${item.imgHeight || 800}`;
+    : "3 / 2";
 
   return (
     <div
