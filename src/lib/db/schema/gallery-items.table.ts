@@ -8,6 +8,8 @@ export const GalleryItemsTable = sqliteTable("gallery_items", {
   title: text().notNull().default(""),
   description: text().default(""),
   imageKey: text("image_key").notNull(),
+  imgWidth: integer("img_width"),
+  imgHeight: integer("img_height"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt,
   updatedAt,
