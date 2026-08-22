@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db";
 import { SystemConfigTable } from "@/lib/db/schema/config.table";
 
 const app = new Hono<{ Bindings: Env }>();
-const METING_API = "https://api.i-meto.com/meting/api";
+const PROXY_API = "https://api.injahow.cn/meting/";
 
 // 从代理地址解析真实高清图片链接，结果缓存到 KV（24 小时）
 async function resolveHighResPic(picUrl: string, env: Env): Promise<string> {
@@ -51,7 +51,7 @@ app.get("/", async (c) => {
       return c.json({ error: "未配置歌单ID，请在后台设置" }, 400);
     }
 
-    const url = `${METING_API}?server=netease&type=playlist&id=${playlistId}`;
+    const url = `${PROXY_API}?type=playlist&id=${playlistId}`;
     const res = await fetch(url);
     const data = await res.json();
 
