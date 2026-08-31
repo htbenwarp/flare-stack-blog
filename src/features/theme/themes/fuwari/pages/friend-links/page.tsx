@@ -58,10 +58,10 @@ RSS地址：${blogInfo.rssUrl}
         className="fuwari-card-base p-6 md:p-8 relative overflow-hidden flex flex-col items-center justify-center min-h-56 fuwari-onload-animation bg-linear-to-br from-(--fuwari-primary)/5 to-transparent"
         style={{ animationDelay: "150ms" }}
       >
-        <h1 className="text-3xl md:text-4xl font-bold fuwari-text-90 mb-4 z-10 transition-colors">
+        <h1 className="text-2xl md:text-3xl font-bold fuwari-text-90 mb-4 z-10 transition-colors">
           {m.friend_links_title()}
         </h1>
-        <p className="fuwari-text-50 text-center max-w-xl z-10 transition-colors">
+        <p className="text-sm md:text-base fuwari-text-50 text-center max-w-xl z-10 transition-colors">
           {m.friend_links_fuwari_desc()}
         </p>
         <Link

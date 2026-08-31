@@ -5,7 +5,8 @@ import { getGalleryItemsFn } from "@/features/gallery/api/gallery.public.api";
 import { getOptimizedImageUrl, getOriginalImageUrl } from "@/features/media/utils/media.utils";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { Skeleton } from "@/components/ui/skeleton";
+import { BubbleSkeleton } from "@/features/theme/themes/fuwari/components/loading/bubble-skeleton";
+import { PageHeader } from "@/features/theme/themes/fuwari/components/page-header";
 import PhotoSwipeLightbox from "photoswipe/lightbox";
 import PhotoSwipe from "photoswipe";
 import "photoswipe/dist/photoswipe.css";
@@ -372,14 +373,10 @@ export function GalleryPage() {
   return (
     <div className="flex flex-col gap-4 w-full">
       {/* 标题 */}
-      <div className="fuwari-card-base p-6 md:p-10 space-y-4">
-        <h1 className="text-3xl font-bold fuwari-text-90">
-          {m.gallery_title?.() ?? "画廊"}
-        </h1>
-        <p className="text-sm fuwari-text-50">
-          {m.gallery_intro?.() ?? "浏览摄影作品"}
-        </p>
-      </div>
+      <PageHeader
+        title={m.gallery_title?.() ?? "画廊"}
+        subtitle={m.gallery_intro?.() ?? "浏览摄影作品"}
+      />
 
       {/* 随机排序按钮 */}
       <button
@@ -450,11 +447,17 @@ export function GalleryPage() {
 function GallerySkeleton() {
   return (
     <div className="flex flex-col gap-4 w-full">
-      <Skeleton className="h-32 w-full rounded-2xl" />
-      <Skeleton className="h-16 w-full rounded-2xl" />
+      {/* 标题 + 副标题 */}
+      <div className="fuwari-card-base p-6 md:p-8 space-y-3">
+        <BubbleSkeleton index={0} className="h-8 w-44" />
+        <BubbleSkeleton index={1} className="h-4 w-72 max-w-full" />
+      </div>
+      {/* 洗牌按钮 */}
+      <BubbleSkeleton index={2} className="h-16 w-full" />
+      {/* 瀑布流图片占位：按列错落 */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 w-full">
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="aspect-[4/3] rounded-xl" />
+          <BubbleSkeleton key={i} index={3 + i} className="aspect-[4/3]" />
         ))}
       </div>
     </div>

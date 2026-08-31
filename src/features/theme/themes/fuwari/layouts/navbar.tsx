@@ -2,7 +2,7 @@ import { Link, useRouteContext } from "@tanstack/react-router";
 import { Home, Menu, Search, UserIcon, FileText, Users, Link2, MessageSquare, Image, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/common/theme-toggle";
-import { Skeleton } from "@/components/ui/skeleton";
+import { BubbleSkeleton } from "@/features/theme/themes/fuwari/components/loading/bubble-skeleton";
 import type { NavOption, UserInfo } from "@/features/theme/contract/layouts";
 import { m } from "@/paraglide/messages";
 import { LanguageSwitcher } from "./language-switcher";
@@ -140,7 +140,7 @@ export function Navbar({
             <LanguageSwitcher className="fuwari-expand-animation rounded-lg h-11 w-11 flex items-center justify-center active:scale-90 fuwari-text-75 hover:text-(--fuwari-primary) p-0! bg-transparent! [&_svg]:w-4.5! [&_svg]:h-4.5!" />
             <div className="hidden md:flex items-center">
               {isLoading ? (
-                <Skeleton className="w-9 h-9 rounded-lg" />
+                <BubbleSkeleton index={0} isStatic className="w-9 h-9" />
               ) : user ? (
                 <Link
                   to="/profile"

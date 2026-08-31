@@ -1,7 +1,7 @@
 import { useSiteStats } from "@/hooks/use-site-stats";
 import { blogConfig } from "@/blog.config";
 import { m } from "@/paraglide/messages";
-import { Skeleton } from "@/components/ui/skeleton";
+import { BubbleSkeleton } from "@/features/theme/themes/fuwari/components/loading/bubble-skeleton";
 import { Clock, FileText, PencilLine, Eye } from "lucide-react";
 
 function formatRuntime(startDate: string): string {
@@ -35,8 +35,8 @@ export function SiteInfo() {
         {isLoading ? (
           [1, 2, 3, 4].map((i) => (
             <div key={i} className="flex items-center gap-3">
-              <Skeleton className="h-4 w-4 rounded" />
-              <Skeleton className="h-4 w-3/5 rounded" />
+              <BubbleSkeleton index={i} isStatic className="h-4 w-4" />
+              <BubbleSkeleton index={i} className="h-4 w-3/5" />
             </div>
           ))
         ) : data ? (

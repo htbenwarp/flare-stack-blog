@@ -9,7 +9,7 @@ import {
   Pin,
   Tag,
 } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { BubbleSkeleton } from "@/features/theme/themes/fuwari/components/loading/bubble-skeleton";
 import type { PostItem } from "@/features/posts/schema/posts.schema";
 import { formatDate } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -178,7 +178,7 @@ export function PostCard({
           {isLoadingViews ? (
             <span className="inline-flex items-center gap-1.5">
               <Eye size={15} />
-              <Skeleton className="h-3.5 w-8 rounded bg-black/10 dark:bg-white/10" />
+              <BubbleSkeleton index={0} isStatic className="h-3.5 w-8" />
             </span>
           ) : (
             views !== undefined && (
@@ -193,7 +193,7 @@ export function PostCard({
           {isLoadingLikeCount ? (
             <span className="inline-flex items-center gap-1.5">
               <Heart size={14} />
-              <Skeleton className="h-3.5 w-8 rounded bg-black/10 dark:bg-white/10" />
+              <BubbleSkeleton index={0} isStatic className="h-3.5 w-8" />
             </span>
           ) : (
             likeCount > 0 && (

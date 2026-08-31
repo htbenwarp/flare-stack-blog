@@ -9,6 +9,7 @@ import { m } from "@/paraglide/messages";
 import { FileText } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { GuestHousePageSkeleton } from "./skeleton";
+import { PageHeader } from "@/features/theme/themes/fuwari/components/page-header";
 
 export function GuestHousePage() {
   const search = useSearch({ from: "/_public/guest-house/" }) as {
@@ -78,20 +79,17 @@ export function GuestHousePage() {
   // 默认作者网格
   return (
     <div className="flex flex-col gap-4">
-      <div className="fuwari-card-base p-6 fuwari-onload-animation">
-        <h1 className="text-2xl font-bold mb-2 fuwari-text-90">
-          {m.guest_house_breadcrumb?.() ?? "客邸"}
-        </h1>
-        <p className="text-sm fuwari-text-50 mb-4">
-          {m.guest_house_intro?.() ?? "收藏好友的字句"}
-        </p>
+      <PageHeader
+        title={m.guest_house_breadcrumb?.() ?? "客邸"}
+        subtitle={m.guest_house_intro?.() ?? "收藏好友的字句"}
+      >
         <div className="text-sm fuwari-text-50">
           {m.guest_house_total({
             authorCount: authors.length.toString(),
             postCount: totalPosts.toString(),
           })}
         </div>
-      </div>
+      </PageHeader>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {authors.map((author, idx) => (

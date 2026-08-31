@@ -3,7 +3,7 @@ import { getGuestbookPostFn } from "@/features/posts/api/posts.public.api";
 import { ContentRenderer } from "@/features/theme/themes/fuwari/components/content/content-renderer";
 import { FuwariCommentSection } from "@/features/theme/themes/fuwari/components/comments/view/comment-section";
 import { LikeButton } from "@/features/theme/themes/fuwari/components/like-button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { GuestbookPageSkeleton } from "./skeleton";
 import { m } from "@/paraglide/messages";
 
 export function GuestbookPage() {
@@ -13,14 +13,14 @@ export function GuestbookPage() {
     staleTime: 60 * 60 * 1000,
   });
 
-  if (isLoading) return <Skeleton className="h-48 w-full rounded-2xl" />;
+  if (isLoading) return <GuestbookPageSkeleton />;
   if (!post) return <p className="text-center py-10 fuwari-text-50">{m.guestbook_not_found?.() ?? "留言板未初始化"}</p>;
 
   return (
     <div className="flex flex-col gap-6 max-w-(--fuwari-page-width) mx-auto">
       {/* 介绍卡片 */}
       <div className="fuwari-card-base p-10 md:p-10 space-y-4">
-        <h1 className="text-3xl font-bold fuwari-text-90">{post.title}</h1>
+        <h1 className="text-2xl md:text-3xl font-bold fuwari-text-90">{post.title}</h1>
         <div className="prose dark:prose-invert max-w-none!">
           <ContentRenderer content={post.contentJson} />
         </div>

@@ -6,7 +6,7 @@ import { LogIn } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Turnstile, useTurnstile } from "@/components/common/turnstile";
-import { Skeleton } from "@/components/ui/skeleton";
+import { BubbleSkeleton } from "@/features/theme/themes/fuwari/components/loading/bubble-skeleton";
 import { useComments } from "@/features/comments/hooks/use-comments";
 import { rootCommentsByPostIdInfiniteQuery } from "@/features/comments/queries";
 import { authClient } from "@/lib/auth/auth.client";
@@ -255,30 +255,30 @@ function FuwariCommentSectionSkeleton({
   if (collapsed) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-5 w-32 rounded" />
+        <BubbleSkeleton index={0} className="h-5 w-32" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <Skeleton className="h-7 w-24 rounded-lg" />
-      <Skeleton className="h-32 w-full rounded-(--fuwari-radius-large)" />
+      <BubbleSkeleton index={0} className="h-7 w-24" />
+      <BubbleSkeleton index={1} className="h-32 w-full" />
       <div className="space-y-0">
         {[1, 2, 3].map((i) => (
           <div
             key={i}
             className="py-6 flex gap-4 border-b border-black/5 dark:border-white/5"
           >
-            <Skeleton className="w-9 h-9 rounded-full shrink-0" />
+            <BubbleSkeleton index={2 + i * 4} isStatic className="w-9 h-9 rounded-full shrink-0" />
             <div className="flex-1 space-y-3">
               <div className="flex items-center justify-between">
-                <Skeleton className="h-4 w-20 rounded" />
-                <Skeleton className="h-3 w-16 rounded" />
+                <BubbleSkeleton index={2 + i * 4 + 1} className="h-4 w-20" />
+                <BubbleSkeleton index={2 + i * 4 + 2} className="h-3 w-16" />
               </div>
               <div className="space-y-1.5">
-                <Skeleton className="h-3.5 w-full rounded" />
-                <Skeleton className="h-3.5 w-3/4 rounded" />
+                <BubbleSkeleton index={2 + i * 4 + 3} className="h-3.5 w-full" />
+                <BubbleSkeleton index={2 + i * 4 + 3} className="h-3.5 w-3/4" />
               </div>
             </div>
           </div>

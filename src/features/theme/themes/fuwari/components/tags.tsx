@@ -2,7 +2,7 @@ import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { BubbleSkeleton } from "@/features/theme/themes/fuwari/components/loading/bubble-skeleton";
 import { tagsQueryOptions } from "@/features/tags/queries";
 import {
   guestHouseTagsQueryOptions,
@@ -14,10 +14,10 @@ import { m } from "@/paraglide/messages";
 export function TagsSkeleton() {
   return (
     <div className="fuwari-card-base p-4">
-      <Skeleton className="h-5 w-20 mb-3" />
+      <BubbleSkeleton index={0} className="h-5 w-20 mb-3" />
       <div className="flex flex-wrap gap-2">
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-8 w-16 rounded-lg" />
+          <BubbleSkeleton key={i} index={1 + i} className="h-8 w-16" />
         ))}
       </div>
     </div>

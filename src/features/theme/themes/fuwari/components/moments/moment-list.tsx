@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useInView } from "react-intersection-observer";
 import type { UseInfiniteQueryResult } from "@tanstack/react-query";
 import { MomentCard } from "./moment-card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { BubbleSkeleton } from "@/features/theme/themes/fuwari/components/loading/bubble-skeleton";
 
 interface MomentListProps {
   query: UseInfiniteQueryResult<any, unknown>;
@@ -29,10 +29,7 @@ export function MomentList({ query, isAdmin, onEdit }: MomentListProps) {
     return (
       <div className="space-y-4">
         {[...Array(3)].map((_, i) => (
-          <Skeleton
-            key={i}
-            className="h-48 w-full rounded-(--fuwari-radius-large)"
-          />
+          <BubbleSkeleton key={i} index={i} className="h-48 w-full" />
         ))}
       </div>
     );
@@ -62,7 +59,7 @@ export function MomentList({ query, isAdmin, onEdit }: MomentListProps) {
         />
       ))}
       {query.isFetchingNextPage && (
-        <Skeleton className="h-32 w-full rounded-(--fuwari-radius-large)" />
+        <BubbleSkeleton index={0} className="h-32 w-full" />
       )}
       <div ref={ref} className="h-10" />
     </div>

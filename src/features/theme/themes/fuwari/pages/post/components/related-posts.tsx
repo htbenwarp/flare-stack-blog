@@ -1,6 +1,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { ClientOnly, Link } from "@tanstack/react-router";
-import { Skeleton } from "@/components/ui/skeleton";
+import { BubbleSkeleton } from "@/features/theme/themes/fuwari/components/loading/bubble-skeleton";
 import { relatedPostsQuery } from "@/features/posts/queries";
 import { formatDate } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -65,11 +65,11 @@ export function RelatedPostsSkeleton() {
           key={i}
           className="flex flex-col justify-between p-4 rounded-xl border border-black/5 dark:border-white/5 h-28"
         >
-          <Skeleton className="h-6 w-full mb-2" />
+          <BubbleSkeleton index={i * 4} className="h-6 w-full mb-2" />
           <div className="flex items-center gap-3">
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-1 w-1 rounded-full" />
-            <Skeleton className="h-4 w-12" />
+            <BubbleSkeleton index={i * 4 + 1} className="h-4 w-20" />
+            <BubbleSkeleton index={i * 4 + 2} isStatic className="h-1 w-1 rounded-full" />
+            <BubbleSkeleton index={i * 4 + 3} className="h-4 w-12" />
           </div>
         </div>
       ))}

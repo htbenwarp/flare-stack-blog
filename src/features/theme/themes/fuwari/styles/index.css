@@ -41,6 +41,11 @@
     --fuwari-input-border: rgba(0, 0, 0, 0.1);
     --fuwari-toc-btn-hover: oklch(0.926 0.015 var(--fuwari-hue));
     --fuwari-toc-btn-active: oklch(0.9 0.015 var(--fuwari-hue));
+
+    /* 冒泡加载占位（与卡片背景同色系、柔和融合） */
+    --fuwari-skeleton-bg: oklch(0.93 0.02 var(--fuwari-hue));
+    --fuwari-skeleton-hi: oklch(1 0 var(--fuwari-hue) / 0.6);
+    --fuwari-bubble-in-ms: 420ms;
   }
 
   .dark {
@@ -64,6 +69,10 @@
     --fuwari-input-border: rgba(255, 255, 255, 0.1);
     --fuwari-toc-btn-hover: oklch(0.22 0.02 var(--fuwari-hue));
     --fuwari-toc-btn-active: oklch(0.25 0.02 var(--fuwari-hue));
+
+    /* 冒泡加载占位（暗色卡片上的同色系柔和块面） */
+    --fuwari-skeleton-bg: oklch(0.3 0.02 var(--fuwari-hue));
+    --fuwari-skeleton-hi: oklch(0.52 0.03 var(--fuwari-hue) / 0.35);
   }
 }
 
@@ -335,4 +344,96 @@
   pointer-events: none; /* 避免遮挡按钮 */
   backdrop-filter: blur(4px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* ============================================================
+   冒泡加载（Bubbling Loading）
+   一套与 fuwari 卡片背景融合的圆角矩形占位：
+   - 同色系柔和块面（--fuwari-skeleton-bg），带气泡高光上浮
+   - 渐入（fuwari-bubble-in）+ 错落延迟（--fuwari-bubble-delay）
+   ============================================================ */
+
+:root {
+  --fuwari-bubble-delay: 0ms;
+}
+
+@keyframes fuwari-bubble-in {
+  0% {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 气泡高光在块面内缓缓上升、放大并淡出 */
+@keyframes fuwari-bubble-rise {
+  0% {
+    transform: translateY(105%) scale(0.6);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-15%) scale(1.4);
+    opacity: 0;
+  }
+}
+
+@layer components {
+  .fuwari-bubble {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--fuwari-radius-large);
+    background-color: var(--fuwari-skeleton-bg);
+    /* 先隐藏，靠渐入动画带出；双动画共享错落延迟 */
+    opacity: 0;
+    animation:
+      fuwari-bubble-in var(--fuwari-bubble-in-ms) ease-out var(--fuwari-bubble-delay) forwards,
+      fuwari-bubble-rise 2.2s ease-in-out var(--fuwari-bubble-delay) infinite;
+    pointer-events: none;
+  }
+
+  /* 气泡高光 */
+  .fuwari-bubble::after {
+    content: "";
+    position: absolute;
+    left: 10%;
+    right: 10%;
+    top: -20%;
+    height: 90%;
+    border-radius: 9999px;
+    background: radial-gradient(
+      closest-side,
+      var(--fuwari-skeleton-hi),
+      transparent 70%
+    );
+    opacity: 0;
+    animation: fuwari-bubble-rise 2.2s ease-in-out var(--fuwari-bubble-delay) infinite;
+    pointer-events: none;
+  }
+
+  /* 微型占位（头像、小圆点等）只需要静态块面，不启用气泡动画 */
+  .fuwari-bubble--static {
+    opacity: 1;
+    animation: none;
+  }
+  .fuwari-bubble--static::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fuwari-bubble {
+    opacity: 1;
+    animation: none;
+  }
+  .fuwari-bubble::after {
+    animation: none;
+    opacity: 0;
+  }
 }
