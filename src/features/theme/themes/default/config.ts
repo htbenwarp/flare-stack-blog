@@ -6,7 +6,10 @@ export const config: ThemeConfig = {
     popularPostsLimit: 5,
   },
   posts: {
-    postsPerPage: 5,
+    // 首页每页文章数
+    homePostsPerPage: 5,
+    // 归档页（/posts）每页文章数
+    archivePostsPerPage: 5,
   },
   post: {
     relatedPostsLimit: 3,

@@ -10,7 +10,7 @@ import {
 } from "@/features/posts/queries";
 import { buildCanonicalUrl, canonicalLink } from "@/lib/seo";
 
-const { postsPerPage } = theme.config.posts;
+const { homePostsPerPage } = theme.config.posts;
 const { popularPostsLimit } = theme.config.home;
 
 const searchSchema = z.object({
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_public/")({
   loaderDeps: ({ search }) => ({ page: search.page ?? 1 }),
   loader: async ({ context, deps }) => {
     const currentPage = Number(deps.page) || 1;
-    const offset = (currentPage - 1) * postsPerPage;
+    const offset = (currentPage - 1) * homePostsPerPage;
 
     const popularPosts = await context.queryClient.ensureQueryData(
       popularPostsQuery(popularPostsLimit),
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/_public/")({
 
     const [, domain] = await Promise.all([
       context.queryClient.ensureQueryData(
-        publicPostsPageQuery({ offset, limit: postsPerPage, excludeIds }),
+        publicPostsPageQuery({ offset, limit: homePostsPerPage, excludeIds }),
       ),
       context.queryClient.ensureQueryData(siteDomainQuery),
       context.queryClient.ensureQueryData(pinnedPostsQuery),
@@ -54,13 +54,13 @@ function HomeRoute() {
   const navigate = useNavigate({ from: Route.fullPath });
   const { page } = Route.useSearch();
   const currentPage = Number(page) || 1;
-  const offset = (currentPage - 1) * postsPerPage;
+  const offset = (currentPage - 1) * homePostsPerPage;
   const { popularExcludeIds } = Route.useLoaderData();
 
   const { data: pageData } = useSuspenseQuery(
     publicPostsPageQuery({
       offset,
-      limit: postsPerPage,
+      limit: homePostsPerPage,
       excludeIds: popularExcludeIds,
     }),
   );
@@ -81,7 +81,7 @@ function HomeRoute() {
       pinnedPosts={currentPage === 1 ? pinnedPosts : []}
       popularPosts={currentPage === 1 ? popularPosts : []}
       page={currentPage}
-      pageSize={postsPerPage}
+      pageSize={homePostsPerPage}
       total={pageData.total}
       hasPrevPage={pageData.hasPrevPage}
       hasNextPage={pageData.hasNextPage}

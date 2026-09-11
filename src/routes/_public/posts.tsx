@@ -14,7 +14,7 @@ import { tagsQueryOptions } from "@/features/tags/queries";
 import { buildCanonicalUrl, canonicalLink } from "@/lib/seo";
 import { m } from "@/paraglide/messages";
 
-const { postsPerPage } = theme.config.posts;
+const { archivePostsPerPage } = theme.config.posts;
 
 export const Route = createFileRoute("/_public/posts")({
   validateSearch: z.object({
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/_public/posts")({
       context.queryClient.prefetchInfiniteQuery(
         postsInfiniteQueryOptions({
           tagName: deps.tagName,
-          limit: postsPerPage,
+          limit: archivePostsPerPage,
         }),
       ),
       context.queryClient.prefetchQuery(tagsQueryOptions),
@@ -66,7 +66,7 @@ function RouteComponent() {
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useSuspenseInfiniteQuery(
-      postsInfiniteQueryOptions({ tagName, limit: postsPerPage }),
+      postsInfiniteQueryOptions({ tagName, limit: archivePostsPerPage }),
     );
 
   const posts = useMemo(() => {
