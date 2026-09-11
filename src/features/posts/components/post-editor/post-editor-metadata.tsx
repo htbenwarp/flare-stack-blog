@@ -6,6 +6,7 @@ import { TagSelector } from "@/features/tags/components/tag-selector";
 import { POST_STATUSES } from "@/lib/db/schema";
 import { toLocalDateString } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { PostEditorCoverField } from "./post-editor-cover";
 import type { PostEditorData } from "./types";
 import { useQuery } from "@tanstack/react-query";
 import { guestAuthorsAdminQueryOptions } from "@/features/guest-authors/queries/admin";
@@ -241,6 +242,12 @@ export function PostEditorMetadata({
             className="w-full resize-none bg-transparent text-xs font-mono leading-relaxed text-foreground placeholder:text-muted-foreground/30 focus:outline-none"
           />
         </div>
+
+        {/* 封面图区块 */}
+        <PostEditorCoverField
+          cover={post.cover}
+          onChange={(next) => onPostChange(next)}
+        />
 
         {/* 加密设置区块 */}
         <div className="col-span-1 space-y-3 md:col-span-3 border-t border-border/30 pt-8">

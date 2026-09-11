@@ -55,11 +55,32 @@ export async function getPostsByMediaKey(db: DB, key: string) {
     .innerJoin(PostMediaTable, eq(PostsTable.id, PostMediaTable.postId))
     .innerJoin(MediaTable, eq(MediaTable.id, PostMediaTable.mediaId))
     .where(eq(MediaTable.key, key));
-  return posts;
+
+  // Posts that use this media as their cover are usages too, even when the
+  // image never appears in the body.
+  const coverPosts = await db
+    .select({
+      id: PostsTable.id,
+      title: PostsTable.title,
+      summary: PostsTable.summary,
+      readTimeInMinutes: PostsTable.readTimeInMinutes,
+      slug: PostsTable.slug,
+      status: PostsTable.status,
+    })
+    .from(PostsTable)
+    .innerJoin(MediaTable, eq(MediaTable.id, PostsTable.coverMediaId))
+    .where(eq(MediaTable.key, key));
+
+  const byId = new Map<number, (typeof posts)[number]>();
+  for (const post of [...posts, ...coverPosts]) {
+    byId.set(post.id, post);
+  }
+
+  return [...byId.values()];
 }
 
 /**
- * 检查媒体是否被文章使用
+ * 检查媒体是否被文章使用（正文引用或作为文章封面）
  */
 export async function isMediaInUse(db: DB, key: string): Promise<boolean> {
   const result = await db
@@ -69,7 +90,16 @@ export async function isMediaInUse(db: DB, key: string): Promise<boolean> {
     .where(eq(MediaTable.key, key))
     .limit(1);
 
-  return result.length > 0;
+  if (result.length > 0) return true;
+
+  const coverResult = await db
+    .select({ id: PostsTable.id })
+    .from(PostsTable)
+    .innerJoin(MediaTable, eq(MediaTable.id, PostsTable.coverMediaId))
+    .where(eq(MediaTable.key, key))
+    .limit(1);
+
+  return coverResult.length > 0;
 }
 
 /**
@@ -88,5 +118,12 @@ export async function getLinkedMediaKeys(
     .innerJoin(PostMediaTable, eq(MediaTable.id, PostMediaTable.mediaId))
     .where(inArray(MediaTable.key, keys));
 
-  return results.map((r) => r.key);
+  // 作为文章封面被引用的媒体同样算作已使用
+  const coverResults = await db
+    .selectDistinct({ key: MediaTable.key })
+    .from(MediaTable)
+    .innerJoin(PostsTable, eq(PostsTable.coverMediaId, MediaTable.id))
+    .where(inArray(MediaTable.key, keys));
+
+  return [...new Set([...results, ...coverResults].map((r) => r.key))];
 }

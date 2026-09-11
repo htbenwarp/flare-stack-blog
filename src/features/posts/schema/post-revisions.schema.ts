@@ -22,6 +22,8 @@ export const PostRevisionSnapshotSchema = z.object({
   readTimeInMinutes: z.number().int().min(1),
   contentJson: NullableJsonContentSchema,
   tagIds: z.array(z.number().int()),
+  // Optional so revisions written before post covers existed still parse.
+  coverMediaId: z.number().int().nullable().optional(),
 });
 
 export const PostRevisionSelectSchema = createSelectSchema(PostRevisionsTable, {

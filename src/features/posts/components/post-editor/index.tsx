@@ -35,18 +35,28 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
     password: "", // 永不回显密码
     isGuestPost: initialData.isGuestPost ?? false,    // ← 必须存在
     guestAuthorId: initialData.guestAuthorId ?? null, // ← 必须存在
+    coverMediaId: initialData.coverMediaId ?? null,
+    cover: initialData.cover ?? null,
   }));
 
   const [prevInitialDataId, setPrevInitialDataId] = useState(initialData.id);
   const [prevTagIds, setPrevTagIds] = useState(() =>
     [...initialData.tagIds].sort().join(","),
   );
+  const [prevCoverMediaId, setPrevCoverMediaId] = useState(
+    initialData.coverMediaId ?? null,
+  );
 
   const currentTagIdsStr = [...initialData.tagIds].sort().join(",");
 
-  if (prevInitialDataId !== initialData.id || prevTagIds !== currentTagIdsStr) {
+  if (
+    prevInitialDataId !== initialData.id ||
+    prevTagIds !== currentTagIdsStr ||
+    prevCoverMediaId !== (initialData.coverMediaId ?? null)
+  ) {
     setPrevInitialDataId(initialData.id);
     setPrevTagIds(currentTagIdsStr);
+    setPrevCoverMediaId(initialData.coverMediaId ?? null);
     setPost((prev) => ({
       ...prev,
       tagIds: initialData.tagIds,
@@ -54,6 +64,9 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
       isEncrypted: initialData.isEncrypted ?? false, // 同步加密状态
       isGuestPost: initialData.isGuestPost ?? false,    // ← 新增
       guestAuthorId: initialData.guestAuthorId ?? null, // ← 新增
+      // 版本恢复会改写封面，这里跟随服务端的最新值
+      coverMediaId: initialData.coverMediaId ?? null,
+      cover: initialData.cover ?? null,
     }));
   }
 
@@ -148,6 +161,9 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
         // ✅ 恢复时保留当前的加密设置
         isEncrypted: post.isEncrypted,
         password: post.password,
+        // 快照带动封面；真实值会在重新拉取文章后同步过来
+        coverMediaId: post.coverMediaId,
+        cover: post.cover,
       };
 
       setPost(restoredPost);
@@ -167,9 +183,11 @@ export function PostEditor({ initialData, onSave }: PostEditorProps) {
       readTimeInMinutes: post.readTimeInMinutes,
       contentJson: post.contentJson,
       tagIds: [...new Set(post.tagIds)].sort((a, b) => a - b),
+      coverMediaId: post.coverMediaId,
     }),
     [
       post.contentJson,
+      post.coverMediaId,
       post.publishedAt,
       post.readTimeInMinutes,
       post.slug,

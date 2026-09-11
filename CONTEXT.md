@@ -52,6 +52,10 @@ _Avoid_: Verifying comment
 An uploaded file tracked by the CMS for reuse in **Posts**.
 _Avoid_: Asset
 
+**Post Cover**:
+The optional cover **Media** of a **Post**, chosen in the post editor and rendered by themes on listing cards and at the top of the post page. It is not a body image and not the site-wide banner.
+_Avoid_: Banner, thumbnail, featured image, hero, OG image, 封面图
+
 **Friend Link**:
 A submitted or admin-created external site listing that can be approved for display on the public friend-links page.
 _Avoid_: Blogroll, partner link, link exchange
@@ -126,6 +130,11 @@ _Avoid_: Webhook, callback URL
 - A **Post** can have zero or more **Post Revisions**.
 - A **Post** can have zero or more **Comment Threads**.
 - A **Post** can reference zero or more **Media** items.
+- A **Post** has zero or one **Post Cover**.
+- A **Post Cover** is a **Media** item.
+- Clearing a **Post Cover** does not delete the **Media**.
+- A **Media** item may be both a **Post Cover** and a body image of the same **Post**.
+- Restoring a **Post Revision** restores its **Post Cover**. If that **Media** no longer exists, the restored **Post** has no **Post Cover**.
 - A **Published Post** has a **Public Content Snapshot** for public rendering.
 - A **Draft Post** does not appear in public listing, detail, or search surfaces.
 - A **Post Revision** belongs to exactly one **Post**.
@@ -134,6 +143,7 @@ _Avoid_: Webhook, callback URL
 - A non-admin **Comment** starts as a **Verifying Comment**.
 - A **Pending Comment** requires admin review before becoming publicly visible.
 - A **Media** item referenced by a **Post** cannot be deleted from the media library.
+- A **Media** item used as a **Post Cover** counts as referenced by that **Post**.
 - Only an approved **Friend Link** appears on the public friend-links page.
 - **System Config** contains **Site Config**.
 - A **Theme Contract** consumes **Site Config** when rendering public blog pages.
@@ -163,3 +173,4 @@ _Avoid_: Webhook, callback URL
 - "Category" is not a current Flare Stack Blog concept; use **Tag** for non-hierarchical grouping.
 - "Pending comment" and **Verifying Comment** are distinct: **Verifying Comment** is awaiting automated moderation, while **Pending Comment** is awaiting admin review.
 - "Asset" can refer to theme or static resource paths; use **Media** for uploaded files managed by the CMS.
+- "封面图", "banner", "featured image", and "OG image" are not glossary terms. A per-**Post** cover is a **Post Cover**; the theme-wide fuwari home banner is **Site Config**.

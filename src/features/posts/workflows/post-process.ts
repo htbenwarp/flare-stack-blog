@@ -54,6 +54,7 @@ export class PostProcessWorkflow extends WorkflowEntrypoint<Env, Params> {
           publishedAt: p.publishedAt,
           pinnedAt: p.pinnedAt,
           readTimeInMinutes: p.readTimeInMinutes,
+          coverMediaId: p.coverMediaId,
         });
         const oldHash = await CacheService.getRaw(
           { env: this.env },
@@ -118,6 +119,7 @@ export class PostProcessWorkflow extends WorkflowEntrypoint<Env, Params> {
         publishedAt: p.publishedAt,
         pinnedAt: p.pinnedAt,
         readTimeInMinutes: p.readTimeInMinutes,
+        coverMediaId: p.coverMediaId,
       });
       await CacheService.set(
         { env: this.env },

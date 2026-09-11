@@ -12,6 +12,26 @@ import { NullableJsonContentSchema } from "./json-content.schema";
 const coercedDate = z.union([z.date(), z.string().pipe(z.coerce.date())]);
 const coercedDateNullable = coercedDate.nullable();
 
+/**
+ * Post cover as the public site renders it. The cover is stored on the post as
+ * a media id and resolved to this shape on read.
+ */
+export const PublicPostCoverSchema = z.object({
+  key: z.string(),
+  url: z.string(),
+  width: z.number().int().nullable(),
+  height: z.number().int().nullable(),
+});
+
+/** Post cover as the admin editor needs it (identity plus display name). */
+export const AdminPostCoverSchema = PublicPostCoverSchema.extend({
+  id: z.number().int(),
+  fileName: z.string(),
+});
+
+export type PublicPostCover = z.infer<typeof PublicPostCoverSchema>;
+export type AdminPostCover = z.infer<typeof AdminPostCoverSchema>;
+
 export const PostSelectSchema = createSelectSchema(PostsTable, {
   publishedAt: coercedDateNullable,
   pinnedAt: coercedDateNullable,
@@ -43,8 +63,10 @@ export const PostUpdateSchema = createUpdateSchema(PostsTable, {
 
 export const PostItemSchema = PostSelectSchema.omit({
   contentJson: true,
+  coverMediaId: true,
 }).extend({
   tags: z.array(TagSelectSchema).optional(),
+  cover: PublicPostCoverSchema.nullable().catch(null),
   isEncrypted: z.boolean().optional().default(false),
   isGuestPost: z.boolean().optional().default(false),
   guestAuthorId: z.number().nullable().optional(),
@@ -56,8 +78,11 @@ export const PostListResponseSchema = z.object({
   nextCursor: z.number().nullable(),
 });
 
-export const PostWithTocSchema = PostSelectSchema.extend({
+export const PostWithTocSchema = PostSelectSchema.omit({
+  coverMediaId: true,
+}).extend({
   tags: z.array(TagSelectSchema).optional(),
+  cover: PublicPostCoverSchema.nullable().catch(null),
   toc: z.array(
     z.object({
       id: z.string(),
@@ -183,6 +208,8 @@ export type PreviewSummaryInput = z.infer<typeof PreviewSummaryInputSchema>;
 export type StartPostProcessInput = z.infer<typeof StartPostProcessInputSchema>;
 export type PostListItem = Omit<Post, "contentJson" | "publicContentJson"> & {
   tags?: Array<Tag>;
+  /** Resolved on read from `coverMediaId`; null when the post has no cover. */
+  cover: PublicPostCover | null;
 };
 
 export type PostListResponse = z.infer<typeof PostListResponseSchema>;

@@ -17,6 +17,7 @@ import {
   buildPostWhereClause,
 } from "@/features/posts/data/helper";
 import type { PostListItem } from "@/features/posts/schema/posts.schema";
+import { attachPublicCovers } from "@/features/posts/public-cover";
 import type { PostStatus, Tag } from "@/lib/db/schema";
 import { PostsTable, PostTagsTable, TagsTable } from "@/lib/db/schema";
 
@@ -181,6 +182,7 @@ export async function getPostsCursor(
       status: PostsTable.status,
       publishedAt: PostsTable.publishedAt,
       pinnedAt: PostsTable.pinnedAt,
+      coverMediaId: PostsTable.coverMediaId,
       createdAt: PostsTable.createdAt,
       updatedAt: PostsTable.updatedAt,
     })
@@ -233,7 +235,7 @@ export async function getPostsCursor(
 
   const nextCursor = hasMore ? (items[items.length - 1]?.id ?? null) : null;
 
-  return { items, nextCursor };
+  return { items: await attachPublicCovers(db, items), nextCursor };
 }
 
 export async function getPublishedPostsForSitemapBatch(
@@ -316,6 +318,7 @@ export async function findPinnedPosts(db: DB) {
       status: true,
       publishedAt: true,
       pinnedAt: true,
+      coverMediaId: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -326,10 +329,13 @@ export async function findPinnedPosts(db: DB) {
     },
   });
 
-  return posts.map((p) => ({
-    ...p,
-    tags: p.postTags.map((pt) => pt.tag),
-  }));
+  return await attachPublicCovers(
+    db,
+    posts.map((p) => ({
+      ...p,
+      tags: p.postTags.map((pt) => pt.tag),
+    })),
+  );
 }
 
 export async function findPostsBySlugs(db: DB, slugs: string[]) {
@@ -349,6 +355,7 @@ export async function findPostsBySlugs(db: DB, slugs: string[]) {
       status: true,
       publishedAt: true,
       pinnedAt: true,
+      coverMediaId: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -359,10 +366,13 @@ export async function findPostsBySlugs(db: DB, slugs: string[]) {
     },
   });
 
-  return posts.map((p) => ({
-    ...p,
-    tags: p.postTags.map((pt) => pt.tag),
-  }));
+  return await attachPublicCovers(
+    db,
+    posts.map((p) => ({
+      ...p,
+      tags: p.postTags.map((pt) => pt.tag),
+    })),
+  );
 }
 
 export async function findPostBySlug(
@@ -388,7 +398,8 @@ export async function findPostBySlug(
 
   const tags = post.postTags.map((pt) => pt.tag);
   const { postTags, guestAuthor, ...rest } = post;
-  return { ...rest, tags, guestAuthor };
+  const [withCover] = await attachPublicCovers(db, [{ ...rest, tags, guestAuthor }]);
+  return withCover;
 }
 
 export async function updatePost(
@@ -534,6 +545,7 @@ export async function getPublicPostsByIds(db: DB, ids: Array<number>) {
       status: PostsTable.status,
       publishedAt: PostsTable.publishedAt,
       pinnedAt: PostsTable.pinnedAt,
+      coverMediaId: PostsTable.coverMediaId,
       createdAt: PostsTable.createdAt,
       updatedAt: PostsTable.updatedAt,
       isGuestPost: PostsTable.isGuestPost,
@@ -542,7 +554,7 @@ export async function getPublicPostsByIds(db: DB, ids: Array<number>) {
     .from(PostsTable)
     .where(and(inArray(PostsTable.id, ids), whereClause));
 
-  return posts;
+  return await attachPublicCovers(db, posts);
 }
 
 export async function findFullPosts(
@@ -612,6 +624,7 @@ const PUBLIC_PAGE_COLUMNS = {
   status: PostsTable.status,
   publishedAt: PostsTable.publishedAt,
   pinnedAt: PostsTable.pinnedAt,
+  coverMediaId: PostsTable.coverMediaId,
   createdAt: PostsTable.createdAt,
   updatedAt: PostsTable.updatedAt,
   isGuestPost: PostsTable.isGuestPost,
@@ -686,5 +699,5 @@ export async function getPublicPostsPage(
     });
   }
 
-  return { items, total };
+  return { items: await attachPublicCovers(db, items), total };
 }

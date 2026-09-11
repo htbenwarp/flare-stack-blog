@@ -1,7 +1,7 @@
 import type { SQL } from "drizzle-orm";
-import { and, desc, eq, lt, sql, sum } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql, sum } from "drizzle-orm";
 import { escapeLikeString } from "@/features/media/data/helper";
-import { MediaTable, PostMediaTable } from "@/lib/db/schema";
+import { MediaTable, PostMediaTable, PostsTable } from "@/lib/db/schema";
 
 export type Media = typeof MediaTable.$inferSelect;
 
@@ -11,6 +11,26 @@ export async function insertMedia(
 ): Promise<Media> {
   const [inserted] = await db.insert(MediaTable).values(data).returning();
   return inserted;
+}
+
+export async function findMediaById(db: DB, id: number): Promise<Media | null> {
+  const [media] = await db
+    .select()
+    .from(MediaTable)
+    .where(eq(MediaTable.id, id))
+    .limit(1);
+  return media ?? null;
+}
+
+export async function findMediaByIds(
+  db: DB,
+  ids: Array<number>,
+): Promise<Array<Media>> {
+  if (ids.length === 0) return [];
+  return await db
+    .select()
+    .from(MediaTable)
+    .where(inArray(MediaTable.id, ids));
 }
 
 export async function deleteMedia(db: DB, key: string) {
@@ -75,6 +95,10 @@ export async function getMediaList(
       .$dynamic();
 
     conditions.push(sql`${PostMediaTable.postId} IS NULL`);
+    // 作为文章封面被引用的媒体同样算作已使用
+    conditions.push(
+      sql`NOT EXISTS (SELECT 1 FROM ${PostsTable} WHERE ${PostsTable.coverMediaId} = ${MediaTable.id})`,
+    );
 
     const items = await unusedQuery
       .where(conditions.length > 0 ? and(...conditions) : undefined)

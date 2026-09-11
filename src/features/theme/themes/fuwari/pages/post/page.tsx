@@ -17,6 +17,8 @@ import { postGuestAuthorSlugQuery } from "@/features/posts/queries";
 import { cn } from "@/lib/utils";
 import { LikeButton } from "@/features/theme/themes/fuwari/components/like-button";
 import { BackToTop } from "@/features/theme/themes/fuwari/components/control/back-to-top";
+import ZoomableImage from "@/features/theme/themes/fuwari/components/content/zoomable-image";
+import { getSizedImageUrl } from "@/features/media/utils/media.utils";
 
 function EncryptedPostGate({ post, slug, onUnlocked }: any) {
   const [password, setPassword] = useState("");
@@ -319,6 +321,23 @@ export function PostPage({ post }: PostPageProps) {
           </h1>
 
           <PostMeta post={metaPost as any} className="mb-5" />
+
+          {safeDisplayPost.cover ? (
+            <div
+              id="post-cover"
+              className="mb-6 fuwari-onload-animation"
+              style={{ animationDelay: "150ms" }}
+            >
+              {/* 不传 className：ZoomableImage 默认 contain + max-h，整张封面在任何屏幕都完整可见 */}
+              <ZoomableImage
+                src={getSizedImageUrl(safeDisplayPost.cover.url, 1200)}
+                alt={safeDisplayPost.title}
+                width={safeDisplayPost.cover.width ?? undefined}
+                height={safeDisplayPost.cover.height ?? undefined}
+              />
+            </div>
+          ) : null}
+
           <PostSummary summary={safeDisplayPost.summary} />
           <div className="mb-6 prose dark:prose-invert prose-base max-w-none! fuwari-custom-md">
             <ContentRenderer content={safeDisplayPost.contentJson} />

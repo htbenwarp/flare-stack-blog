@@ -28,7 +28,8 @@ export type RevisionFieldKey =
   | "status"
   | "publishedAt"
   | "readTime"
-  | "tags";
+  | "tags"
+  | "cover";
 
 function normalizeLineEndings(value: string) {
   return value.replace(/\r\n/g, "\n");
@@ -227,6 +228,11 @@ function normalizeTagIds(tagIds: Array<number>, tagMap: Map<number, string>) {
     .join(", ");
 }
 
+/** Kept message-free so this module stays a pure, testable utility. */
+function normalizeCover(coverMediaId: number | null | undefined) {
+  return coverMediaId == null ? "—" : `#${coverMediaId}`;
+}
+
 export function buildRevisionFieldDiffs(
   previousSnapshot: PostRevisionSnapshot,
   currentSnapshot: PostRevisionSnapshot,
@@ -269,6 +275,11 @@ export function buildRevisionFieldDiffs(
       field: "tags" as const,
       previousValue: normalizeTagIds(previousSnapshot.tagIds, tagMap),
       currentValue: normalizeTagIds(currentSnapshot.tagIds, tagMap),
+    },
+    {
+      field: "cover" as const,
+      previousValue: normalizeCover(previousSnapshot.coverMediaId),
+      currentValue: normalizeCover(currentSnapshot.coverMediaId),
     },
   ];
 

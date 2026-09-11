@@ -140,6 +140,7 @@ export async function restorePostSnapshot(
           : null,
         readTimeInMinutes: data.snapshot.readTimeInMinutes,
         contentJson: data.snapshot.contentJson,
+        coverMediaId: data.snapshot.coverMediaId ?? null,
       })
       .where(eq(PostsTable.id, data.postId)),
     db.delete(PostTagsTable).where(eq(PostTagsTable.postId, data.postId)),

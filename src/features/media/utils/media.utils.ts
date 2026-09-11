@@ -66,6 +66,25 @@ export function getResponsiveSrcSet(
     .join(", ");
 }
 
+/**
+ * Build a resized URL from a stored media `url` (`/images/<key>`).
+ *
+ * Unlike `getOptimizedImageUrl`, this goes through the app's own image route,
+ * which reads `width`/`quality`/`fit` from the query string and falls back to
+ * the original object when Cloudflare image resizing is unavailable. That makes
+ * it the only variant that also works in local dev, where `/cdn-cgi/image/...`
+ * does not exist and returns 404.
+ */
+export function getSizedImageUrl(
+  url: string,
+  width: number,
+  quality = 80,
+): string {
+  if (!url) return url;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}width=${width}&quality=${quality}`;
+}
+
 const VALID_FIT_VALUES = ['scale-down', 'contain', 'cover', 'crop', 'pad'];
 
 export function buildTransformOptions(

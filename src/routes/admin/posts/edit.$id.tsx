@@ -77,6 +77,8 @@ function EditPost() {
     password: "", // 密码永远不回显
     isGuestPost: (post as any).isGuestPost ?? false,
     guestAuthorId: (post as any).guestAuthorId ?? null,
+    coverMediaId: post.coverMediaId ?? null,
+    cover: post.cover ?? null,
   };
 
   const handleSave = async (data: PostEditorData) => {
@@ -86,10 +88,13 @@ function EditPost() {
         : data.publishedAt;
 
     // ✅ 过滤密码字段：空字符串改为 undefined，防止清空密码
+    // cover 只是编辑器里的展示对象，落库字段是 coverMediaId
+    const { cover: _cover, ...persistableData } = data;
     const cleanData = {
-      ...data,
+      ...persistableData,
       password: data.password?.trim() || undefined,
       guestAuthorId: data.guestAuthorId ?? null,
+      coverMediaId: data.coverMediaId ?? null,
       publishedAt,
     };
 

@@ -76,6 +76,8 @@ function getFieldLabel(field: RevisionFieldKey) {
       return m.editor_history_diff_field_read_time();
     case "tags":
       return m.editor_history_diff_field_tags();
+    case "cover":
+      return m.editor_history_diff_field_cover();
   }
 }
 

@@ -6,7 +6,7 @@ export const config: ThemeConfig = {
     popularPostsLimit: 3,
   },
   posts: {
-    postsPerPage: 5,
+    postsPerPage: 25,
   },
   post: {
     relatedPostsLimit: 4,

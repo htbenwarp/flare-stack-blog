@@ -53,6 +53,7 @@ const route = app.get(
       publicContentJson: null,
       toc: [],
       tags: post.tags ?? [],
+      cover: post.cover ?? null,
     };
     const parsed = PostWithTocSchema.safeParse(basicInfo);
     return c.json(parsed.success ? parsed.data : basicInfo);

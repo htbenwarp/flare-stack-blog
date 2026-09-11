@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { BubbleSkeleton } from "@/features/theme/themes/fuwari/components/loading/bubble-skeleton";
 import type { PostItem } from "@/features/posts/schema/posts.schema";
+import { getSizedImageUrl } from "@/features/media/utils/media.utils";
 import { formatDate } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { useQuery } from "@tanstack/react-query";
@@ -32,6 +33,8 @@ export function PostCard({
   isLoadingViews,
 }: PostCardProps) {
   const tagNames = (post.tags ?? []).map((t) => t.name);
+  const hasCover = Boolean(post.cover);
+  const coverWidth = "28%";
 
   // 编码 slug，确保中英文路径一致
   const encodedSlug = encodeURIComponent(post.slug);
@@ -47,15 +50,24 @@ export function PostCard({
 
   return (
     <div
-      className={`fuwari-card-base flex flex-col w-full rounded-(--fuwari-radius-large) overflow-hidden relative ${
+      className={`fuwari-card-base ${
+        hasCover ? "flex flex-col-reverse lg:flex-col" : "flex flex-col"
+      } w-full rounded-(--fuwari-radius-large) overflow-hidden relative ${
         pinned ? "border-2 border-(--fuwari-primary)/20 shadow-sm" : ""
       }`}
+      style={{ ["--coverWidth" as string]: coverWidth }}
     >
       {pinned && (
         <div className="absolute top-0 right-0 w-32 h-32 bg-(--fuwari-primary) opacity-5 rounded-bl-[100px] -z-10 pointer-events-none" />
       )}
 
-      <div className="pl-6 md:pl-9 pr-6 pt-6 md:pt-7 pb-6 relative w-full md:pr-24">
+      <div
+        className={`pl-6 md:pl-9 pr-6 pt-6 md:pt-7 pb-6 relative ${
+          hasCover
+            ? "w-full lg:w-[calc(100%_-_var(--coverWidth)_-_12px)] lg:pr-2"
+            : "w-full md:pr-24"
+        }`}
+      >
         {/* Badge */}
         {(pinned || popular) && (
           <div className="flex items-center gap-1.5 font-medium text-sm mb-3">
@@ -206,18 +218,41 @@ export function PostCard({
         </div>
       </div>
 
-      {/* Enter button */}
-      <Link
-        to="/post/$slug"
-        params={{ slug: post.slug }}
-        aria-label={post.title}
-        className="hidden md:flex fuwari-btn-regular w-13 absolute right-3 top-3 bottom-3 rounded-xl active:scale-95"
-      >
-        <ChevronRight
-          className="text-(--fuwari-primary) text-4xl mx-auto"
-          strokeWidth={2}
-        />
-      </Link>
+      {/* Cover, or the plain enter button when the post has no cover */}
+      {hasCover && post.cover ? (
+        <Link
+          to="/post/$slug"
+          params={{ slug: post.slug }}
+          aria-label={post.title}
+          className="group relative block mx-4 mt-4 -mb-2 rounded-xl overflow-hidden bg-black/5 dark:bg-white/5 active:scale-95 lg:m-0 lg:w-(--coverWidth) lg:absolute lg:top-3 lg:bottom-3 lg:right-3"
+        >
+          <div className="absolute pointer-events-none z-10 w-full h-full group-hover:bg-black/30 group-active:bg-black/50 transition" />
+          <div className="absolute pointer-events-none z-20 w-full h-full flex items-center justify-center">
+            <ChevronRight className="transition opacity-0 group-hover:opacity-100 scale-50 group-hover:scale-100 text-white text-5xl" />
+          </div>
+          {/* 小屏/窄屏完整展示整张封面（object-contain，超高图按 60vh 缩放）；lg 以上作为卡片右侧缩略图 */}
+          <img
+            src={getSizedImageUrl(post.cover.url, 640)}
+            alt={post.title}
+            width={post.cover.width ?? undefined}
+            height={post.cover.height ?? undefined}
+            loading="lazy"
+            className="block mx-auto w-auto max-w-full max-h-[60vh] object-contain lg:w-full lg:h-full lg:max-w-none lg:max-h-none lg:object-cover"
+          />
+        </Link>
+      ) : (
+        <Link
+          to="/post/$slug"
+          params={{ slug: post.slug }}
+          aria-label={post.title}
+          className="hidden md:flex fuwari-btn-regular w-13 absolute right-3 top-3 bottom-3 rounded-xl active:scale-95"
+        >
+          <ChevronRight
+            className="text-(--fuwari-primary) text-4xl mx-auto"
+            strokeWidth={2}
+          />
+        </Link>
+      )}
     </div>
   );
 }

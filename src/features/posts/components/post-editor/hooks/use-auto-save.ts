@@ -62,6 +62,7 @@ export function useAutoSave({
     password: string | undefined;
     isGuestPost: boolean;
     guestAuthorId: number | null;
+    coverMediaId: number | null;
   } | null>(null);
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
@@ -85,6 +86,7 @@ export function useAutoSave({
       password: p.password,
       isGuestPost: p.isGuestPost,
       guestAuthorId: p.guestAuthorId,
+      coverMediaId: p.coverMediaId,
     };
   };
 
@@ -104,7 +106,8 @@ export function useAutoSave({
       prev.isEncrypted !== curr.isEncrypted ||
       prev.password !== curr.password ||
       prev.isGuestPost !== curr.isGuestPost ||
-      prev.guestAuthorId !== curr.guestAuthorId
+      prev.guestAuthorId !== curr.guestAuthorId ||
+      prev.coverMediaId !== curr.coverMediaId
     );
   };
 

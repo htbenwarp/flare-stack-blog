@@ -1,3 +1,4 @@
+import * as MediaRepo from "@/features/media/data/media.data";
 import { syncPostMedia } from "@/features/posts/data/post-media.data";
 import * as PostRevisionRepo from "@/features/posts/data/post-revisions.data";
 import * as PostRepo from "@/features/posts/data/posts.data";
@@ -35,6 +36,7 @@ function toRevisionSnapshot(
     readTimeInMinutes: post.readTimeInMinutes,
     contentJson: post.contentJson,
     tagIds: [...new Set(post.tags.map((tag) => tag.id))].sort((a, b) => a - b),
+    coverMediaId: post.coverMediaId ?? null,
   };
 }
 
@@ -47,6 +49,7 @@ async function hashSnapshot(snapshot: PostRevisionSnapshot) {
     slug: snapshot.slug,
     publishedAt: snapshot.publishedAt,
     readTimeInMinutes: snapshot.readTimeInMinutes,
+    coverMediaId: snapshot.coverMediaId ?? null,
   });
 }
 
@@ -205,6 +208,17 @@ export async function restorePostRevision(
     return err({ reason: "POST_REVISION_INVALID_SNAPSHOT" });
   }
   const targetSnapshot = parsedSnapshot.data;
+
+  // Restoring must never point the cover at media that no longer exists.
+  if (targetSnapshot.coverMediaId != null) {
+    const coverMedia = await MediaRepo.findMediaById(
+      context.db,
+      targetSnapshot.coverMediaId,
+    );
+    if (!coverMedia) {
+      targetSnapshot.coverMediaId = null;
+    }
+  }
 
   const currentSnapshot = toRevisionSnapshot(post);
   const [currentHash, targetHash] = await Promise.all([

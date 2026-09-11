@@ -2,9 +2,11 @@ import { z } from "zod";
 import { and, asc, desc, eq, gt, lt, ne, or, sql } from "drizzle-orm";
 import * as AiService from "@/features/ai/ai.service";
 import * as CacheService from "@/features/cache/cache.service";
+import * as MediaRepo from "@/features/media/data/media.data";
 import { syncPostMedia } from "@/features/posts/data/post-media.data";
 import * as PostRevisionRepo from "@/features/posts/data/post-revisions.data";
 import * as PostRepo from "@/features/posts/data/posts.data";
+import { toAdminCover } from "@/features/posts/public-cover";
 import type {
   DeletePostInput,
   FindPostByIdInput,
@@ -288,12 +290,22 @@ export async function findPostById(context: DbContext, data: FindPostByIdInput) 
       publishedAt: post.publishedAt,
       pinnedAt: post.pinnedAt,
       readTimeInMinutes: post.readTimeInMinutes,
+      coverMediaId: post.coverMediaId,
     });
     isSynced = dbHash === kvHash;
   }
 
+  const coverMedia =
+    post.coverMediaId == null
+      ? null
+      : await MediaRepo.findMediaById(context.db, post.coverMediaId);
+
   return {
     ...stripPublicContentJson(post),
+    // A cover whose media is gone reads as no cover, so the editor never shows
+    // a dangling reference.
+    coverMediaId: coverMedia ? post.coverMediaId : null,
+    cover: coverMedia ? toAdminCover(coverMedia) : null,
     isSynced,
     hasPublicCache,
     isGuestPost: post.isGuestPost ?? false,
@@ -314,6 +326,19 @@ export async function updatePost(
   delete updateData.hasPublicCache;
   delete updateData.password;
   delete updateData.passwordHash;
+  // The editor keeps a resolved cover object next to coverMediaId for display;
+  // only the media id is a post column.
+  delete updateData.cover;
+
+  if (updateData.coverMediaId != null) {
+    const coverMedia = await MediaRepo.findMediaById(
+      context.db,
+      updateData.coverMediaId,
+    );
+    if (!coverMedia) {
+      return err({ reason: "MEDIA_NOT_FOUND" });
+    }
+  }
 
   if (restData.isEncrypted && password) {
     const hash = await hashPassword(password);
@@ -410,6 +435,7 @@ export async function startPostProcessWorkflow(
         publishedAt: post.publishedAt,
         pinnedAt: post.pinnedAt,
         readTimeInMinutes: post.readTimeInMinutes,
+        coverMediaId: post.coverMediaId,
       });
 
       await PostRevisionRepo.insertPostRevision(context.db, {
@@ -427,6 +453,7 @@ export async function startPostProcessWorkflow(
           tagIds: [...new Set(post.tags.map((tag) => tag.id))].sort(
             (a, b) => a - b,
           ),
+          coverMediaId: post.coverMediaId ?? null,
         },
       });
 

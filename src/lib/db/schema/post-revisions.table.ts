@@ -20,6 +20,7 @@ export interface PostRevisionSnapshot {
   readTimeInMinutes: number;
   contentJson: JSONContent | null;
   tagIds: Array<number>;
+  coverMediaId?: number | null;
 }
 
 export const PostRevisionsTable = sqliteTable(

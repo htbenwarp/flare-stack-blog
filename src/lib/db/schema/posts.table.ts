@@ -35,12 +35,17 @@ export const PostsTable = sqliteTable(
     postType: text("post_type", { enum: ["post", "moment"] }).notNull().default("post"),
     publishedAt: integer("published_at", { mode: "timestamp" }),
     pinnedAt: integer("pinned_at", { mode: "timestamp" }),
+    // Post cover. The FK to media(id) with ON DELETE SET NULL lives in the
+    // migration SQL: declaring it here would make posts.table <-> media.table
+    // a circular import.
+    coverMediaId: integer("cover_media_id"),
     createdAt,
     updatedAt,
   },
   (table) => [
     index("published_at_idx").on(table.publishedAt, table.status),
     index("created_at_idx").on(table.createdAt),
+    index("posts_cover_media_id_idx").on(table.coverMediaId),
   ],
 );
 
