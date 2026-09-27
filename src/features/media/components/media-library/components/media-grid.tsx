@@ -1,21 +1,25 @@
-import { Check, Film, Image as ImageIcon } from "lucide-react";
+import { Check, Film, Folder as FolderIcon, Image as ImageIcon } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import { getOptimizedImageUrl } from "@/features/media/utils/media.utils";
 import { formatBytes } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { useLongPress } from "../hooks/use-long-press";
-import type { MediaAsset } from "../types";
+import type { MediaDirectoryFile, MediaFolder } from "../types";
 
 interface MediaGridProps {
-  media: Array<MediaAsset>;
+  media: Array<MediaDirectoryFile>;
   selectedIds: Set<string>;
   onToggleSelect: (key: string) => void;
-  onPreview: (asset: MediaAsset) => void;
+  onPreview: (asset: MediaDirectoryFile) => void;
   onLoadMore?: () => void;
   hasMore?: boolean;
   isLoadingMore?: boolean;
-  linkedMediaIds: Set<string>;
+  /** Key-based fallback for the linked badge; `isLinked` on a file wins. */
+  linkedMediaIds?: Set<string>;
   onRefetch?: () => void;
+  /** Sub-folders of the current directory, rendered before the files. */
+  folders?: Array<MediaFolder>;
+  onOpenFolder?: (key: string) => void;
 }
 
 const MediaCard = memo(
@@ -28,12 +32,12 @@ const MediaCard = memo(
     onPreview,
     selectionModeActive,
   }: {
-    asset: MediaAsset;
+    asset: MediaDirectoryFile;
     isSelected: boolean;
     isLinked: boolean;
     isImage: boolean;
     onToggleSelect: (key: string) => void;
-    onPreview: (asset: MediaAsset) => void;
+    onPreview: (asset: MediaDirectoryFile) => void;
     selectionModeActive: boolean;
   }) => {
     const [isLoaded, setIsLoaded] = useState(false);
@@ -151,6 +155,91 @@ const MediaCard = memo(
 
 MediaCard.displayName = "MediaCard";
 
+/**
+ * Folder tiles reuse the asset card shell so both kinds of entry line up in the
+ * same grid. Clicking opens the folder; the checkbox selects it for deletion.
+ */
+const FolderCard = memo(
+  ({
+    folder,
+    isSelected,
+    onToggleSelect,
+    onOpenFolder,
+    selectionModeActive,
+  }: {
+    folder: MediaFolder;
+    isSelected: boolean;
+    onToggleSelect: (key: string) => void;
+    onOpenFolder: (key: string) => void;
+    selectionModeActive: boolean;
+  }) => {
+    const handleClick = () => {
+      if (selectionModeActive) {
+        onToggleSelect(folder.key);
+      } else {
+        onOpenFolder(folder.key);
+      }
+    };
+
+    return (
+      <div
+        onClick={handleClick}
+        className={`group relative flex flex-col cursor-pointer transition-all duration-300 touch-manipulation select-none overflow-hidden rounded-none border ${
+          isSelected
+            ? "border-foreground bg-accent/20"
+            : "border-border/50 hover:border-foreground/50"
+        }`}
+      >
+        {/* Selection Indicator (Top Left) */}
+        <div
+          className={`absolute top-0 left-0 z-30 p-2 transition-all duration-200 ${
+            isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect(folder.key);
+          }}
+        >
+          <div
+            className={`w-4 h-4 border flex items-center justify-center transition-colors ${
+              isSelected
+                ? "bg-foreground border-foreground"
+                : "bg-background/80 backdrop-blur-sm border-muted-foreground/50 hover:border-foreground"
+            }`}
+          >
+            {isSelected && (
+              <Check size={10} className="text-background" strokeWidth={3} />
+            )}
+          </div>
+        </div>
+
+        {/* Preview */}
+        <div className="aspect-square relative overflow-hidden bg-muted/20 border-b border-border/30 flex items-center justify-center text-muted-foreground">
+          <FolderIcon
+            size={32}
+            strokeWidth={1}
+            className="transition-colors group-hover:text-foreground"
+          />
+        </div>
+
+        {/* Info */}
+        <div className="p-3 space-y-1.5 bg-background">
+          <div className="text-[10px] font-mono font-medium truncate text-foreground group-hover:text-foreground transition-colors">
+            {folder.name}
+          </div>
+          <div className="flex justify-between items-center text-[9px] text-muted-foreground font-mono tracking-wider uppercase border-t border-border/30 pt-1.5">
+            <span>
+              {m.media_folder_root()} /{folder.name}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  },
+);
+
+FolderCard.displayName = "FolderCard";
+
 export function MediaGrid({
   media,
   selectedIds,
@@ -161,6 +250,8 @@ export function MediaGrid({
   isLoadingMore,
   linkedMediaIds,
   onRefetch,
+  folders,
+  onOpenFolder,
 }: MediaGridProps) {
   const observerTarget = useRef<HTMLDivElement>(null);
 
@@ -189,7 +280,9 @@ export function MediaGrid({
     };
   }, [hasMore, isLoadingMore, onLoadMore]);
 
-  if (media.length === 0) {
+  const folderItems = folders ?? [];
+
+  if (media.length === 0 && folderItems.length === 0) {
     return (
       <div className="py-24 flex flex-col items-center justify-center text-muted-foreground gap-4 border border-dashed border-border/30 bg-muted/5">
         <ImageIcon size={32} strokeWidth={1} className="opacity-20" />
@@ -215,9 +308,21 @@ export function MediaGrid({
   return (
     <div className="space-y-12">
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
+        {folderItems.map((folder) => (
+          <FolderCard
+            key={folder.key}
+            folder={folder}
+            isSelected={selectedIds.has(folder.key)}
+            onToggleSelect={onToggleSelect}
+            onOpenFolder={onOpenFolder ?? (() => undefined)}
+            selectionModeActive={selectionModeActive}
+          />
+        ))}
+
         {media.map((asset) => {
           const isSelected = selectedIds.has(asset.key);
-          const isLinked = linkedMediaIds.has(asset.key);
+          const isLinked =
+            asset.isLinked || (linkedMediaIds?.has(asset.key) ?? false);
           const isImage = asset.mimeType.startsWith("image/");
 
           return (
@@ -247,7 +352,7 @@ export function MediaGrid({
               {m.media_grid_loading()}
             </span>
           </div>
-        ) : !hasMore && media.length > 0 ? (
+        ) : !hasMore && media.length + folderItems.length > 0 ? (
           <div className="flex items-center gap-2 opacity-50">
             <div className="h-px w-12 bg-border" />
             <span className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground">

@@ -4,7 +4,7 @@ import { slugify } from "@/features/posts/utils/content";
 
 export const HeadingExtension = Heading.extend({
   renderHTML({ HTMLAttributes, node }) {
-    const level = node.attrs.level as 1 | 2 | 3 | 4;
+    const level = node.attrs.level as 1 | 2 | 3 | 4 | 5 | 6;
     const textContent = node.textContent;
     const id = slugify(textContent);
 
@@ -13,12 +13,14 @@ export const HeadingExtension = Heading.extend({
       2: "text-3xl md:text-5xl font-serif font-medium mb-8 mt-14 leading-[1.1] tracking-tight",
       3: "text-2xl md:text-3xl font-serif font-medium mb-6 mt-12",
       4: "text-xl font-sans font-bold mb-4 mt-8 uppercase tracking-widest",
+      5: "text-lg font-sans font-bold mb-3 mt-6 tracking-wide",
+      6: "text-base font-sans font-bold mb-3 mt-6 uppercase tracking-widest",
     };
 
     return [
       `h${level}`,
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
-        class: styles[level],
+        class: styles[level] ?? styles[4],
         id,
       }),
       0,

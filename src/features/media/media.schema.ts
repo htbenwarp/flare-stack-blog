@@ -24,7 +24,10 @@ export function parseUploadMediaInput(formData: FormData, messages: Messages) {
     throw new Error(messages.media_validation_file_invalid_type());
   }
 
-  return { file };
+  const folderRaw = formData.get("folder");
+  const folder = typeof folderRaw === "string" ? folderRaw.trim() : "";
+
+  return { file, folder };
 }
 
 export const MediaKeyInputSchema = z.object({
@@ -54,3 +57,47 @@ export const GetMediaListInputSchema = z.object({
 
 export type UpdateMediaNameInput = z.infer<typeof UpdateMediaNameInputSchema>;
 export type GetMediaListInput = z.infer<typeof GetMediaListInputSchema>;
+
+/* ============================= Virtual folders ============================= */
+/* Folders are R2 key prefixes, so nothing here reaches the database schema. */
+
+export const GetMediaDirectoryInputSchema = z.object({
+  folder: z.string().max(500).default(""),
+  cursor: z.string().optional(),
+  limit: z.number().optional(),
+  search: z.string().optional(),
+  unusedOnly: z.boolean().optional(),
+});
+
+export const CreateMediaFolderInputSchema = z.object({
+  name: z.string().min(1).max(200),
+  parent: z.string().max(500).default(""),
+});
+
+export const RenameMediaFolderInputSchema = z.object({
+  key: z.string().min(1),
+  name: z.string().min(1).max(200),
+});
+
+export const DeleteMediaFoldersInputSchema = z.object({
+  keys: z.array(z.string().min(1)).min(1).max(500),
+});
+
+export const MoveMediaFilesInputSchema = z.object({
+  keys: z.array(z.string().min(1)).min(1).max(200),
+  targetFolder: z.string(),
+});
+
+export type GetMediaDirectoryInput = z.infer<
+  typeof GetMediaDirectoryInputSchema
+>;
+export type CreateMediaFolderInput = z.infer<
+  typeof CreateMediaFolderInputSchema
+>;
+export type RenameMediaFolderInput = z.infer<
+  typeof RenameMediaFolderInputSchema
+>;
+export type DeleteMediaFoldersInput = z.infer<
+  typeof DeleteMediaFoldersInputSchema
+>;
+export type MoveMediaFilesInput = z.infer<typeof MoveMediaFilesInputSchema>;

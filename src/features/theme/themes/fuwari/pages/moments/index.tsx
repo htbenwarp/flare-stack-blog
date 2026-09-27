@@ -18,9 +18,14 @@ export function MomentsPage() {
   const search = useSearch({ from: "/_public/moments/" }) as MomentsSearch;
   const selectedDate = search.date;
 
+  // 浏览器时区偏移（分钟）：服务端在 Workers 上是 UTC，
+  // 带上它才能按本地日期过滤；同时并入 queryKey，
+  // 避免 SSR 阶段的 UTC 结果被客户端直接复用。
+  const timezoneOffset = new Date().getTimezoneOffset();
+
   const momentsQuery = useInfiniteQuery({
-    queryKey: ["moments", selectedDate],
-    queryFn: async ({ pageParam }) => getMomentsFn({ data: { cursor: pageParam, limit: 20, date: selectedDate || undefined } }),
+    queryKey: ["moments", selectedDate, timezoneOffset],
+    queryFn: async ({ pageParam }) => getMomentsFn({ data: { cursor: pageParam, limit: 20, date: selectedDate || undefined, timezoneOffset } }),
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (lastPage) => {
       if (!lastPage || lastPage.length === 0) return undefined;

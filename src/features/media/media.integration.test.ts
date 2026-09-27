@@ -32,7 +32,7 @@ describe("MediaService", () => {
     // We trust the `r2-sanity.test.ts` (or equivalent verification) matches the platform behavior,
     // and here we focus on Service Logic + DB integration.
 
-    vi.spyOn(Storage, "putToR2").mockImplementation(async (_env, file) => {
+    vi.spyOn(Storage, "putToR2").mockImplementation(async (_env, file, _folder) => {
       const key = `mocked-${Date.now()}-${file.name}`;
       return {
         key,
@@ -66,7 +66,7 @@ describe("MediaService", () => {
       expect(result.url).toContain("/images/");
 
       // Verify Storage.putToR2 was called
-      expect(Storage.putToR2).toHaveBeenCalledWith(adminContext.env, file);
+      expect(Storage.putToR2).toHaveBeenCalledWith(adminContext.env, file, "");
 
       // Verify DB record was created
       const mediaList = await MediaService.getMediaList(adminContext, {});

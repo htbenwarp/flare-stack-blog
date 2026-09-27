@@ -16,10 +16,38 @@ export function getContentTypeFromKey(key: string): string | undefined {
   return contentTypes[extension || ""];
 }
 
-export function generateKey(fileName: string): string {
+/**
+ * Folders are virtual: they are just R2 key prefixes. Normalizing strips the
+ * leading/trailing slashes and collapses repeated separators so that
+ * `"/a//b/"`, `"a/b"` and `"a/b/"` all describe the same folder.
+ */
+export function normalizeFolderPath(folder: string): string {
+  return folder.replace(/^\/+|\/+$/g, "").replace(/\/+/g, "/");
+}
+
+export function getBasename(key: string): string {
+  const normalized = key.replace(/\/+$/, "");
+  const parts = normalized.split("/");
+  return parts[parts.length - 1] ?? normalized;
+}
+
+export function getParentFolder(folderKey: string): string {
+  const normalized = folderKey.replace(/\/+$/, "");
+  const idx = normalized.lastIndexOf("/");
+  return idx === -1 ? "" : normalized.slice(0, idx);
+}
+
+export function joinFolderKey(parent: string, name: string): string {
+  const base = normalizeFolderPath(parent);
+  const clean = name.replace(/^\/+|\/+$/g, "");
+  return base ? `${base}/${clean}/` : `${clean}/`;
+}
+
+export function generateKey(fileName: string, folder = ""): string {
   const uuid = crypto.randomUUID();
   const extension = fileName.split(".").pop()?.toLowerCase() || "bin";
-  return `${uuid}.${extension}`;
+  const prefix = normalizeFolderPath(folder);
+  return prefix ? `${prefix}/${uuid}.${extension}` : `${uuid}.${extension}`;
 }
 
 export function extractImageKey(src: string): string | undefined {

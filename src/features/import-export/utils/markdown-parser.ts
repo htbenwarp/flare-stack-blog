@@ -97,6 +97,61 @@ function preprocessMathInMarkdown(markdown: string): string {
 }
 
 /**
+ * 把 marked 的 GFM 复选框输出
+ * （`<li><input disabled="" type="checkbox"> ...`）
+ * 转换为 tiptap taskList/taskItem 能识别的结构。
+ */
+function transformTaskLists(html: string): string {
+  return html
+    .replace(
+      /<li><input\s+([^>]*type="checkbox"[^>]*)>\s*/g,
+      (_match, attrs: string) => {
+        const checked = /checked=""/.test(attrs);
+        return `<li data-type="taskItem" data-checked="${
+          checked ? "true" : "false"
+        }">`;
+      },
+    )
+    .replace(/<ul>([\s\S]*?)<\/ul>/g, (full, inner: string) => {
+      if (inner.includes('data-type="taskItem"')) {
+        return `<ul data-type="taskList">${inner}</ul>`;
+      }
+      return full;
+    });
+}
+
+/**
+ * 将 `==高亮==` 转为 `<mark>`，交给 Highlight 扩展解析。
+ *
+ * 会先保护围栏代码块与行内代码，避免 `a==b` 这类代码内容被误转换。
+ */
+function applyHighlightSyntax(markdown: string): string {
+  const codeRegions: Array<string> = [];
+  const protect = (match: string) => {
+    codeRegions.push(match);
+    return `\u0000CODE_PLACEHOLDER_${codeRegions.length - 1}\u0000`;
+  };
+
+  const protectedMarkdown = markdown
+    .replace(/```[\s\S]*?```/g, protect)
+    .replace(/`[^`\n]*`/g, protect);
+
+  const converted = protectedMarkdown.replace(
+    /==([^=\n](?:[^=\n]*[^=\n])?)==/g,
+    (_match, inner: string) => `<mark>${inner}</mark>`,
+  );
+
+  let restored = converted;
+  codeRegions.forEach((value, idx) => {
+    restored = restored.replaceAll(
+      `\u0000CODE_PLACEHOLDER_${idx}\u0000`,
+      value,
+    );
+  });
+  return restored;
+}
+
+/**
  * Markdown → JSONContent 转换
  *
  * NOTE: @tiptap/html checks for browser (window) or Node (process.versions.node)
@@ -113,10 +168,12 @@ export async function markdownToJsonContent(
     return '\n\n' + '<p><br></p>'.repeat(extraBlanks) + '\n\n';
   });
 
-  const preprocessed = preprocessMathInMarkdown(normalizedMarkdown);
+  const preprocessed = preprocessMathInMarkdown(
+    applyHighlightSyntax(normalizedMarkdown),
+  );
 
   const { marked } = await import("marked");
-  const html = await marked(preprocessed);
+  const html = transformTaskLists(await marked(preprocessed));
 
   const { getSchema } = await import("@tiptap/core");
   const { DOMParser: PMDOMParser } = await import("@tiptap/pm/model");
@@ -133,6 +190,14 @@ export async function markdownToJsonContent(
     "@tiptap/extension-table-header"
   );
   const { default: TableCell } = await import("@tiptap/extension-table-cell");
+  const { default: Highlight } = await import("@tiptap/extension-highlight");
+  const { default: Subscript } = await import("@tiptap/extension-subscript");
+  const { default: Superscript } = await import("@tiptap/extension-superscript");
+  const { default: TaskList } = await import("@tiptap/extension-task-list");
+  const { default: TaskItem } = await import("@tiptap/extension-task-item");
+  const { HtmlBlockNode } = await import(
+    "../../posts/editor/extensions/html-block"
+  );
 
   const schema = getSchema([
     StarterKit,
@@ -143,6 +208,13 @@ export async function markdownToJsonContent(
     TableHeader,
     TableCell,
     IframeExtension,
+    // Markdown 样式拓展：==高亮==、上标/下标、任务列表、原始 HTML 块
+    Highlight,
+    Subscript,
+    Superscript,
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    HtmlBlockNode,
   ]);
 
   const { document } = parseHTML(

@@ -1,7 +1,12 @@
 import FileHandler from "@tiptap/extension-file-handler";
+import Highlight from "@tiptap/extension-highlight";
 import Mathematics from "@tiptap/extension-mathematics";
 import Placeholder from "@tiptap/extension-placeholder";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
 import TableOfContents from "@tiptap/extension-table-of-contents";
+import TaskItem from "@tiptap/extension-task-item";
+import TaskList from "@tiptap/extension-task-list";
 import type { Editor as TiptapEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { toast } from "sonner";
@@ -22,6 +27,7 @@ import { EmphasisCjk } from "./extensions/emphasis-cjk";
 import { FootnoteTip } from "./extensions/footnote-tip";
 import { DetailsBlock } from "./extensions/details-block";
 import { GithubCard } from "./extensions/github-card";
+import { HtmlBlockEditorExtension } from "./extensions/html-block-view";
 import { IframeExtension } from "./extensions/iframe";
 import { m } from "@/paraglide/messages";
 
@@ -101,10 +107,25 @@ export const extensions = [
     },
   }),
   HeadingExtension.configure({
-    levels: [1, 2, 3, 4],
+    levels: [1, 2, 3, 4, 5, 6],
   }),
   BlockQuoteExtension,
   CodeBlockExtension,
+  // Markdown 行内样式拓展：==高亮==、下标、上标
+  Highlight.configure({
+    HTMLAttributes: {
+      class: "rounded-[2px] px-0.5",
+    },
+  }),
+  Subscript,
+  Superscript,
+  // 任务列表
+  TaskList,
+  TaskItem.configure({
+    nested: true,
+  }),
+  // 原始 HTML 块（details 等）
+  HtmlBlockEditorExtension,
   Mathematics.configure({
     katexOptions: { throwOnError: false },
     inlineOptions: {

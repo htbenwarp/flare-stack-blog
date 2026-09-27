@@ -1,4 +1,14 @@
-import { CheckSquare, Filter, Search, Square, Trash2, X } from "lucide-react";
+import {
+  CheckSquare,
+  Filter,
+  FolderInput,
+  FolderPlus,
+  Pencil,
+  Search,
+  Square,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { m } from "@/paraglide/messages";
@@ -12,6 +22,13 @@ interface MediaToolbarProps {
   totalCount: number;
   onSelectAll: () => void;
   onDelete: () => void;
+  onNewFolder?: () => void;
+  onMove?: () => void;
+  /** Whether the current selection contains files that can be moved. */
+  canMoveFiles?: boolean;
+  onRenameFolder?: () => void;
+  /** Whether exactly one folder is selected, so rename is unambiguous. */
+  canRenameFolder?: boolean;
 }
 
 export function MediaToolbar({
@@ -23,6 +40,11 @@ export function MediaToolbar({
   totalCount,
   onSelectAll,
   onDelete,
+  onNewFolder,
+  onMove,
+  canMoveFiles = false,
+  onRenameFolder,
+  canRenameFolder = false,
 }: MediaToolbarProps) {
   return (
     <div className="flex flex-col lg:flex-row gap-4 mb-8 items-stretch lg:items-center w-full border-b border-border/30 pb-8">
@@ -73,6 +95,18 @@ export function MediaToolbar({
       </div>
 
       <div className="flex items-center gap-4 w-full lg:w-auto justify-between lg:justify-end">
+        {onNewFolder && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onNewFolder}
+            className="h-10 px-4 text-[11px] uppercase tracking-[0.2em] font-medium rounded-none gap-2 text-muted-foreground hover:text-foreground"
+          >
+            <FolderPlus size={14} strokeWidth={1.5} />[{" "}
+            {m.media_toolbar_new_folder()} ]
+          </Button>
+        )}
+
         <Button
           variant="ghost"
           size="sm"
@@ -92,6 +126,29 @@ export function MediaToolbar({
             ? `[ ${m.media_deselect_all()} ]`
             : `[ ${m.media_select_all()} ]`}
         </Button>
+
+        {onRenameFolder && canRenameFolder && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onRenameFolder}
+            className="h-10 px-4 text-[11px] uppercase tracking-[0.2em] font-medium rounded-none gap-2 text-muted-foreground hover:text-foreground animate-in fade-in slide-in-from-left-2 duration-300"
+          >
+            <Pencil size={14} strokeWidth={1.5} />[ {m.media_folder_rename()} ]
+          </Button>
+        )}
+
+        {onMove && canMoveFiles && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onMove}
+            className="h-10 px-4 text-[11px] uppercase tracking-[0.2em] font-medium rounded-none gap-2 text-muted-foreground hover:text-foreground animate-in fade-in slide-in-from-left-2 duration-300"
+          >
+            <FolderInput size={14} strokeWidth={1.5} />[{" "}
+            {m.media_toolbar_move()} ]
+          </Button>
+        )}
 
         {selectedCount > 0 && (
           <Button

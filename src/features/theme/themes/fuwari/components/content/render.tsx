@@ -173,6 +173,15 @@ export function renderReact(content: JSONContent) {
             </details>
           );
         },
+        htmlBlock: ({ node }) => {
+          const html = (node.attrs as { html?: string }).html ?? "";
+          return (
+            <div
+              className="html-block-node"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          );
+        },
         githubCard: ({ node }) => {
           const attrs = node.attrs as { repoUrl?: string };
           const match = attrs.repoUrl?.match(/github\.com\/([^\/]+)\/([^\/]+)/);

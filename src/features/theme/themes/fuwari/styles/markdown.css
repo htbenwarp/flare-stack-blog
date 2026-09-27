@@ -822,3 +822,96 @@ html:not(.card-opacity-enabled).dark .fuwari-card-base,
 .image-area .group:hover .opacity-0 {
   opacity: 1;
 }
+
+/* =====================================================================
+   Markdown 样式拓展：==高亮==、上/下标、任务列表、原始 HTML 块
+
+   注意：这里对 sub/sup 使用「元素选择器」，特异性低于文件上方脚注所用的
+   `sup.fn-tip-wrap` / `sup.footnote-sup`，因此不会覆盖脚注样式。
+   ===================================================================== */
+
+/* ── ==高亮== ─────────────────────────────────────────── */
+.fuwari-custom-md mark {
+  background-color: oklch(0.9 0.13 var(--fuwari-hue) / 0.55);
+  color: inherit;
+  padding: 0.1em 0.25em;
+  border-radius: 2px;
+}
+.dark .fuwari-custom-md mark {
+  background-color: oklch(0.6 0.13 var(--fuwari-hue) / 0.4);
+}
+
+/* ── 下标 / 上标 ──────────────────────────────────────── */
+.fuwari-custom-md sub,
+.fuwari-custom-md sup {
+  font-size: 0.75em;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+}
+.fuwari-custom-md sup {
+  top: -0.5em;
+}
+.fuwari-custom-md sub {
+  bottom: -0.25em;
+}
+
+/* ── 任务列表 ─────────────────────────────────────────── */
+.fuwari-custom-md ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.25rem;
+  margin: 1rem 0;
+}
+.fuwari-custom-md ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.fuwari-custom-md ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  margin-top: 0.35em;
+  user-select: none;
+  display: flex;
+  align-items: center;
+}
+.fuwari-custom-md ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.fuwari-custom-md
+  ul[data-type="taskList"]
+  ul[data-type="taskList"] {
+  margin: 0.25rem 0 0.25rem 0.75rem;
+}
+.fuwari-custom-md ul[data-type="taskList"] input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--fuwari-primary);
+  cursor: pointer;
+  margin: 0;
+}
+
+/* ── 原始 HTML 块 ─────────────────────────────────────── */
+.fuwari-custom-md .html-block-node {
+  margin: 1rem 0;
+}
+.fuwari-custom-md .html-block-node:empty {
+  display: none;
+}
+/* 原始 HTML 块内 details/summary 的兜底样式 */
+.fuwari-custom-md .html-block-node details {
+  border-left: 3px solid var(--fuwari-btn-regular-bg);
+  border-radius: var(--fuwari-radius-large);
+  padding: 0.5rem 1rem;
+  background-color: var(--fuwari-btn-regular-bg);
+}
+.fuwari-custom-md .html-block-node summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.fuwari-custom-md .html-block-node > :first-child {
+  margin-top: 0;
+}
+.fuwari-custom-md .html-block-node > :last-child {
+  margin-bottom: 0;
+}

@@ -57,6 +57,39 @@ export function toLocalDateString(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * 将 Date 格式化为 `<input type="datetime-local">` 所需的本地时间字符串
+ * （形如 `2026-02-17T20:30`）。
+ *
+ * 不能用 `toISOString()`：它返回的是 UTC（中时区）挂钟时间，而
+ * datetime-local 控件按「本地时间」解释它的 value，直接用会导致
+ * 编辑器里显示/回填的时间比本地时间偏移一个时区。
+ */
+export function toLocalDateTimeInputValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return [
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  ].join("");
+}
+
+/**
+ * 将 `<input type="datetime-local">` 的本地时间串（形如 `2026-02-17T20:30`）
+ * 转成 UTC 的 ISO 字符串；为空或非法时返回 `undefined`。
+ *
+ * 需要这个函数而不是直接 `new Date(value).toISOString()`：
+ * 用户清空该输入框时 value 为 `""`，`new Date("")` 是 Invalid Date，
+ * 再调用 `toISOString()` 会抛 RangeError（表现为「发布失败」）。
+ *
+ * 返回 `undefined` 的语义：新建时由服务端取默认值（当前时间），
+ * 编辑时表示「不修改发布时间」。
+ */
+export function localDateTimeInputToIso(value: string): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
 export function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return "0 Bytes";
   const k = 1024;

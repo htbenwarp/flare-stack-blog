@@ -3,6 +3,11 @@ import { generateHTML } from "@tiptap/html";
 import StarterKit from "@tiptap/starter-kit";
 import { Image } from "@tiptap/extension-image";
 import { Link } from "@tiptap/extension-link";
+import Highlight from "@tiptap/extension-highlight";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
+import TaskItem from "@tiptap/extension-task-item";
+import TaskList from "@tiptap/extension-task-list";
 import { extractImageKey } from "@/features/media/utils/media.utils";
 import { highlight } from "@/lib/shiki";
 import { CodeBlockExtension } from "@/features/posts/editor/extensions/code-block/index";
@@ -10,6 +15,7 @@ import { DetailsBlock } from "@/features/posts/editor/extensions/details-block/i
 import { EmphasisCjk } from "@/features/posts/editor/extensions/emphasis-cjk/index";
 import { FootnoteTip } from "@/features/posts/editor/extensions/footnote-tip/index";
 import { GithubCard } from "@/features/posts/editor/extensions/github-card/index";
+import { HtmlBlockNode } from "@/features/posts/editor/extensions/html-block";
 import { IframeExtension } from "@/features/posts/editor/extensions/iframe/index";
 import { ImageUpload as UploadImage } from "@/features/posts/editor/extensions/upload-image/index";
 import { BlockQuoteExtension } from "@/features/posts/editor/extensions/typography/block-quote";
@@ -152,6 +158,16 @@ function getEditorExtensions() {
     }),
     Image,
     Link.configure({ openOnClick: false }),
+
+    // Markdown 行内样式拓展：==高亮==、下标、上标
+    Highlight,
+    Subscript,
+    Superscript,
+    // 任务列表
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    // 原始 HTML 块
+    HtmlBlockNode,
 
     // 表格扩展（自定义组合）
     ...TableBlockExtension,

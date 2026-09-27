@@ -4,13 +4,17 @@ import { createMomentFn } from "@/features/moments/api/moments.api";
 import { FuwariCommentEditor } from "@/features/theme/themes/fuwari/components/comments/editor/comment-editor"; // 复用评论的编辑器？或者使用 Tiptap 简化版
 import type { JSONContent } from "@tiptap/react";
 import { toast } from "sonner";
+import { localDateTimeInputToIso, toLocalDateTimeInputValue } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 export function MomentEditor() {
   const queryClient = useQueryClient();
   const [content, setContent] = useState<JSONContent | null>(null);
   const [location, setLocation] = useState("");
-  const [publishedAt, setPublishedAt] = useState(new Date().toISOString().slice(0, 16)); // datetime-local 格式
+  const [publishedAt, setPublishedAt] = useState(() =>
+    // datetime-local 需要本地时间，不能用 toISOString()（那是 UTC/中时区）
+    toLocalDateTimeInputValue(new Date()),
+  ); // datetime-local 格式
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -25,7 +29,8 @@ export function MomentEditor() {
           content,
           location: location || undefined,
           deviceInfo,
-          publishedAt: new Date(publishedAt).toISOString(),
+          // 清空时间时返回 undefined，交给服务端默认（当前时间）
+          publishedAt: localDateTimeInputToIso(publishedAt),
         },
       });
     },

@@ -20,14 +20,20 @@ import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getLinkedPostsFn } from "@/features/media/api/media.api";
-import type { MediaAsset } from "@/features/media/components/media-library/types";
+import type {
+  MediaAsset,
+  MediaDirectoryFile,
+} from "@/features/media/components/media-library/types";
 import { MEDIA_KEYS } from "@/features/media/queries";
 import { useDelayUnmount } from "@/hooks/use-delay-unmount";
 import { cn, formatBytes } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
+/** DB rows and directory-listing entries share every field this modal reads. */
+type PreviewAsset = MediaAsset | MediaDirectoryFile;
+
 interface MediaPreviewModalProps {
-  asset: MediaAsset | null;
+  asset: PreviewAsset | null;
   onClose: () => void;
   onUpdateName: (key: string, name: string) => Promise<void>;
   onDelete: (key: string) => Promise<void>;
@@ -43,7 +49,7 @@ export function MediaPreviewModal({
   const shouldRender = useDelayUnmount(isMounted, 200);
 
   // Persist asset during exit animation
-  const [activeAsset, setActiveAsset] = useState<MediaAsset | null>(asset);
+  const [activeAsset, setActiveAsset] = useState<PreviewAsset | null>(asset);
 
   // Editing state
   const [isEditing, setIsEditing] = useState(false);
@@ -270,7 +276,9 @@ export function MediaPreviewModal({
                   <Calendar size={10} /> {m.media_preview_created()}
                 </div>
                 <div className="text-sm font-mono font-medium uppercase">
-                  {new Date(activeAsset.createdAt).toLocaleDateString()}
+                  {activeAsset.createdAt
+                    ? new Date(activeAsset.createdAt).toLocaleDateString()
+                    : m.media_grid_unknown_size()}
                 </div>
               </div>
             </div>

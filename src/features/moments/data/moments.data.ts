@@ -5,11 +5,33 @@ import type { JSONContent } from "@tiptap/react";
 
 const DEFAULT_PAGE_SIZE = 20;
 
+/**
+ * 客户端时区偏移（分钟，即 `Date.prototype.getTimezoneOffset()` 的值）。
+ * 约定 `本地时间 = UTC - offset`，例如东八区 offset 为 -480。
+ */
+type TimezoneOffset = number | undefined;
+
+/** 规范并夹取时区偏移，非法或未传时退回 UTC(0)。 */
+function normalizeTimezoneOffset(offset: TimezoneOffset): number {
+  if (offset === undefined || !Number.isFinite(offset)) return 0;
+  return Math.max(-840, Math.min(840, Math.trunc(offset)));
+}
+
 export async function getMomentsByCursor(
   db: DB,
-  options: { cursor?: number; limit?: number; date?: string } = {}
+  options: {
+    cursor?: number;
+    limit?: number;
+    date?: string;
+    timezoneOffset?: number;
+  } = {}
 ) {
-  const { cursor, limit = DEFAULT_PAGE_SIZE, date: filterDate } = options;
+  const {
+    cursor,
+    limit = DEFAULT_PAGE_SIZE,
+    date: filterDate,
+    timezoneOffset,
+  } = options;
 
   const whereClauses = [
     eq(PostsTable.postType, "moment"),
@@ -20,11 +42,15 @@ export async function getMomentsByCursor(
     whereClauses.push(lt(PostsTable.publishedAt, new Date(cursor)));
   }
 
-  // 日期过滤：使用本地时区构造当天范围
+  // 日期过滤：按「客户端本地时区」构造当天范围。
+  // Workers 上服务端时区恒为 UTC，因此不能直接用 new Date(y, m-1, d)，
+  // 否则东八区凌晨发布的动态会被算到前一天。
+  // 本地 = UTC - offset  ⇒  UTC = 本地挂钟 + offset
   if (filterDate) {
     const [year, month, day] = filterDate.split("-").map(Number);
-    const startOfDay = new Date(year, month - 1, day);
-    const endOfDay = new Date(year, month - 1, day + 1);
+    const offsetMs = normalizeTimezoneOffset(timezoneOffset) * 60_000;
+    const startOfDay = new Date(Date.UTC(year, month - 1, day) + offsetMs);
+    const endOfDay = new Date(Date.UTC(year, month - 1, day + 1) + offsetMs);
 
     whereClauses.push(gte(PostsTable.publishedAt, startOfDay));
     whereClauses.push(lt(PostsTable.publishedAt, endOfDay));
@@ -99,10 +125,19 @@ export async function insertMoment(
   return moment;
 }
 
-export async function getMomentDateDistribution(db: DB) {
+export async function getMomentDateDistribution(
+  db: DB,
+  timezoneOffset?: number
+) {
+  // 按客户端本地时区分组：把存储的 UTC 秒数加上「-offset」分钟即为本地挂钟。
+  // 例如东八区 offset=-480 → '+480 minutes'；服务端自身的 'localtime' 是 UTC，
+  // 用它会导致日历圆点按 UTC 日期落位，与本地日历格错位。
+  const localMinutes = -normalizeTimezoneOffset(timezoneOffset);
+  const modifier = `${localMinutes} minutes`;
+
   const results = await db
     .select({
-      date: sql<string>`strftime('%Y-%m-%d', datetime(${PostsTable.publishedAt}, 'unixepoch', 'localtime'))`.as('date'),
+      date: sql<string>`strftime('%Y-%m-%d', datetime(${PostsTable.publishedAt}, 'unixepoch', ${modifier}))`.as('date'),
       count: count().as('count'),
     })
     .from(PostsTable)

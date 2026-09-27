@@ -8,7 +8,8 @@ import {
   MAX_FILE_SIZE,
 } from "@/features/media/media.schema";
 import { m } from "@/paraglide/messages";
-import type { UploadItem } from "../types";
+import type { MediaFolder, UploadItem } from "../types";
+import { FolderDropdown } from "./folder-dropdown";
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -19,6 +20,18 @@ interface UploadModalProps {
   onDragOver: (e: React.DragEvent) => void;
   onDragLeave: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
+  /** Target folder for new uploads; omit to hide the folder picker. */
+  folder?: string;
+  folders?: Array<MediaFolder>;
+  onFolderChange?: (folder: string) => void;
+  onCreateFolder?: (
+    name: string,
+    parent: string,
+  ) => Promise<string | undefined>;
+  isCreatingFolder?: boolean;
+  loadFolders?: (folder: string) => Promise<Array<MediaFolder>>;
+  /** Disables the picker while the queue is being processed. */
+  isUploading?: boolean;
 }
 
 function UploadModalInternal({
@@ -30,6 +43,13 @@ function UploadModalInternal({
   onDragOver,
   onDragLeave,
   onDrop,
+  folder,
+  folders,
+  onFolderChange,
+  onCreateFolder,
+  isCreatingFolder,
+  loadFolders,
+  isUploading = false,
 }: UploadModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const accept = ACCEPTED_IMAGE_TYPES.join(",");
@@ -98,6 +118,26 @@ function UploadModalInternal({
 
         {/* Body */}
         <div className="px-6 space-y-6 overflow-y-auto custom-scrollbar flex-1 min-h-0 pb-2">
+          {/* Target folder picker */}
+          {onFolderChange && (
+            <div className="space-y-2">
+              <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground/60">
+                {m.media_upload_target_folder()}
+              </p>
+              <FolderDropdown
+                value={folder ?? ""}
+                folders={folders ?? []}
+                labelPrefix={m.media_upload_btn_choose_folder()}
+                onChange={onFolderChange}
+                onCreateFolder={onCreateFolder}
+                isCreatingFolder={isCreatingFolder}
+                startFolder={folder ?? ""}
+                loadFolders={loadFolders}
+                disabled={isUploading}
+              />
+            </div>
+          )}
+
           {/* Drop Zone */}
           <div
             onClick={() => fileInputRef.current?.click()}

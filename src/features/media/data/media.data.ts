@@ -37,6 +37,56 @@ export async function deleteMedia(db: DB, key: string) {
   await db.delete(MediaTable).where(eq(MediaTable.key, key));
 }
 
+/* ======================= Folder (prefix) helpers ======================= */
+
+export async function getMediaByKeys(
+  db: DB,
+  keys: Array<string>,
+): Promise<Array<Media>> {
+  if (keys.length === 0) return [];
+  return await db.select().from(MediaTable).where(inArray(MediaTable.key, keys));
+}
+
+export async function deleteMediaByKeys(
+  db: DB,
+  keys: Array<string>,
+): Promise<void> {
+  if (keys.length === 0) return;
+  await db.delete(MediaTable).where(inArray(MediaTable.key, keys));
+}
+
+/**
+ * Rewrite every stored key that starts with `oldPrefix`.
+ *
+ * `url` is derived from `key`, so it must be rewritten in the same statement —
+ * otherwise every existing `/images/<old key>` link goes stale.
+ */
+export async function updateMediaKeyPrefix(
+  db: DB,
+  oldPrefix: string,
+  newPrefix: string,
+): Promise<void> {
+  const suffix = sql`substr(${MediaTable.key}, ${oldPrefix.length + 1})`;
+  await db
+    .update(MediaTable)
+    .set({
+      key: sql`${newPrefix} || ${suffix}`,
+      url: sql`'/images/' || ${newPrefix} || ${suffix}`,
+    })
+    .where(sql`substr(${MediaTable.key}, 1, ${oldPrefix.length}) = ${oldPrefix}`);
+}
+
+export async function updateMediaKeyAndUrl(
+  db: DB,
+  oldKey: string,
+  newKey: string,
+): Promise<void> {
+  await db
+    .update(MediaTable)
+    .set({ key: newKey, url: `/images/${newKey}` })
+    .where(eq(MediaTable.key, oldKey));
+}
+
 export async function updateMediaName(db: DB, key: string, name: string) {
   await db
     .update(MediaTable)

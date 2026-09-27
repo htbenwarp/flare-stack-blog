@@ -4,6 +4,8 @@ import { uploadImageFn } from "@/features/media/api/media.api";
 export async function uploadMomentImage(file: File): Promise<{ url: string }> {
   const formData = new FormData();
   formData.append("image", file);
+  // Moments uploads are grouped into their own virtual folder (R2 key prefix).
+  formData.append("folder", "moments");
   const result = await uploadImageFn({ data: formData });
 
   let key = "";

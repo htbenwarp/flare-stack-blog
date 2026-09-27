@@ -8,6 +8,7 @@ import {
   updateMomentFn,
   reverseGeocodeFn,
 } from "@/features/moments/api/moments.api";
+import { localDateTimeInputToIso, toLocalDateTimeInputValue } from "@/lib/utils";
 import { MinimalEditor } from "./minimal-editor";
 import type { JSONContent } from "@tiptap/react";
 
@@ -71,8 +72,9 @@ export function MomentEditorModal({
     images: string[];
   } | null>(null);
   const [location, setLocation] = useState("");
-  const [publishedAt, setPublishedAt] = useState(
-    new Date().toISOString().slice(0, 16),
+  const [publishedAt, setPublishedAt] = useState(() =>
+    // datetime-local 需要本地时间，不能用 toISOString()（那是 UTC/中时区）
+    toLocalDateTimeInputValue(new Date()),
   );
   const [isLocating, setIsLocating] = useState(false);
 
@@ -102,14 +104,15 @@ export function MomentEditorModal({
   useEffect(() => {
     if (initialData) {
       setLocation(initialData.location ?? "");
+      // 已存储的是 UTC 瞬时值，这里要转成本地时间去回填 datetime-local
       setPublishedAt(
-        new Date(initialData.publishedAt).toISOString().slice(0, 16),
+        toLocalDateTimeInputValue(new Date(initialData.publishedAt)),
       );
       // 编辑器会自行从 initialContent 中分离图片
     } else {
       setEditorData(null);
       setLocation("");
-      setPublishedAt(new Date().toISOString().slice(0, 16));
+      setPublishedAt(toLocalDateTimeInputValue(new Date()));
     }
   }, [initialData]);
 
@@ -139,7 +142,8 @@ export function MomentEditorModal({
           content,
           location: location || undefined,
           deviceInfo,
-          publishedAt: new Date(publishedAt).toISOString(),
+          // 清空时间时返回 undefined，交给服务端默认（当前时间）
+          publishedAt: localDateTimeInputToIso(publishedAt),
         },
       });
     },
@@ -161,7 +165,8 @@ export function MomentEditorModal({
           id: initialData.id,
           content,
           location: location || undefined,
-          publishedAt: new Date(publishedAt).toISOString(),
+          // 清空时间时返回 undefined，表示不修改发布时间
+          publishedAt: localDateTimeInputToIso(publishedAt),
         },
       });
     },

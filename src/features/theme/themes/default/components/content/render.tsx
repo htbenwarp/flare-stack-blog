@@ -98,6 +98,15 @@ export function renderReact(content: JSONContent) {
           const latex = (node.attrs as { latex?: string }).latex ?? "";
           return <MathFormula latex={latex} mode="block" />;
         },
+        htmlBlock: ({ node }) => {
+          const html = (node.attrs as { html?: string }).html ?? "";
+          return (
+            <div
+              className="html-block-node"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          );
+        },
       },
     },
   });

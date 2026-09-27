@@ -25,6 +25,10 @@ import {
   Bookmark,
   ChevronRight,
   Highlighter,
+  ListTodo,
+  PaintBucket,
+  Subscript,
+  Superscript,
   ExternalLink,
   SquareCode,
 } from "lucide-react";
@@ -106,6 +110,10 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
           isEmphasisCjk: false,
           isDetailsActive: false,
           isFootnoteActive: false,
+          isHighlight: false,
+          isSubscript: false,
+          isSuperscript: false,
+          isTaskList: false,
         };
       }
       return {
@@ -126,6 +134,10 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         isEmphasisCjk: ctx.editor.isActive("emphasisCjk"),
         isDetailsActive: ctx.editor.isActive("detailsBlock"),
         isFootnoteActive: ctx.editor.isActive("footnoteTip"),
+        isHighlight: ctx.editor.isActive("highlight"),
+        isSubscript: ctx.editor.isActive("subscript"),
+        isSuperscript: ctx.editor.isActive("superscript"),
+        isTaskList: ctx.editor.isActive("taskList"),
       };
     },
   }) || {
@@ -146,6 +158,10 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
     isEmphasisCjk: false,
     isDetailsActive: false,
     isFootnoteActive: false,
+    isHighlight: false,
+    isSubscript: false,
+    isSuperscript: false,
+    isTaskList: false,
   };
 
   return (
@@ -196,6 +212,24 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         label={m.editor_toolbar_strike()}
       />
       <ToolbarButton
+        onClick={() => editor?.chain().focus().toggleHighlight().run()}
+        isActive={state.isHighlight}
+        icon={PaintBucket}
+        label={m.editor_toolbar_highlight?.() ?? "高亮"}
+      />
+      <ToolbarButton
+        onClick={() => editor?.chain().focus().toggleSubscript().run()}
+        isActive={state.isSubscript}
+        icon={Subscript}
+        label={m.editor_toolbar_subscript?.() ?? "下标"}
+      />
+      <ToolbarButton
+        onClick={() => editor?.chain().focus().toggleSuperscript().run()}
+        isActive={state.isSuperscript}
+        icon={Superscript}
+        label={m.editor_toolbar_superscript?.() ?? "上标"}
+      />
+      <ToolbarButton
         onClick={() => editor?.chain().focus().toggleCode().run()}
         isActive={state.isCode}
         icon={Code}
@@ -234,6 +268,12 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         isActive={state.isOrderedList}
         icon={ListOrdered}
         label={m.editor_toolbar_ordered_list()}
+      />
+      <ToolbarButton
+        onClick={() => editor?.chain().focus().toggleTaskList().run()}
+        isActive={state.isTaskList}
+        icon={ListTodo}
+        label={m.editor_toolbar_task_list?.() ?? "任务列表"}
       />
       <ToolbarButton
         onClick={() => editor?.chain().focus().toggleBlockquote().run()}

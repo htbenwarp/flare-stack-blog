@@ -45,10 +45,18 @@ export const createMomentFn = createServerFn({ method: "POST" })
     });
   });
 
+/**
+ * 客户端时区偏移（分钟，即 `Date.prototype.getTimezoneOffset()`）。
+ * 服务端在 Cloudflare Workers 上恒为 UTC，必须由客户端告知时区才能
+ * 按用户本地日期做过滤与分组。
+ */
+const TimezoneOffsetSchema = z.number().int().min(-840).max(840).optional();
+
 const GetMomentsInputSchema = z.object({
   cursor: z.number().optional(),
   limit: z.number().min(1).max(50).optional().default(20),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  timezoneOffset: TimezoneOffsetSchema,
 });
 
 export const getMomentsFn = createServerFn()
@@ -59,13 +67,22 @@ export const getMomentsFn = createServerFn()
       cursor: data.cursor,
       limit: data.limit,
       date: data.date,
+      timezoneOffset: data.timezoneOffset,
     });
   });
 
+const GetMomentDatesInputSchema = z.object({
+  timezoneOffset: TimezoneOffsetSchema,
+});
+
 export const getMomentDatesFn = createServerFn()
   .middleware([dbMiddleware])
-  .handler(async ({ context }) => {
-    const dates = await MomentsData.getMomentDateDistribution(context.db);
+  .inputValidator(GetMomentDatesInputSchema)
+  .handler(async ({ data, context }) => {
+    const dates = await MomentsData.getMomentDateDistribution(
+      context.db,
+      data.timezoneOffset,
+    );
     return dates ?? [];
   });
 

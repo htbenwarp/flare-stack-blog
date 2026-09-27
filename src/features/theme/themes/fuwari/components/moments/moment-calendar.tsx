@@ -12,9 +12,13 @@ export function MomentCalendar({
   selectedDate,
   onDateChange,
 }: MomentCalendarProps) {
+  // 浏览器时区偏移（分钟）：让服务端按本地日期分组，
+  // 否则日历圆点会落在 UTC 日期上、与本地日历格错位。
+  const timezoneOffset = new Date().getTimezoneOffset();
+
   const { data: dates = [], isLoading } = useQuery({
-    queryKey: ["moment-dates"],
-    queryFn: () => getMomentDatesFn(),
+    queryKey: ["moment-dates", timezoneOffset],
+    queryFn: () => getMomentDatesFn({ data: { timezoneOffset } }),
     staleTime: 0,                 // 每次都重新获取，确保新动态的日期立即出现
     refetchOnWindowFocus: true,
     initialData: [],
